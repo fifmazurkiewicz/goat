@@ -53,16 +53,27 @@ const router = createBrowserRouter([
 
 export default function App() {
   const setSession = useAuthStore((state) => state.setSession);
+  const setInitialized = useAuthStore((state) => state.setInitialized);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    let active = true;
+
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!active) return;
+      setSession(data.session);
+      setInitialized();
+    });
 
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      setInitialized();
     });
 
-    return () => subscription.subscription.unsubscribe();
-  }, [setSession]);
+    return () => {
+      active = false;
+      subscription.subscription.unsubscribe();
+    };
+  }, [setSession, setInitialized]);
 
   return (
     <>

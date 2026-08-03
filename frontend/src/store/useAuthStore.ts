@@ -5,7 +5,10 @@ interface AuthState {
   user: User | null;
   session: Session | null;
   isAdmin: boolean;
+  /** false do pierwszego `getSession` — chroni przed bounce OAuth → /login. */
+  isInitialized: boolean;
   setSession: (session: Session | null) => void;
+  setInitialized: () => void;
   signOut: () => void;
 }
 
@@ -18,10 +21,12 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   session: null,
   isAdmin: false,
+  isInitialized: false,
   setSession: (session) =>
     set({
       session,
       user: session?.user ?? null,
     }),
+  setInitialized: () => set({ isInitialized: true }),
   signOut: () => set({ user: null, session: null, isAdmin: false }),
 }));

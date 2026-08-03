@@ -5,13 +5,21 @@ import { useAuthStore } from "@/store/useAuthStore";
 
 /**
  * Guard "zalogowany" dla tras chronionych (docs/technical/frontend.md #1).
- * Guard "min. 1 aktywna persona" na /chat i /plans jest świadomie odłożony
- * (ADR-8) — dodać dopiero jako loader route'u, nie tutaj, żeby uniknąć
- * duplikowania fetcha z `usePersonaStore`.
+ * Czeka na inicjalizację sesji (OAuth PKCE / getSession), żeby nie wyrzucać
+ * na /login w momencie gdy token jest właśnie wymieniany po powrocie z Google.
  */
 export function ProtectedRoute({ children }: PropsWithChildren) {
   const session = useAuthStore((state) => state.session);
+  const isInitialized = useAuthStore((state) => state.isInitialized);
   const location = useLocation();
+
+  if (!isInitialized) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+        Ładowanie…
+      </div>
+    );
+  }
 
   if (!session) {
     return <Navigate to="/login" replace state={{ from: location }} />;
@@ -28,7 +36,16 @@ export function ProtectedRoute({ children }: PropsWithChildren) {
 export function AdminRoute({ children }: PropsWithChildren) {
   const session = useAuthStore((state) => state.session);
   const isAdmin = useAuthStore((state) => state.isAdmin);
+  const isInitialized = useAuthStore((state) => state.isInitialized);
   const location = useLocation();
+
+  if (!isInitialized) {
+    return (
+      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+        Ładowanie…
+      </div>
+    );
+  }
 
   if (!session) {
     return <Navigate to="/login" replace state={{ from: location }} />;

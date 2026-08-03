@@ -15,10 +15,12 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey);
  * Logowanie wyłącznie przez Google OAuth (ADR-5) — bez magic linka.
  */
 export async function signInWithGoogle() {
+  // Po Google wracamy od razu do aplikacji (nie na gołe `/`), żeby uniknąć
+  // wrażenia "strony głównej". URL musi być na liście Redirect URLs w Supabase.
   return supabase.auth.signInWithOAuth({
     provider: "google",
     options: {
-      redirectTo: window.location.origin,
+      redirectTo: `${window.location.origin}/personas`,
     },
   });
 }
