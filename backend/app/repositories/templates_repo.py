@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from typing import Any
+from uuid import UUID
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
@@ -43,7 +44,7 @@ class PersonaTemplatesRepo:
                 "FROM persona_templates ORDER BY label"
             )
         )
-        return [PersonaTemplateRow(**row._mapping) for row in result]
+        return [_row_to_persona_template(row) for row in result]
 
     async def get(self, template_id: str) -> PersonaTemplateRow | None:
         result = await self._conn.execute(
@@ -54,7 +55,7 @@ class PersonaTemplatesRepo:
             {"id": template_id},
         )
         row = result.one_or_none()
-        return PersonaTemplateRow(**row._mapping) if row is not None else None
+        return _row_to_persona_template(row) if row is not None else None
 
 
 class PlanTemplatesRepo:
@@ -82,8 +83,19 @@ class PlanTemplatesRepo:
         return _row_to_plan_template(row) if row is not None else None
 
 
+def _stringify_uuid(value: Any) -> Any:
+    return str(value) if isinstance(value, UUID) else value
+
+
+def _row_to_persona_template(row: Any) -> PersonaTemplateRow:
+    mapping = dict(row._mapping)
+    mapping["id"] = _stringify_uuid(mapping["id"])
+    return PersonaTemplateRow(**mapping)
+
+
 def _row_to_plan_template(row: Any) -> PlanTemplateRow:
     mapping = dict(row._mapping)
+    mapping["id"] = _stringify_uuid(mapping["id"])
     for key in ("default_columns", "default_rows"):
         if isinstance(mapping.get(key), str):
             mapping[key] = json.loads(mapping[key])
