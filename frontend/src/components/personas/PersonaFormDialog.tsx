@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { ResponsiveDialog } from "@/components/common/ResponsiveDialog";
 import { PersonaColumnsEditor } from "@/components/personas/PersonaColumnsEditor";
@@ -41,7 +42,12 @@ const DETAIL_LEVEL_OPTIONS: { value: PersonaFormValues["detail_level"]; label: s
  */
 export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDialogProps) {
   const isEdit = Boolean(persona);
-  const { data: templates } = usePersonaTemplates();
+  const {
+    data: templates,
+    isLoading: templatesLoading,
+    isError: templatesError,
+    error: templatesQueryError,
+  } = usePersonaTemplates();
   const { data: planTemplates } = usePlanTemplates();
   const createPersona = useCreatePersona();
   const updatePersona = useUpdatePersona();
@@ -94,11 +100,11 @@ export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDi
   function handleTemplateSelect(templateId: string) {
     const template = templates?.find((t) => t.id === templateId);
     if (!template) return;
-    form.setValue("base_template_id", templateId);
+    form.setValue("base_template_id", templateId, { shouldValidate: true });
     form.setValue("persona_type", template.type);
-    if (!form.getValues("name")) form.setValue("name", template.label);
-    if (!isEdit && !form.getValues("system_prompt")) {
-      form.setValue("system_prompt", template.default_prompt);
+    form.setValue("name", template.label);
+    if (!isEdit) {
+      form.setValue("system_prompt", template.default_prompt, { shouldValidate: true });
     }
   }
 
@@ -132,6 +138,8 @@ export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDi
       } else {
         await createPersona.mutateAsync({
           base_template_id: values.base_template_id,
+          // Backend wymaga `type` — bierzemy z wybranego gotowca (form.persona_type).
+          type: values.persona_type as Persona["type"],
           name: values.name,
           system_prompt: values.system_prompt,
           detail_level: values.detail_level,
@@ -177,30 +185,51 @@ export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDi
           {!isEdit && (
             <div className="space-y-2">
               <Label id="template-label">Wybierz gotowiec</Label>
-              <div
-                role="radiogroup"
-                aria-labelledby="template-label"
-                className="grid grid-cols-1 gap-2 sm:grid-cols-2"
-              >
-                {(templates ?? []).map((template) => (
-                  <label
-                    key={template.id}
-                    className={cn(
-                      "flex cursor-pointer items-center gap-2 rounded-md border p-3 text-sm transition-colors hover:bg-accent",
-                      selectedTemplateId === template.id && "border-primary bg-accent"
-                    )}
-                  >
-                    <input
-                      type="radio"
-                      name="base_template_id"
-                      className="h-4 w-4"
-                      checked={selectedTemplateId === template.id}
-                      onChange={() => handleTemplateSelect(template.id)}
-                    />
-                    {template.label}
-                  </label>
-                ))}
-              </div>
+              {templatesLoading ? (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  aria-label="Ładowanie gotowców"
+                  className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+                >
+                  {[0, 1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
+                </div>
+              ) : templatesError ? (
+                <p className="text-sm text-destructive" role="alert">
+                  {templatesQueryError instanceof ApiError
+                    ? templatesQueryError.message
+                    : "Nie udało się wczytać gotowców. Spróbuj ponownie."}
+                </p>
+              ) : !templates?.length ? (
+                <p className="text-sm text-muted-foreground">Brak gotowców</p>
+              ) : (
+                <div
+                  role="radiogroup"
+                  aria-labelledby="template-label"
+                  className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+                >
+                  {templates.map((template) => (
+                    <label
+                      key={template.id}
+                      className={cn(
+                        "flex cursor-pointer items-center gap-2 rounded-md border p-3 text-sm transition-colors hover:bg-accent",
+                        selectedTemplateId === template.id && "border-primary bg-accent"
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="base_template_id"
+                        className="h-4 w-4"
+                        checked={selectedTemplateId === template.id}
+                        onChange={() => handleTemplateSelect(template.id)}
+                      />
+                      {template.label}
+                    </label>
+                  ))}
+                </div>
+              )}
               {form.formState.errors.base_template_id ? (
                 <p className="text-sm text-destructive">{form.formState.errors.base_template_id.message}</p>
               ) : null}

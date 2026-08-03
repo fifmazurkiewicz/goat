@@ -13,7 +13,18 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routers import account, admin, chat, exercises, health, personas, plans, profile, results
+from app.api.routers import (
+    account,
+    admin,
+    chat,
+    exercises,
+    health,
+    personas,
+    plans,
+    profile,
+    results,
+    templates,
+)
 from app.core.config import settings
 from app.core.db import service_role_connection
 from app.core.exceptions import register_exception_handlers
@@ -75,6 +86,7 @@ register_exception_handlers(app)
 app.include_router(health.router)
 
 app.include_router(personas.router, prefix="/api/v1")
+app.include_router(templates.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(profile.router, prefix="/api/v1")
 app.include_router(account.router, prefix="/api/v1")

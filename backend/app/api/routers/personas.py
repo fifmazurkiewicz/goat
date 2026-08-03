@@ -16,21 +16,29 @@ from app.domain.personas.service import PersonaService
 from app.models.schemas import (
     PersonaCreate,
     PersonaOut,
+    PersonasListOut,
     PersonaShareUpdate,
     PersonaUpdate,
 )
 from app.repositories.personas_repo import PersonasRepo
-from app.repositories.profiles_repo import ProfilesRepo
+from app.repositories.profiles_repo import DEFAULT_MAX_ACTIVE_PERSONAS, ProfilesRepo
 
 router = APIRouter(prefix="/personas", tags=["personas"])
 
 
-@router.get("/", response_model=list[PersonaOut])
-async def list_personas(auth: AuthContext = Depends(get_current_user)) -> list[PersonaOut]:
+@router.get("/", response_model=PersonasListOut)
+async def list_personas(auth: AuthContext = Depends(get_current_user)) -> PersonasListOut:
     async with rls_connection(auth.claims) as conn:
-        service = PersonaService(PersonasRepo(conn), ProfilesRepo(conn), get_moderation_service())
+        profiles_repo = ProfilesRepo(conn)
+        service = PersonaService(PersonasRepo(conn), profiles_repo, get_moderation_service())
         rows = await service.list_own(auth.user_id)
-    return [PersonaOut.model_validate(row) for row in rows]
+        profile = await profiles_repo.get(auth.user_id)
+    return PersonasListOut(
+        items=[PersonaOut.model_validate(row) for row in rows],
+        max_active_personas=(
+            profile.max_active_personas if profile is not None else DEFAULT_MAX_ACTIVE_PERSONAS
+        ),
+    )
 
 
 @router.get("/community", response_model=list[PersonaOut])

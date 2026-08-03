@@ -94,6 +94,38 @@ class PersonaShareUpdate(BaseModel):
     is_shared: bool
 
 
+class PersonasListOut(BaseModel):
+    """`GET /api/v1/personas` — lista + limit aktywnych z `profiles` (ADR-12)."""
+
+    items: list[PersonaOut]
+    max_active_personas: int
+
+
+class PersonaTemplateOut(BaseModel):
+    """`GET /api/v1/persona-templates` — gotowce person (read-only seed)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    type: PersonaType
+    default_prompt: str
+    label: str
+    created_at: datetime
+
+
+class PlanTemplateOut(BaseModel):
+    """`GET /api/v1/plan-templates` — gotowce struktury dnia (read-only seed)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    name: str
+    suggested_for: list[str]
+    default_columns: list[str]
+    default_rows: list[Any] = Field(default_factory=list)
+    created_at: datetime
+
+
 # ============ Profil użytkownika (biometria) — patrz database-schema.md, ai-pipeline.md §0, ADR-11 ============
 
 Sex = Literal["male", "female", "other"]

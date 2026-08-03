@@ -65,6 +65,7 @@ export interface PlanTemplate {
 
 export interface PersonaCreateInput {
   base_template_id: string;
+  type: PersonaType;
   name: string;
   system_prompt: string;
   detail_level: DetailLevel;

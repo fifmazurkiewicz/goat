@@ -19,6 +19,7 @@ class PersonaTemplateRow:
     type: str
     default_prompt: str
     label: str
+    created_at: Any
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,6 +29,7 @@ class PlanTemplateRow:
     suggested_for: list[str]
     default_columns: list[str]
     default_rows: list[Any]
+    created_at: Any
 
 
 class PersonaTemplatesRepo:
@@ -36,13 +38,19 @@ class PersonaTemplatesRepo:
 
     async def list_all(self) -> list[PersonaTemplateRow]:
         result = await self._conn.execute(
-            text("SELECT id, type, default_prompt, label FROM persona_templates ORDER BY label")
+            text(
+                "SELECT id, type, default_prompt, label, created_at "
+                "FROM persona_templates ORDER BY label"
+            )
         )
         return [PersonaTemplateRow(**row._mapping) for row in result]
 
     async def get(self, template_id: str) -> PersonaTemplateRow | None:
         result = await self._conn.execute(
-            text("SELECT id, type, default_prompt, label FROM persona_templates WHERE id = :id"),
+            text(
+                "SELECT id, type, default_prompt, label, created_at "
+                "FROM persona_templates WHERE id = :id"
+            ),
             {"id": template_id},
         )
         row = result.one_or_none()
@@ -56,7 +64,7 @@ class PlanTemplatesRepo:
     async def list_all(self) -> list[PlanTemplateRow]:
         result = await self._conn.execute(
             text(
-                "SELECT id, name, suggested_for, default_columns, default_rows "
+                "SELECT id, name, suggested_for, default_columns, default_rows, created_at "
                 "FROM plan_templates ORDER BY name"
             )
         )
@@ -65,7 +73,7 @@ class PlanTemplatesRepo:
     async def get(self, template_id: str) -> PlanTemplateRow | None:
         result = await self._conn.execute(
             text(
-                "SELECT id, name, suggested_for, default_columns, default_rows "
+                "SELECT id, name, suggested_for, default_columns, default_rows, created_at "
                 "FROM plan_templates WHERE id = :id"
             ),
             {"id": template_id},
