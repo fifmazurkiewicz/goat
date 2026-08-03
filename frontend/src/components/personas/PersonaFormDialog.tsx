@@ -184,18 +184,14 @@ export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDi
         <form id="persona-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
           {!isEdit && (
             <div className="space-y-2">
-              <Label id="template-label">Wybierz gotowiec</Label>
+              <Label htmlFor="persona-template">Wybierz gotowiec</Label>
               {templatesLoading ? (
-                <div
+                <Skeleton
+                  className="h-10 w-full"
                   role="status"
                   aria-live="polite"
                   aria-label="Ładowanie gotowców"
-                  className="grid grid-cols-1 gap-2 sm:grid-cols-2"
-                >
-                  {[0, 1, 2, 3].map((i) => (
-                    <Skeleton key={i} className="h-12 w-full" />
-                  ))}
-                </div>
+                />
               ) : templatesError ? (
                 <p className="text-sm text-destructive" role="alert">
                   {templatesQueryError instanceof ApiError
@@ -205,30 +201,21 @@ export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDi
               ) : !templates?.length ? (
                 <p className="text-sm text-muted-foreground">Brak gotowców</p>
               ) : (
-                <div
-                  role="radiogroup"
-                  aria-labelledby="template-label"
-                  className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+                <Select
+                  value={selectedTemplateId || undefined}
+                  onValueChange={handleTemplateSelect}
                 >
-                  {templates.map((template) => (
-                    <label
-                      key={template.id}
-                      className={cn(
-                        "flex cursor-pointer items-center gap-2 rounded-md border p-3 text-sm transition-colors hover:bg-accent",
-                        selectedTemplateId === template.id && "border-primary bg-accent"
-                      )}
-                    >
-                      <input
-                        type="radio"
-                        name="base_template_id"
-                        className="h-4 w-4"
-                        checked={selectedTemplateId === template.id}
-                        onChange={() => handleTemplateSelect(template.id)}
-                      />
-                      {template.label}
-                    </label>
-                  ))}
-                </div>
+                  <SelectTrigger id="persona-template" aria-invalid={Boolean(form.formState.errors.base_template_id)}>
+                    <SelectValue placeholder="Wybierz gotowiec" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               )}
               {form.formState.errors.base_template_id ? (
                 <p className="text-sm text-destructive">{form.formState.errors.base_template_id.message}</p>
