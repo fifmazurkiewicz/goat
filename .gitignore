@@ -149,6 +149,8 @@ activemq-data/
 
 # Environments
 .env
+.env.*
+!.env.example
 .envrc
 .venv
 env/
@@ -156,6 +158,13 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# Frontend env (Vite) — sekrety lokalne, nigdy commitowane
+frontend/.env.local
+frontend/.env*.local
+
+# Lokalny stan hooków Cursora (nie jest kodem projektu)
+.cursor/hooks/state/
 
 # Spyder project settings
 .spyderproject

@@ -1,0 +1,94 @@
+"""Definicje narzędzi (tool calling) dostępnych dla `chat_model` w każdej rozmowie.
+
+Dwa narzędzia, ta sama klasa wzorca (batch/częściowa aktualizacja, walidacja Pydantic,
+błąd wraca do modelu jako tool response — NIGDY wyjątek/500):
+- `log_result` — batch zapisu wyników (ai-pipeline.md sekcja 2).
+- `update_user_profile` — częściowa aktualizacja profilu biometrycznego (ai-pipeline.md
+  sekcja 0, ADR-11). Dostępne dla KAŻDEJ persony, nie tylko dietetyka/trenera — user może
+  podać wagę w rozmowie z dowolną personą.
+
+Schematy w formacie OpenRouter/OpenAI `tools=[...]` (function calling) — przekazywane
+wprost do `ChatOrchestrator`/`app/llm/openrouter_client.py`, jeszcze niezaimplementowane
+(patrz `app/domain/chat/orchestrator.py`).
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from app.models.schemas import CRITICAL_PROFILE_FIELDS, UserProfileOut
+
+UPDATE_USER_PROFILE_TOOL_SCHEMA: dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "update_user_profile",
+        "description": (
+            "Zapisuje dane biometryczne/cele usera (waga, wzrost, wiek, poziom aktywności, "
+            "cel) podane w rozmowie. Wołaj gdy user poda którekolwiek z tych danych, "
+            "niezależnie od tego jakiej persony/roli dotyczy rozmowa — profil jest "
+            "wspólny. Częściowa aktualizacja: podawaj TYLKO pola, które user faktycznie "
+            "właśnie podał, nigdy nie zgaduj brakujących."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "height_cm": {"type": "number", "description": "Wzrost w centymetrach (100-250)."},
+                "weight_kg": {"type": "number", "description": "Waga w kilogramach (20-400)."},
+                "date_of_birth": {
+                    "type": "string",
+                    "format": "date",
+                    "description": "Data urodzenia, format ISO 8601 (YYYY-MM-DD).",
+                },
+                "sex": {"type": "string", "enum": ["male", "female", "other"]},
+                "activity_level": {
+                    "type": "string",
+                    "enum": ["sedentary", "light", "moderate", "active", "very_active"],
+                },
+                "primary_goal": {
+                    "type": "string",
+                    "enum": [
+                        "lose_weight",
+                        "build_muscle",
+                        "improve_endurance",
+                        "general_health",
+                        "sport_specific",
+                    ],
+                },
+                "notes": {
+                    "type": "string",
+                    "description": "Dodatkowy wolny kontekst niepasujący do pól strukturalnych.",
+                },
+            },
+            "additionalProperties": False,
+        },
+    },
+}
+
+
+def build_profile_intake_instruction(profile: UserProfileOut | None) -> str | None:
+    """Dynamiczny segment system promptu (ai-pipeline.md sekcja 0) — `None` gdy profil
+    kompletny (nic do doklejenia). Wołane przez `ContextBuilder` przy KAŻDEJ wiadomości,
+    nie tylko pierwszej — instrukcja znika sama, gdy dane się uzupełnią, bez potrzeby
+    śledzenia "czy to już było pytane".
+    """
+    missing = list(CRITICAL_PROFILE_FIELDS) if profile is None else profile.missing_critical_fields
+    if not missing:
+        return None
+
+    missing_labels = {
+        "height_cm": "wzrost",
+        "weight_kg": "waga",
+        "date_of_birth": "data urodzenia / wiek",
+        "activity_level": "poziom aktywności",
+        "primary_goal": "główny cel",
+    }
+    missing_pl = ", ".join(missing_labels[field] for field in missing)
+
+    return (
+        "[KONTEKST: PROFIL UŻYTKOWNIKA NIEKOMPLETNY]\n"
+        f"Brakuje: {missing_pl}. Zanim przejdziesz do właściwego coachingu, dopytaj "
+        "naturalnie o brakujące dane w 1-2 pierwszych wiadomościach tej rozmowy (nie "
+        "jako sztywna ankieta). Gdy user je poda, zapisz je narzędziem "
+        "update_user_profile. Nie blokuj rozmowy, jeśli user nie chce podać któregoś "
+        "pola — kontynuuj z tym, co masz."
+    )
