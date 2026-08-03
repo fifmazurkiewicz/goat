@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 PersonaType = Literal[
     "personal_trainer",
@@ -45,6 +45,12 @@ class PersonaCreate(PersonaBase):
     # PersonaService) PRZED zapisem — fail fast, patrz database-schema.md.
     template_overrides: dict[str, Any] | None = None
 
+    @model_validator(mode="after")
+    def _custom_requires_category(self) -> "PersonaCreate":
+        if self.type == "custom" and not self.custom_result_category:
+            raise ValueError("custom_result_category jest wymagane dla type='custom'.")
+        return self
+
 
 class PersonaUpdate(BaseModel):
     """Wszystkie pola opcjonalne — semantyka PATCH.
@@ -73,12 +79,19 @@ class PersonaOut(PersonaBase):
     base_template_id: str | None = None
     plan_template_id: str | None = None
     template_overrides: dict[str, Any] | None = None
+    slug: str
     moderation_status: ModerationStatus = "approved"
     preamble_version: int = 1
     cloned_from_persona_id: str | None = None
     active: bool = True
     created_at: datetime
     updated_at: datetime
+
+
+class PersonaShareUpdate(BaseModel):
+    """`PATCH /api/v1/personas/{id}/share`."""
+
+    is_shared: bool
 
 
 # ============ Profil użytkownika (biometria) — patrz database-schema.md, ai-pipeline.md §0, ADR-11 ============
@@ -154,11 +167,251 @@ class PersonaLimitUpdate(BaseModel):
 
 
 class AdminUserOut(BaseModel):
-    """`GET /api/v1/admin/users` — widok admina na konto usera (nie mylić z `PersonaOut`)."""
+    """`GET /api/v1/admin/users` — widok admina na konto usera (nie mylić z `PersonaOut`).
+
+    `cost_usd_used`/`usage_budget_usd` pokazywane WPROST jako kwota, BEZ etykiet
+    "Free"/"Pro" (ADR-16) — `email` z `auth.users` (Supabase Admin API), nie z `profiles`."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: str
+    email: str | None = None
     is_admin: bool
     max_active_personas: int
+    usage_budget_usd: float
+    cost_usd_used: float = 0.0
     created_at: datetime
+
+
+class UsageBudgetUpdate(BaseModel):
+    """Ciało `PATCH /api/v1/admin/users/{user_id}/usage-budget` (ADR-16) — wzorzec
+    identyczny jak `PersonaLimitUpdate`."""
+
+    usage_budget_usd: float = Field(ge=0, le=1000)
+
+
+class PasswordResetOut(BaseModel):
+    """`POST /api/v1/admin/users/{user_id}/reset-password` — hasło tymczasowe do
+    JEDNORAZOWEGO wyświetlenia adminowi (nigdy nie logowane/persystowane poza tym
+    response), patrz `app/core/supabase_admin.py`."""
+
+    temporary_password: str
+
+
+class AuditLogEntryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    admin_user_id: str
+    action: str
+    target_user_id: str | None = None
+    details: dict[str, Any] | None = None
+    created_at: datetime
+
+
+# ============ Konto — nick (ADR-15, oddzielne od /profile — biometria) ============
+
+
+class AccountOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    nick: str | None = None
+
+
+class AccountUpdate(BaseModel):
+    nick: str | None = Field(default=None, max_length=100)
+
+
+# ============ Katalog ćwiczeń (ADR-14) ============
+
+ExerciseLevel = Literal["beginner", "intermediate", "advanced"]
+
+
+class ExerciseOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    slug: str
+    name: str
+    persona_type: PersonaType
+    level: ExerciseLevel
+    categories: list[str]
+    short_description: str
+    detail_full: str
+    common_mistakes: str
+    photo_path: str | None = None
+
+
+# ============ Wyniki (`/results`, database-schema.md, ADR-9) ============
+
+ResultCategory = Literal["strength", "diet", "swimming", "triathlon", "badminton", "custom"]
+ResultSource = Literal["agent", "manual"]
+
+
+class ResultCreate(BaseModel):
+    category: ResultCategory
+    metric: str = Field(min_length=1, max_length=100)
+    value: float
+    unit: str | None = Field(default=None, max_length=20)
+    logged_date: date
+    notes: str | None = Field(default=None, max_length=500)
+
+
+class ResultUpdate(BaseModel):
+    category: ResultCategory | None = None
+    metric: str | None = Field(default=None, min_length=1, max_length=100)
+    value: float | None = None
+    unit: str | None = Field(default=None, max_length=20)
+    logged_date: date | None = None
+    notes: str | None = Field(default=None, max_length=500)
+
+
+class ResultOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    user_id: str
+    category: ResultCategory
+    metric: str
+    value: float
+    unit: str | None = None
+    logged_date: date
+    source: ResultSource
+    source_persona_id: str | None = None
+    is_custom: bool
+    notes: str | None = None
+    created_at: datetime
+
+
+# ============ `log_result` tool — walidacja argumentów LLM (ai-pipeline.md §2, ADR-6) ============
+# Niezaufany input mimo że pochodzi z "naszego" modelu (security.md §3) — walidacja Pydantic
+# PRZED jakimkolwiek zapisem, oddzielnie per-entry (częściowy sukces batcha).
+
+
+class LogResultEntry(BaseModel):
+    category: ResultCategory
+    metric: str = Field(min_length=1, max_length=100)
+    value: float
+    unit: str | None = Field(default=None, max_length=20)
+    date: date
+    notes: str | None = Field(default=None, max_length=500)
+
+
+class LogResultArgs(BaseModel):
+    entries: list[LogResultEntry] = Field(min_length=1, max_length=20)
+
+
+# ============ Chat (`/chat`, architecture.md §3/§3a, ADR-13) ============
+
+ChatSessionType = Literal["persona", "general"]
+ChatRole = Literal["user", "assistant", "tool"]
+InvokedVia = Literal["auto_routed", "slash_command"]
+
+
+class ChatSessionCreate(BaseModel):
+    """`persona_id=None` -> sesja `general` (auto-routing, ADR-13); podane -> sesja
+    `persona` (1:1, bez zmian względem pierwotnego zachowania)."""
+
+    persona_id: str | None = None
+    title: str | None = Field(default=None, max_length=200)
+
+
+class ChatSessionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    user_id: str
+    persona_id: str | None = None
+    session_type: ChatSessionType
+    title: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ChatMessageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    session_id: str
+    role: ChatRole
+    content: str | None = None
+    persona_id: str | None = None
+    invoked_via: InvokedVia | None = None
+    created_at: datetime
+
+
+class ChatSendMessage(BaseModel):
+    content: str = Field(min_length=1, max_length=4000)
+
+
+# ============ Plany (`/plans`, architecture.md §4, ADR-1/2) ============
+
+PlanPeriodType = Literal["week", "month"]
+PlanStatus = Literal["generating", "ready", "partial_ready", "error"]
+JobStatus = Literal["pending", "running", "success", "partial_success", "error"]
+JobPersonaStatus = Literal["pending", "running", "done", "failed"]
+
+
+class PlanGenerateRequest(BaseModel):
+    period_type: PlanPeriodType
+    start_date: date
+
+
+class PlanItemContent(BaseModel):
+    """Kształt `plan_items.content` (jsonb) — ZAMROŻONY snapshot w momencie generowania,
+    nigdy live-ref do `plan_templates`/`personas.template_overrides`."""
+
+    title: str
+    columns: list[str]
+    rows: list[dict[str, Any]]
+    notes: str | None = None
+
+
+class PlanItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    plan_id: str
+    item_date: date
+    item_type: str
+    persona_id: str
+    content: dict[str, Any]
+    schema_version: int
+
+
+class PlanOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    user_id: str
+    period_type: PlanPeriodType
+    start_date: date
+    end_date: date
+    status: PlanStatus
+    items: list[PlanItemOut] = Field(default_factory=list)
+    created_at: datetime
+    updated_at: datetime
+
+
+class PlanGenerationJobPersonaOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    persona_id: str
+    status: JobPersonaStatus
+    retry_count: int
+    last_error: str | None = None
+
+
+class PlanGenerationJobOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    plan_id: str
+    status: JobStatus
+    error_message: str | None = None
+    attempts: int
+    personas: list[PlanGenerationJobPersonaOut] = Field(default_factory=list)
+    created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None

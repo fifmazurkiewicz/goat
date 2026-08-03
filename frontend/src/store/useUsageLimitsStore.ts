@@ -7,18 +7,20 @@ interface UsageLimitsState {
   setLimits: (limits: UsageLimits) => void;
 }
 
+const NEAR_LIMIT_RATIO = 0.9;
+
 /**
- * Placeholder — docelowo odświeżany po 429 lub po nagłówkach usage w
- * odpowiedzi API (docs/technical/frontend.md sekcja 2), zasila proaktywny
- * badge "90% limitu" (sekcja 10).
- *
- * TODO: `isNearLimit` wymaga znajomości limitu (nie tylko `used`) —
- * backend jeszcze nie eksponuje `messages_limit`/`tokens_limit` per tier.
- * Na razie zawsze `false`; podłączyć realne porównanie `used / limit >= 0.9`
- * gdy kontrakt `/usage` z backendu będzie znany.
+ * Odświeżany po 429 (przez refetch `useUsage`) lub po pomyślnym `GET /api/v1/usage`
+ * (docs/technical/frontend.md sekcja 2), zasila proaktywny badge "90% budżetu"
+ * (sekcja 10 — budżet w USD, ADR-16, nie plan Free/Pro).
  */
 export const useUsageLimitsStore = create<UsageLimitsState>((set) => ({
   limits: null,
   isNearLimit: false,
-  setLimits: (limits) => set({ limits }),
+  setLimits: (limits) =>
+    set({
+      limits,
+      isNearLimit:
+        limits.usage_budget_usd > 0 && limits.cost_usd_used / limits.usage_budget_usd >= NEAR_LIMIT_RATIO,
+    }),
 }));

@@ -1,63 +1,487 @@
-"""`PlanOrchestrator` — pipeline 3-etapowy generowania planu.
-
-Pełna implementacja: docs/technical/architecture.md sekcja 4 ("Generowanie planu —
-pipeline") i docs/technical/ai-pipeline.md sekcja 4. Priorytet produktowy: synchronizacja
-planu między aktywnymi personami (ADR-2), nie tylko jakość pojedynczej persony w izolacji.
+"""`PlanOrchestrator` — pipeline 3-etapowy generowania planu (architecture.md §4, ADR-2).
 
 Uruchamiane z `BackgroundTasks` FastAPI (bez osobnego Render Workera — ADR-1), w tym
-samym procesie co web.
+samym procesie co web. Priorytet produktowy: SYNCHRONIZACJA planu między aktywnymi
+personami, nie tylko jakość pojedynczej persony w izolacji.
+
+**Wyjątek architektoniczny (jak `ChatOrchestrator`):** ten moduł ZNA konkretne repo i
+`app.core.db.rls_connection` zamiast czystych `Protocol` — architecture.md §4 wymaga
+explicite, że "każda coroutine bierze WŁASNE połączenie DB z puli", co jest sprzeczne z
+typowym wzorcem "jedno połączenie per request-scoped serwis" używanym w pozostałych
+serwisach domenowych. Testy jednostkowe (`tests/test_plan_orchestrator*.py`) pokrywają
+więc głównie czyste funkcje pomocnicze (parsowanie/patchowanie), nie cały orchestrator
+end-to-end (wymagałoby prawdziwej bazy — poza zakresem testów jednostkowych).
+
+**Format `rows` w JSON schema LLM: LISTA LIST stringów (pozycyjnie, wg kolejności
+`resolve_persona_columns`), NIE lista obiektów/dict.** OpenRouter/OpenAI `response_format:
+json_schema` w trybie `strict:true` wymaga jawnie zdefiniowanych kluczy obiektu — kolumny
+per-persona są dynamiczne (`template_overrides`), więc nie da się z góry zadeklarować
+`properties` dla dowolnych nazw kolumn. Lista list stringów jest schema-safe i backend
+z powrotem zippuje ją z kolumnami przy budowaniu `PlanItemContent`.
 """
 
 from __future__ import annotations
 
+import asyncio
+from datetime import date, timedelta
 from typing import Any, Protocol
+
+import structlog
+
+from app.core.config import settings
+from app.core.db import rls_connection
+from app.core.dependencies import get_pricing_cache
+from app.domain.personas.service import resolve_persona_columns
+from app.domain.usage.service import UsageLimitService
+from app.repositories.personas_repo import PersonasRepo
+from app.repositories.plans_repo import PlanItemRow, PlansRepo
+from app.repositories.profiles_repo import ProfilesRepo
+from app.repositories.results_repo import ResultsRepo
+from app.repositories.templates_repo import PlanTemplatesRepo
+from app.repositories.usage_limits_repo import UsageLimitsRepo
+from app.repositories.user_profile_repo import UserProfileRepo
+
+logger = structlog.get_logger(__name__)
 
 
 class PlannerLLMClientProtocol(Protocol):
-    async def generate(self, *args: Any, **kwargs: Any) -> Any: ...
+    async def complete_json(
+        self, *, model: str, messages: list[dict], json_schema: dict, max_tokens: int = 300
+    ) -> dict: ...
 
 
-class PlansRepositoryProtocol(Protocol):
-    async def save_plan_items(self, *args: Any, **kwargs: Any) -> Any: ...
-    async def update_job_status(self, *args: Any, **kwargs: Any) -> Any: ...
+_COORDINATOR_SCHEMA = {
+    "name": "plan_skeleton",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "properties": {
+            "days": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "date": {"type": "string"},
+                        "focus": {"type": "string"},
+                        "intensity": {
+                            "type": "string",
+                            "enum": ["rest", "light", "moderate", "intense"],
+                        },
+                    },
+                    "required": ["date", "focus", "intensity"],
+                    "additionalProperties": False,
+                },
+            },
+            "notes": {"type": "string"},
+        },
+        "required": ["days", "notes"],
+        "additionalProperties": False,
+    },
+}
+
+
+def _persona_items_schema() -> dict:
+    return {
+        "name": "persona_plan_items",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "item_date": {"type": "string"},
+                            "title": {"type": "string"},
+                            "rows": {
+                                "type": "array",
+                                "items": {"type": "array", "items": {"type": "string"}},
+                            },
+                            "notes": {"type": "string"},
+                        },
+                        "required": ["item_date", "title", "rows", "notes"],
+                        "additionalProperties": False,
+                    },
+                }
+            },
+            "required": ["items"],
+            "additionalProperties": False,
+        },
+    }
+
+
+def _harmonization_schema(persona_ids: list[str]) -> dict:
+    return {
+        "name": "plan_harmonization_patches",
+        "strict": True,
+        "schema": {
+            "type": "object",
+            "properties": {
+                "patches": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "persona_id": {"type": "string", "enum": persona_ids},
+                            "item_date": {"type": "string"},
+                            "title": {"type": "string"},
+                            "rows": {
+                                "type": "array",
+                                "items": {"type": "array", "items": {"type": "string"}},
+                            },
+                            "notes": {"type": "string"},
+                        },
+                        "required": ["persona_id", "item_date", "title", "rows", "notes"],
+                        "additionalProperties": False,
+                    },
+                }
+            },
+            "required": ["patches"],
+            "additionalProperties": False,
+        },
+    }
+
+
+def iter_dates(start: date, end: date):
+    current = start
+    while current <= end:
+        yield current
+        current += timedelta(days=1)
+
+
+def rows_to_content(*, title: str, columns: list[str], rows: list[list[str]], notes: str | None) -> dict[str, Any]:
+    """`PlanItemContent` — zippuje pozycyjne `rows` (z LLM) z `columns` (resolve_persona_columns)."""
+    dict_rows = [dict(zip(columns, row, strict=False)) for row in rows]
+    return {"title": title, "columns": columns, "rows": dict_rows, "notes": notes}
 
 
 class PlanOrchestrator:
-    """Zależności jako `Protocol` — testowalna bez FastAPI/bazy (architecture.md sekcja 7)."""
-
     def __init__(
-        self, llm_client: PlannerLLMClientProtocol, plans_repo: PlansRepositoryProtocol
+        self,
+        llm_client: PlannerLLMClientProtocol,
+        *,
+        planner_model: str | None = None,
+        chat_model: str | None = None,
     ) -> None:
         self._llm_client = llm_client
-        self._plans_repo = plans_repo
+        self._planner_model = planner_model or settings.openrouter_planner_model
+        self._chat_model = chat_model or settings.openrouter_chat_model
 
-    async def generate_plan(self, *, plan_id: str, job_id: str) -> None:
-        """Uruchamia pełny pipeline 3-etapowy dla danego planu, aktualizując
-        `plan_generation_jobs`/`plan_generation_job_personas` w trakcie (partial
-        success — patrz architecture.md sekcja 4, model stanu jobów).
+    async def generate_plan(self, *, plan_id: str, job_id: str, user_id: str, claims: dict) -> None:
+        structlog.contextvars.bind_contextvars(job_id=job_id, plan_id=plan_id)
+        try:
+            await self._run(plan_id=plan_id, job_id=job_id, user_id=user_id, claims=claims)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:  # noqa: BLE001 — top-level safety net dla background taska
+            logger.error("plan_generation_unexpected_error", error=str(exc), exc_info=exc)
+            try:
+                async with rls_connection(claims) as conn:
+                    repo = PlansRepo(conn)
+                    await repo.update_job_status(job_id, "error", error_message=str(exc)[:500])
+                    await repo.update_plan_status(plan_id, "error")
+            except Exception:  # noqa: BLE001 — nie eskalujemy błędu przy zapisie błędu
+                logger.error("plan_generation_failed_to_persist_error_state")
 
-        TODO pełna implementacja — patrz docs/technical/architecture.md sekcja 4:
+    async def _run(self, *, plan_id: str, job_id: str, user_id: str, claims: dict) -> None:
+        async with rls_connection(claims) as conn:
+            plans_repo = PlansRepo(conn)
+            await plans_repo.update_job_status(job_id, "running")
+            await plans_repo.increment_attempts(job_id)
 
-        Etap 1 — COORDINATOR PASS (tani model): wspólny szkielet (rozkład dni
-        treningowych/odpoczynku, orientacyjne cele) dla wszystkich aktywnych person.
+            plan = await plans_repo.get_plan(plan_id)
+            if plan is None:
+                await plans_repo.update_job_status(job_id, "error", error_message="Plan nie istnieje.")
+                return
 
-        Etap 2 — PER-PERSONA GENERACJA (PLANNER_MODEL, RÓWNOLEGLE):
-        `asyncio.gather(*persona_tasks, return_exceptions=True)` — NIE `TaskGroup`
-        (anuluje wszystko przy pierwszym wyjątku, odwrotność pożądanego zachowania
-        dla partial success). Każda persona: własny `system_prompt` + `persona_constraints`
-        + `user_profile` (waga/wzrost/wiek/poziom aktywności/cel — ADR-11, ai-pipeline.md
-        §0; brak kompletnego profilu NIE blokuje generowania, tylko ogranicza personalizację)
-        + szkielet etapu 1. Retry per-persona osobno.
+            active_personas = await PersonasRepo(conn).list_active_for_user(user_id)
+            recent_results = await ResultsRepo(conn).list_recent_for_planner(category=None, limit=50)
+            user_profile_row = await UserProfileRepo(conn).get(user_id)
 
-        Etap 3 — HARMONIZACJA ("zarządca kalendarza", PLANNER_MODEL): wszystkie draft
-        `plan_items` naraz -> targeted patche konfliktów (obciążenie, dieta vs trening,
-        odpoczynek), cross-referencing notes między personami.
+            plan_templates_repo = PlanTemplatesRepo(conn)
+            persona_columns: dict[str, list[str]] = {}
+            for persona in active_personas:
+                template = (
+                    await plan_templates_repo.get(persona.plan_template_id)
+                    if persona.plan_template_id
+                    else None
+                )
+                persona_columns[persona.id] = resolve_persona_columns(
+                    {"template_overrides": persona.template_overrides},
+                    {"default_columns": template.default_columns} if template else None,
+                )
 
-        Konkurencja: każda coroutine bierze WŁASNE połączenie DB (`engine.connect()`,
-        nigdy współdzielone), `asyncio.Semaphore` ograniczający równoczesne LLM/DB calls,
-        blokujące operacje przez `asyncio.to_thread`.
-        """
-        raise NotImplementedError(
-            "PlanOrchestrator.generate_plan — do zaimplementowania w etapie plan "
-            "generation, patrz docs/technical/architecture.md sekcja 4."
+            await plans_repo.create_job_personas(job_id, [p.id for p in active_personas])
+
+        if not active_personas:
+            async with rls_connection(claims) as conn:
+                repo = PlansRepo(conn)
+                await repo.update_job_status(job_id, "error", error_message="Brak aktywnych person.")
+                await repo.update_plan_status(plan_id, "error")
+            return
+
+        estimated_total_cost = await self._reserve_budget(
+            claims=claims, user_id=user_id, persona_count=len(active_personas)
         )
+        logger.info("plan_generation_budget_reserved", estimated_usd=estimated_total_cost)
+
+        user_profile_summary = _summarize_user_profile(user_profile_row)
+        results_summary = _summarize_results(recent_results)
+
+        skeleton = await self._run_coordinator_pass(
+            plan=plan, active_personas=active_personas, results_summary=results_summary
+        )
+
+        semaphore = asyncio.Semaphore(settings.plan_persona_concurrency_limit)
+        tasks = [
+            self._generate_for_persona(
+                persona=persona,
+                columns=persona_columns[persona.id],
+                skeleton=skeleton,
+                results_summary=results_summary,
+                user_profile_summary=user_profile_summary,
+                plan=plan,
+                semaphore=semaphore,
+            )
+            for persona in active_personas
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        draft_items_by_persona: dict[str, list[dict[str, Any]]] = {}
+        succeeded_personas = []
+        for persona, result in zip(active_personas, results, strict=True):
+            async with rls_connection(claims) as conn:
+                plans_repo = PlansRepo(conn)
+                if isinstance(result, BaseException):
+                    logger.error(
+                        "plan_persona_generation_failed", persona_id=persona.id, error=str(result)
+                    )
+                    await plans_repo.update_job_persona_status(
+                        job_id, persona.id, "failed", last_error=str(result)[:500]
+                    )
+                    continue
+                draft_items_by_persona[persona.id] = result
+                succeeded_personas.append(persona)
+                await plans_repo.update_job_persona_status(job_id, persona.id, "done")
+
+        if not succeeded_personas:
+            async with rls_connection(claims) as conn:
+                repo = PlansRepo(conn)
+                await repo.update_job_status(
+                    job_id, "error", error_message="Wszystkie persony zawiodły przy generowaniu planu."
+                )
+                await repo.update_plan_status(plan_id, "error")
+            return
+
+        item_lookup: dict[tuple[str, str], PlanItemRow] = {}
+        async with rls_connection(claims) as conn:
+            plans_repo = PlansRepo(conn)
+            for persona in succeeded_personas:
+                inserted = await plans_repo.insert_items(plan_id, draft_items_by_persona[persona.id])
+                for item in inserted:
+                    item_lookup[(item.persona_id, item.item_date.isoformat())] = item
+
+        try:
+            await self._run_harmonization(
+                succeeded_personas=succeeded_personas,
+                item_lookup=item_lookup,
+                plan=plan,
+                claims=claims,
+            )
+        except Exception as exc:  # noqa: BLE001 — harmonizacja nie blokuje draftu
+            logger.warning("plan_harmonization_failed", error=str(exc))
+
+        all_succeeded = len(succeeded_personas) == len(active_personas)
+        async with rls_connection(claims) as conn:
+            repo = PlansRepo(conn)
+            await repo.update_plan_status(plan_id, "ready" if all_succeeded else "partial_ready")
+            await repo.update_job_status(job_id, "success" if all_succeeded else "partial_success")
+
+    async def _reserve_budget(self, *, claims: dict, user_id: str, persona_count: int) -> float:
+        async with rls_connection(claims) as conn:
+            usage_service = UsageLimitService(
+                UsageLimitsRepo(conn), ProfilesRepo(conn), get_pricing_cache()
+            )
+            # Zgrubne oszacowanie: coordinator (tani) + N person + harmonizacja (PLANNER_MODEL).
+            estimated = await usage_service.estimate_turn_cost_usd(
+                model=self._planner_model,
+                prompt_text_length_chars=3000,
+                max_output_tokens=settings.plan_max_output_tokens * (persona_count + 1),
+            )
+            await usage_service.reserve_plan_generation(user_id=user_id, estimated_cost_usd=estimated)
+            return estimated
+
+    async def _run_coordinator_pass(
+        self, *, plan: Any, active_personas: list[Any], results_summary: str
+    ) -> dict[str, Any]:
+        roles = "\n".join(f"- {p.type}: {p.name}" for p in active_personas)
+        system_message = (
+            "Jesteś koordynatorem planu treningowo-dietetycznego. Na podstawie aktywnych "
+            f"ról ({roles}) i ostatnich wyników użytkownika zbuduj wspólny szkielet "
+            f"okresu {plan.start_date.isoformat()}..{plan.end_date.isoformat()}: dla "
+            "KAŻDEGO dnia w zakresie określ 'focus' (krótki opis, np. 'trening nóg', "
+            "'dzień odpoczynku', 'wysokowęglowodanowy') i 'intensity'. To wspólny "
+            "kontekst dla wszystkich person — priorytet to SYNCHRONIZACJA (regeneracja "
+            "uwzględniona, brak konfliktów obciążenia)."
+        )
+        user_message = f"Ostatnie wyniki użytkownika:\n{results_summary}"
+        try:
+            result = await self._llm_client.complete_json(
+                model=self._chat_model,
+                messages=[
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": user_message},
+                ],
+                json_schema=_COORDINATOR_SCHEMA,
+                max_tokens=1200,
+            )
+            return result
+        except Exception as exc:  # noqa: BLE001 — fallback: szkielet pusty, per-persona i tak generują
+            logger.warning("plan_coordinator_pass_failed", error=str(exc))
+            return {"days": [], "notes": ""}
+
+    async def _generate_for_persona(
+        self,
+        *,
+        persona: Any,
+        columns: list[str],
+        skeleton: dict[str, Any],
+        results_summary: str,
+        user_profile_summary: str,
+        plan: Any,
+        semaphore: asyncio.Semaphore,
+    ) -> list[dict[str, Any]]:
+        async with semaphore:
+            system_message = (
+                f"{persona.system_prompt}\n\n"
+                f"Wygeneruj plan typu '{plan.period_type}' dla okresu "
+                f"{plan.start_date.isoformat()}..{plan.end_date.isoformat()}. Kolumny do "
+                f"wypełnienia w każdym wierszu (W TEJ KOLEJNOŚCI): {columns}. "
+                f"Wspólny szkielet od koordynatora (priorytet: spójność z innymi "
+                f"personami): {skeleton}. Twarde ograniczenia persony: "
+                f"{persona.persona_constraints or 'brak'}."
+            )
+            user_message = (
+                f"Profil użytkownika: {user_profile_summary}\n"
+                f"Ostatnie wyniki: {results_summary}"
+            )
+            result = await self._llm_client.complete_json(
+                model=self._planner_model,
+                messages=[
+                    {"role": "system", "content": system_message},
+                    {"role": "user", "content": user_message},
+                ],
+                json_schema=_persona_items_schema(),
+                max_tokens=settings.plan_max_output_tokens,
+            )
+            items = []
+            for raw_item in result.get("items", []):
+                item_date = _parse_date(raw_item["item_date"])
+                if item_date is None or not (plan.start_date <= item_date <= plan.end_date):
+                    continue
+                content = rows_to_content(
+                    title=raw_item.get("title", persona.name),
+                    columns=columns,
+                    rows=raw_item.get("rows", []),
+                    notes=raw_item.get("notes"),
+                )
+                items.append(
+                    {
+                        "item_date": item_date,
+                        "item_type": persona.type,
+                        "persona_id": persona.id,
+                        "content": content,
+                    }
+                )
+            return items
+
+    async def _run_harmonization(
+        self,
+        *,
+        succeeded_personas: list[Any],
+        item_lookup: dict[tuple[str, str], PlanItemRow],
+        plan: Any,
+        claims: dict,
+    ) -> None:
+        if not item_lookup:
+            return
+
+        persona_ids = [p.id for p in succeeded_personas]
+        draft_summary = "\n".join(
+            f"- persona_id={item.persona_id} date={item.item_date.isoformat()} "
+            f"title={item.content.get('title')} rows={item.content.get('rows')}"
+            for item in item_lookup.values()
+        )
+        personas_context = "\n".join(f"- id={p.id} typ={p.type}: {p.system_prompt[:200]}" for p in succeeded_personas)
+        system_message = (
+            "Jesteś 'zarządcą kalendarza' — dostałeś DRAFT planu wszystkich person naraz. "
+            "Wykryj konflikty (np. ciężki trening + długi bieg tego samego dnia, dieta "
+            "niedopasowana do dnia treningowego, brak dni odpoczynku) i zwróć TYLKO "
+            "TARGETED PATCHE do konkretnych pozycji (persona_id + item_date), które "
+            "wymagają korekty — NIE regeneruj wszystkiego. Jeśli draft jest już spójny, "
+            "zwróć pustą listę patches. Persony:\n" + personas_context
+        )
+        user_message = f"Draft planu:\n{draft_summary}"
+
+        result = await self._llm_client.complete_json(
+            model=self._planner_model,
+            messages=[
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message},
+            ],
+            json_schema=_harmonization_schema(persona_ids),
+            max_tokens=settings.plan_max_output_tokens,
+        )
+
+        patches = result.get("patches", [])
+        if not patches:
+            return
+
+        async with rls_connection(claims) as conn:
+            plans_repo = PlansRepo(conn)
+            for patch in patches:
+                key = (patch["persona_id"], patch["item_date"])
+                item = item_lookup.get(key)
+                if item is None:
+                    continue
+                columns = item.content.get("columns", [])
+                content = rows_to_content(
+                    title=patch.get("title") or item.content.get("title", ""),
+                    columns=columns,
+                    rows=patch.get("rows", []),
+                    notes=patch.get("notes") or item.content.get("notes"),
+                )
+                await plans_repo.update_item_content(item.id, content)
+
+
+def _parse_date(value: str) -> date | None:
+    try:
+        return date.fromisoformat(value)
+    except (ValueError, TypeError):
+        return None
+
+
+def _summarize_results(results: list[Any]) -> str:
+    if not results:
+        return "brak zalogowanych wyników"
+    lines = [
+        f"{r.logged_date.isoformat()} {r.category}/{r.metric}={r.value}{r.unit or ''}"
+        for r in results[:30]
+    ]
+    return "\n".join(lines)
+
+
+def _summarize_user_profile(profile: Any) -> str:
+    if profile is None:
+        return "brak danych profilu (nieuzupełniony)"
+    parts = []
+    if profile.height_cm:
+        parts.append(f"wzrost {profile.height_cm}cm")
+    if profile.weight_kg:
+        parts.append(f"waga {profile.weight_kg}kg")
+    if profile.activity_level:
+        parts.append(f"aktywność {profile.activity_level}")
+    if profile.primary_goal:
+        parts.append(f"cel {profile.primary_goal}")
+    return ", ".join(parts) if parts else "brak danych profilu (nieuzupełniony)"

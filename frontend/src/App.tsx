@@ -3,6 +3,7 @@ import { Navigate, RouterProvider, createBrowserRouter } from "react-router-dom"
 
 import { AdminRoute, ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
+import { Toaster } from "@/components/ui/sonner";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 
@@ -14,6 +15,7 @@ import PersonasPage from "@/pages/PersonasPage";
 import PlansPage from "@/pages/PlansPage";
 import ProfilePage from "@/pages/ProfilePage";
 import ResultsPage from "@/pages/ResultsPage";
+import SettingsPage from "@/pages/SettingsPage";
 
 /**
  * Routing zgodny z docs/technical/frontend.md sekcja 1. Guard "min. 1
@@ -36,6 +38,7 @@ const router = createBrowserRouter([
       { path: "/plans", element: <PlansPage /> },
       { path: "/results", element: <ResultsPage /> },
       { path: "/profile", element: <ProfilePage /> },
+      { path: "/settings", element: <SettingsPage /> },
       {
         path: "/admin",
         element: (
@@ -61,5 +64,10 @@ export default function App() {
     return () => subscription.subscription.unsubscribe();
   }, [setSession]);
 
-  return <RouterProvider router={router} />;
+  return (
+    <>
+      <RouterProvider router={router} />
+      <Toaster />
+    </>
+  );
 }

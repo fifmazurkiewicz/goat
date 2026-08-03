@@ -14,4 +14,13 @@ module.exports = {
     "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
     "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
   },
+  overrides: [
+    {
+      // Konwencja shadcn/ui: pliki komponentów eksportują obok komponentu też
+      // powiązane `cva()` warianty/stałe (np. `buttonVariants`) — akceptowany
+      // wzorzec biblioteki, niewart refaktoru na osobne pliki per eksport.
+      files: ["src/components/ui/**/*.tsx"],
+      rules: { "react-refresh/only-export-components": "off" },
+    },
+  ],
 };

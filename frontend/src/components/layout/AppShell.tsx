@@ -1,7 +1,14 @@
+import { Moon, ShieldAlert, Sun } from "lucide-react";
 import { NavLink, Outlet } from "react-router-dom";
 
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useAuthStore } from "@/store/useAuthStore";
+import { usePlanGenerationPolling } from "@/hooks/usePlans";
+import { useUsage } from "@/hooks/useUsage";
 import { cn } from "@/lib/utils";
-import { usePlanGenerationStore } from "@/store/usePlanGenerationStore";
+import { useThemeStore } from "@/store/useThemeStore";
+import { useUsageLimitsStore } from "@/store/useUsageLimitsStore";
 
 const NAV_ITEMS = [
   { to: "/personas", label: "Persony" },
@@ -9,30 +16,39 @@ const NAV_ITEMS = [
   { to: "/plans", label: "Plany" },
   { to: "/results", label: "Wyniki" },
   { to: "/profile", label: "Profil" },
+  { to: "/settings", label: "Ustawienia" },
 ];
 
 /**
- * App shell / root layout dla tras chronionych. `usePlanGenerationStore` jest
- * odczytywany tutaj (nie w /plans) zgodnie z docs/technical/frontend.md
- * sekcja 2 — docelowo tu też będzie żył polling `GET /plans/jobs/{id}` i
- * side-effect toastów przy zmianie statusu (kolejny etap).
+ * App shell / root layout dla tras chronionych. `usePlanGenerationPolling` żyje TUTAJ
+ * (nie w /plans) — mountowany raz, przetrwa nawigację między stronami
+ * (docs/technical/frontend.md sekcja 2 i 5). `useUsage` odpytuje budżet USD raz na
+ * poziomie shellu i zasila `useUsageLimitsStore`, skąd czyta go badge tutaj oraz
+ * ostrzeżenie w `ChatWindow`.
  */
 export function AppShell() {
-  const planStatus = usePlanGenerationStore((state) => state.status);
+  const isAdmin = useAuthStore((state) => state.isAdmin);
+  const theme = useThemeStore((state) => state.theme);
+  const toggleTheme = useThemeStore((state) => state.toggleTheme);
+  const isNearLimit = useUsageLimitsStore((state) => state.isNearLimit);
+  const limits = useUsageLimitsStore((state) => state.limits);
+
+  useUsage();
+  usePlanGenerationPolling();
 
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b">
-        <div className="container flex h-14 items-center justify-between">
-          <span className="font-semibold">Coach</span>
-          <nav className="flex gap-4 text-sm">
+        <div className="container flex h-14 items-center justify-between gap-4">
+          <span className="shrink-0 font-semibold">Coach</span>
+          <nav className="flex flex-1 gap-4 overflow-x-auto text-sm">
             {NAV_ITEMS.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
                   cn(
-                    "text-muted-foreground transition-colors hover:text-foreground",
+                    "shrink-0 whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground",
                     isActive && "font-medium text-foreground"
                   )
                 }
@@ -40,14 +56,38 @@ export function AppShell() {
                 {item.label}
               </NavLink>
             ))}
+            {isAdmin ? (
+              <NavLink
+                to="/admin"
+                className={({ isActive }) =>
+                  cn(
+                    "flex shrink-0 items-center gap-1 whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground",
+                    isActive && "font-medium text-foreground"
+                  )
+                }
+              >
+                <ShieldAlert className="h-3.5 w-3.5" /> Admin
+              </NavLink>
+            ) : null}
           </nav>
+          <div className="flex shrink-0 items-center gap-2">
+            {limits ? (
+              <Badge variant={isNearLimit ? "destructive" : "secondary"} className="tabular-nums">
+                ${limits.cost_usd_used.toFixed(2)} / ${limits.usage_budget_usd.toFixed(0)}
+              </Badge>
+            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={toggleTheme}
+              aria-label={theme === "dark" ? "Przełącz na motyw jasny" : "Przełącz na motyw ciemny"}
+            >
+              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </Button>
+          </div>
         </div>
       </header>
-      {planStatus === "generating" && (
-        <div className="border-b bg-muted/50 py-2 text-center text-sm text-muted-foreground">
-          Generowanie planu w toku…
-        </div>
-      )}
       <main>
         <Outlet />
       </main>

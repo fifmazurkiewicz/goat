@@ -69,6 +69,14 @@ class ConflictError(AppError):
     code = "conflict"
 
 
+class ValidationError(AppError):
+    """Walidacja semantyczna spoza Pydantic (np. wpis `results` poza zakresem
+    `allowed_metrics` przy manualnym `POST /results`) — security.md sekcja 3."""
+
+    http_status = 400
+    code = "validation_error"
+
+
 class ExternalServiceError(AppError):
     """Awaria zewnętrznego serwisu (OpenRouter, Supabase Admin API) — 502."""
 

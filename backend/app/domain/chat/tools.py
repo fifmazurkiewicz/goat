@@ -18,6 +18,60 @@ from typing import Any
 
 from app.models.schemas import CRITICAL_PROFILE_FIELDS, UserProfileOut
 
+LOG_RESULT_TOOL_SCHEMA: dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "log_result",
+        "description": (
+            "Zapisuje 1-N faktycznie zaraportowanych przez użytkownika wyników "
+            "(trening, dieta, pomiary) w JEDNYM wywołaniu (batch — ADR-6). Wołaj "
+            "WYŁĄCZNIE gdy user jawnie raportuje faktyczny wynik, nigdy nie zgaduj/nie "
+            "fabrykuj wartości. Trening z 5 ćwiczeniami = 5 wpisów w jednym wywołaniu."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "category": {
+                                "type": "string",
+                                "enum": [
+                                    "strength",
+                                    "diet",
+                                    "swimming",
+                                    "triathlon",
+                                    "badminton",
+                                    "custom",
+                                ],
+                            },
+                            "metric": {
+                                "type": "string",
+                                "description": "Klucz metryki, np. 'weight_kg', 'bench_press_1rm'.",
+                            },
+                            "value": {"type": "number"},
+                            "unit": {"type": "string"},
+                            "date": {
+                                "type": "string",
+                                "format": "date",
+                                "description": "Data wyniku, ISO 8601 (YYYY-MM-DD).",
+                            },
+                            "notes": {"type": "string"},
+                        },
+                        "required": ["category", "metric", "value", "date"],
+                        "additionalProperties": False,
+                    },
+                }
+            },
+            "required": ["entries"],
+            "additionalProperties": False,
+        },
+    },
+}
+
 UPDATE_USER_PROFILE_TOOL_SCHEMA: dict[str, Any] = {
     "type": "function",
     "function": {
@@ -63,6 +117,11 @@ UPDATE_USER_PROFILE_TOOL_SCHEMA: dict[str, Any] = {
         },
     },
 }
+
+
+def get_chat_tools() -> list[dict[str, Any]]:
+    """Narzędzia dostępne dla `chat_model` w KAŻDEJ rozmowie (persona i general)."""
+    return [LOG_RESULT_TOOL_SCHEMA, UPDATE_USER_PROFILE_TOOL_SCHEMA]
 
 
 def build_profile_intake_instruction(profile: UserProfileOut | None) -> str | None:

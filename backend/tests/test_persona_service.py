@@ -36,10 +36,19 @@ class _FakeProfilesRepo:
         return self._profile
 
 
+class _FakeModerationService:
+    """No-op — `assert_can_activate_persona` nie dotyka moderacji, ale konstruktor
+    `PersonaService` wymaga zależności (DI przez konstruktor, architecture.md §7)."""
+
+    async def check_persona_prompt(self, **kwargs: object) -> None:
+        raise NotImplementedError
+
+
 async def test_allows_activation_below_custom_limit() -> None:
     service = PersonaService(
         personas_repo=_FakePersonasRepo(active_count=6),
         profiles_repo=_FakeProfilesRepo(_FakeProfile(max_active_personas=10)),
+        moderation_service=_FakeModerationService(),
     )
 
     await service.assert_can_activate_persona("user-1")  # nie powinno rzucić
@@ -49,6 +58,7 @@ async def test_blocks_activation_at_custom_limit() -> None:
     service = PersonaService(
         personas_repo=_FakePersonasRepo(active_count=2),
         profiles_repo=_FakeProfilesRepo(_FakeProfile(max_active_personas=2)),
+        moderation_service=_FakeModerationService(),
     )
 
     with pytest.raises(PersonaLimitExceededError):
@@ -59,6 +69,7 @@ async def test_falls_back_to_default_when_profile_missing() -> None:
     service = PersonaService(
         personas_repo=_FakePersonasRepo(active_count=DEFAULT_MAX_ACTIVE_PERSONAS),
         profiles_repo=_FakeProfilesRepo(None),
+        moderation_service=_FakeModerationService(),
     )
 
     with pytest.raises(PersonaLimitExceededError):

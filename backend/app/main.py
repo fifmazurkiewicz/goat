@@ -13,10 +13,14 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routers import admin, chat, health, personas, plans, profile, results
+from app.api.routers import account, admin, chat, exercises, health, personas, plans, profile, results
 from app.core.config import settings
+from app.core.db import service_role_connection
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import RequestIDMiddleware, configure_logging
+from app.domain.results.metrics_cache import allowed_metrics_cache
+from app.repositories.allowed_metrics_repo import AllowedMetricsRepo
+from app.repositories.plans_repo import PlansRepo
 
 configure_logging(settings.environment)
 logger = structlog.get_logger(__name__)
@@ -25,12 +29,22 @@ logger = structlog.get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("starting_up", environment=settings.environment)
-    # TODO: reaper zawieszonych `plan_generation_jobs` (status="running" starszych niż
-    # 5 min -> "error") uruchamiany tutaj przy starcie procesu. Chroni przed jobami
-    # zawieszonymi po restarcie Render (brak persistent workera). Patrz
-    # docs/technical/architecture.md sekcja 4 ("Background job — bez osobnego workera
-    # na Render") i docs/adr/decisions.md ADR-1. Do zaimplementowania w etapie plan
-    # generation (wymaga PlanGenerationJobsRepo, jeszcze nieistniejącego).
+
+    # Reaper zawieszonych `plan_generation_jobs` (ADR-1, architecture.md §4) — chroni
+    # przed jobami zawieszonymi w statusie 'pending'/'running' po restarcie Render (brak
+    # persistent workera, więc nic inaczej by ich nie odblokowało). `service_role`, bo
+    # operuje na WSZYSTKICH userach, nie jednym w kontekście RLS.
+    async with service_role_connection() as conn:
+        reaped = await PlansRepo(conn).reap_stale_jobs(
+            older_than_minutes=settings.plan_reaper_stale_minutes
+        )
+        if reaped:
+            logger.warning("plan_jobs_reaped", job_ids=reaped, count=len(reaped))
+
+        # `allowed_metrics` — cache in-memory, hot-path przy `log_result` w trakcie
+        # streamu SSE (nie chcemy zapytania SQL per tool call).
+        await allowed_metrics_cache.load(AllowedMetricsRepo(conn))
+
     yield
     logger.info("shutting_down")
 
@@ -63,6 +77,8 @@ app.include_router(health.router)
 app.include_router(personas.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(profile.router, prefix="/api/v1")
+app.include_router(account.router, prefix="/api/v1")
 app.include_router(results.router, prefix="/api/v1")
 app.include_router(plans.router, prefix="/api/v1")
+app.include_router(exercises.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")

@@ -1,14 +1,27 @@
 """Fixture'y współdzielone dla testów backendu.
 
-Wymaga obecności `backend/.env` (ładowanego przez `pydantic-settings`) — pola typu
-`database_url`/`supabase_url`/`openrouter_api_key` nie mają defaultów (patrz
-`app/core/config.py`), placeholdery z `.env.example` wystarczają dla tego testu, bo
-`/api/health` nie dotyka bazy ani zewnętrznych usług.
+Placeholdery env są ustawiane *przed* importem `app.main`, bo `Settings` ładuje się
+przy imporcie modułu i wymaga `DATABASE_URL` / `SUPABASE_*` / `OPENROUTER_API_KEY`.
+Wartości nie muszą być prawdziwe — testy jednostkowe nie łączą się z DB/OpenRouter.
 """
 
 from __future__ import annotations
 
+import os
 from collections.abc import AsyncIterator
+
+# Musi być przed `from app.main import app` — Settings inicjalizuje się na poziomie modułu.
+os.environ.setdefault(
+    "DATABASE_URL",
+    "postgresql+asyncpg://postgres:password@localhost:5432/postgres",
+)
+os.environ.setdefault("SUPABASE_URL", "https://example.supabase.co")
+os.environ.setdefault(
+    "SUPABASE_JWKS_URL",
+    "https://example.supabase.co/auth/v1/.well-known/jwks.json",
+)
+os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
+os.environ.setdefault("OPENROUTER_API_KEY", "test-openrouter-key")
 
 import pytest
 from httpx import ASGITransport, AsyncClient

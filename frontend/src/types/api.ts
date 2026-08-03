@@ -35,6 +35,9 @@ export interface Persona {
   detail_level: DetailLevel;
   custom_result_category: string | null;
   persona_constraints: string | null;
+  // ADR-13: stabilny identyfikator do "/slug wiadomość" w ogólnym czacie —
+  // generowany z type+name, regenerowany przy zmianie nazwy, unikalny per user.
+  slug: string;
   is_shared: boolean;
   moderation_status: ModerationStatus;
   cloned_from_persona_id: string | null;
@@ -43,16 +46,72 @@ export interface Persona {
   updated_at: string;
 }
 
+export interface PersonaTemplate {
+  id: string;
+  type: PersonaType;
+  default_prompt: string;
+  label: string;
+  created_at: string;
+}
+
+export interface PlanTemplate {
+  id: string;
+  name: string;
+  suggested_for: string[];
+  default_columns: string[];
+  default_rows: (string | number)[][] | null;
+  created_at: string;
+}
+
+export interface PersonaCreateInput {
+  base_template_id: string;
+  name: string;
+  system_prompt: string;
+  detail_level: DetailLevel;
+  plan_template_id?: string | null;
+  custom_result_category?: string | null;
+}
+
+// Limit aktywnych person jest PER KONTO (profiles.max_active_personas, ADR-12) —
+// odpowiedź listy person niesie go wprost, żeby UI nigdy nie hardkodował "5".
+export interface PersonasListResponse {
+  items: Persona[];
+  max_active_personas: number;
+}
+
+export type PersonaUpdateInput = Partial<
+  Pick<
+    Persona,
+    | "name"
+    | "system_prompt"
+    | "detail_level"
+    | "template_overrides"
+    | "persona_constraints"
+    | "custom_result_category"
+    | "active"
+    | "plan_template_id"
+  >
+>;
+
 export type ChatRole = "user" | "assistant" | "tool";
+
+// ADR-13: sesja 'persona' (1:1, persona_id NOT NULL) vs 'general' (auto-routing,
+// persona_id NULL) — patrz docs/technical/architecture.md sekcja 3a.
+export type ChatSessionType = "persona" | "general";
 
 export interface ChatSession {
   id: string;
   user_id: string;
-  persona_id: string;
+  persona_id: string | null;
+  session_type: ChatSessionType;
   title: string | null;
   created_at: string;
   updated_at: string;
 }
+
+// ADR-13: atrybucja per wiadomość — w sesji 'general' różne wiadomości assistant/tool
+// mogą pochodzić od różnych person.
+export type InvokedVia = "auto_routed" | "slash_command" | null;
 
 export interface ChatMessage {
   id: string;
@@ -60,6 +119,8 @@ export interface ChatMessage {
   role: ChatRole;
   content: string;
   tool_calls: unknown | null;
+  persona_id: string | null;
+  invoked_via: InvokedVia;
   created_at: string;
 }
 
@@ -134,6 +195,21 @@ export interface PlanGenerationJobPersonaBreakdown {
   last_error: string | null;
 }
 
+export interface PlanRangeResponse {
+  plan: Plan | null;
+  items: PlanItem[];
+}
+
+export interface GeneratePlanInput {
+  period_type: PlanPeriodType;
+  start_date: string;
+}
+
+export interface GeneratePlanResponse {
+  plan_id: string;
+  job_id: string;
+}
+
 export interface PlanGenerationJob {
   id: string;
   plan_id: string;
@@ -146,13 +222,20 @@ export interface PlanGenerationJob {
   breakdown?: PlanGenerationJobPersonaBreakdown[];
 }
 
+// ADR-16: limit to jawny budżet w USD per konto (profiles.usage_budget_usd),
+// NIE plan subskrypcyjny — kolumna `tier` usunięta z usage_limits. `usage_budget_usd`
+// fizycznie żyje w `profiles` (trwały niezależnie od okresu), ale endpoint zwracający
+// bieżące zużycie (`GET /api/v1/usage`) wygodnie zwraca oba razem, żeby frontend mógł
+// policzyć proaktywny badge "90% budżetu" (frontend.md sekcja 10) bez dodatkowego requestu.
 export interface UsageLimits {
   user_id: string;
   period_start: string;
+  period_renews_at: string;
   messages_used: number;
   tokens_used: number;
   plan_generations_used: number;
-  tier: "free";
+  cost_usd_used: number;
+  usage_budget_usd: number;
 }
 
 // Profil biometryczny — WSPÓLNY dla wszystkich person usera (odróżnij od
@@ -184,11 +267,79 @@ export interface UserProfile {
 export type UserProfileUpdate = Partial<Omit<UserProfile, "user_id" | "updated_at">>;
 
 // Widok admina na konto usera — limit aktywnych person jest PER KONTO, edytowalny przez
-// admina (nie globalna stała), patrz docs/adr/decisions.md ADR-12.
+// admina (nie globalna stała, ADR-12); kwota w USD (nie plan Free/Pro, ADR-16).
 export interface AdminUser {
   id: string;
+  email: string;
+  nick: string | null;
   is_admin: boolean;
   max_active_personas: number;
+  active_personas_count: number;
+  cost_usd_used: number;
+  usage_budget_usd: number;
+  created_at: string;
+}
+
+export type AdminAuditAction =
+  | "reset_password"
+  | "edit_limits"
+  | "edit_persona_limit"
+  | "edit_usage_budget";
+
+export interface AdminAuditLogEntry {
+  id: string;
+  admin_user_id: string;
+  action: AdminAuditAction;
+  target_user_id: string;
+  details: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export type ModerationTriggerType =
+  | "persona_create"
+  | "persona_edit"
+  | "persona_share"
+  | "chat_heuristic"
+  | "chat_classifier";
+
+export type ModerationVerdict = "clean" | "injection_attempt" | "redefine_role" | "off_topic";
+
+export interface ModerationEvent {
+  id: string;
+  user_id: string;
+  persona_id: string | null;
+  session_id: string | null;
+  message_id: string | null;
+  trigger_type: ModerationTriggerType;
+  raw_snippet: string;
+  classifier_verdict: ModerationVerdict;
+  reviewed: boolean;
+  created_at: string;
+}
+
+// ADR-15: konto — nick + motyw. Motyw NIE jest tu (localStorage-only, useThemeStore) —
+// ten typ opisuje wyłącznie kontrakt GET/PATCH /api/v1/account.
+export interface Account {
+  nick: string | null;
+  email: string;
+}
+
+export type AccountUpdateInput = Partial<Pick<Account, "nick">>;
+
+// ADR-14: katalog ćwiczeń, statyczna treść referencyjna seedowana migracją.
+export type ExerciseLevel = "beginner" | "intermediate" | "advanced";
+
+export interface Exercise {
+  id: string;
+  slug: string;
+  name: string;
+  persona_type: PersonaType;
+  level: ExerciseLevel;
+  categories: string[];
+  short_description: string;
+  detail_full: string;
+  common_mistakes: string;
+  photo_path: string | null;
   created_at: string;
 }
 

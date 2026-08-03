@@ -3,37 +3,37 @@
 Ścieżka alternatywna do głównej, konwersacyjnej ("persona dopytuje w czacie", narzędzie
 `update_user_profile` — patrz `app/domain/chat/tools.py`) dla userów wolących wypełnić
 dane wprost. Obie ścieżki piszą do tej samej tabeli przez `UserProfileRepo.upsert`.
-
-Router CIENKI — logika (merge częściowej aktualizacji z istniejącym wierszem) docelowo
-w `app/domain/personas/service.py`-analogicznym serwisie profilu, nie tutaj.
 """
 
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
+from app.core.db import rls_connection
+from app.core.exceptions import ValidationError
 from app.core.security import AuthContext, get_current_user
 from app.models.schemas import UserProfileOut, UserProfileUpdate
+from app.repositories.user_profile_repo import UserProfileRepo
 
 router = APIRouter(prefix="/profile", tags=["profile"])
 
 
 @router.get("/", response_model=UserProfileOut | None)
 async def get_profile(auth: AuthContext = Depends(get_current_user)) -> UserProfileOut | None:
-    # TODO: rls_connection(auth.claims) -> UserProfileRepo(conn).get(auth.user_id).
+    async with rls_connection(auth.claims) as conn:
+        row = await UserProfileRepo(conn).get(auth.user_id)
     # `None` (profil jeszcze nieutworzony) jest poprawną odpowiedzią — frontend renderuje
     # pusty formularz, nie błąd.
-    return None
+    return UserProfileOut.model_validate(row) if row is not None else None
 
 
 @router.patch("/", response_model=UserProfileOut)
 async def update_profile(
     payload: UserProfileUpdate, auth: AuthContext = Depends(get_current_user)
 ) -> UserProfileOut:
-    # TODO: rls_connection(auth.claims) -> UserProfileRepo(conn).upsert(
-    #   auth.user_id, payload.model_dump(exclude_unset=True)
-    # ) w jednej transakcji, zmapować UserProfileRow -> UserProfileOut.
-    raise NotImplementedError(
-        "update_profile — do zaimplementowania w etapie profilu użytkownika, patrz "
-        "docs/technical/ai-pipeline.md sekcja 0."
-    )
+    fields = payload.model_dump(exclude_unset=True)
+    if not fields:
+        raise ValidationError("PATCH wymaga przynajmniej jednego pola do aktualizacji.")
+    async with rls_connection(auth.claims) as conn:
+        row = await UserProfileRepo(conn).upsert(auth.user_id, fields)
+    return UserProfileOut.model_validate(row)

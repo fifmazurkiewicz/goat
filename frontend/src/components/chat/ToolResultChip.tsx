@@ -1,0 +1,18 @@
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import type { ChatStreamToolResultEvent } from "@/types/chat-stream";
+
+/** Inline chip z `tool_result` eventu w czasie rzeczywistym (docs/technical/frontend.md sekcja 4). */
+export function ToolResultChip({ tool_name, summary, success }: ChatStreamToolResultEvent) {
+  return (
+    <div
+      className={cn(
+        "flex max-w-[80%] items-center gap-2 self-start rounded-md border px-3 py-2 text-xs",
+        !success && "border-destructive/50 text-destructive"
+      )}
+    >
+      <Badge variant={success ? "default" : "destructive"}>{tool_name}</Badge>
+      <span>{summary}</span>
+    </div>
+  );
+}

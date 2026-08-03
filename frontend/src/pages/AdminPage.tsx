@@ -1,27 +1,43 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AdminUsersTable } from "@/components/admin/AdminUsersTable";
+import { AuditLogPanel } from "@/components/admin/AuditLogPanel";
+import { ModerationEventsPanel } from "@/components/admin/ModerationEventsPanel";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAdminUsers } from "@/hooks/useAdmin";
 
 /**
- * Chroniona auth + is_admin (docs/technical/database-schema.md —
- * profiles.is_admin, admin_audit_log, moderation_events). TODO: kolejny etap
- * — panel przeglądu moderation_events i akcji admina (z audit logiem).
- *
- * Lista userów (`GET /admin/users`) ma zawierać edytowalne pole
- * `max_active_personas` per konto (ADR-12, `PATCH /admin/users/{id}/persona-limit`) —
- * zastępuje dotychczasową globalną stałą "5 aktywnych person".
+ * Chroniona auth + `is_admin`. Kwota w USD BEZ etykiet "Free"/"Pro" (ADR-16 — budżet
+ * ochronny, nie plan subskrypcyjny). `max_active_personas` edytowalne per konto (ADR-12).
  */
 export default function AdminPage() {
+  const { data: users, isLoading } = useAdminUsers();
+
   return (
     <div className="container py-10">
-      <Card>
-        <CardHeader>
-          <CardTitle>Panel admina</CardTitle>
-          <CardDescription>
-            Tu pojawi się przegląd zdarzeń moderacji i akcje administracyjne (reset limitów,
-            przegląd userów, limit aktywnych person per konto) z logiem audytowym.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">TODO: kolejny etap.</CardContent>
-      </Card>
+      <h1 className="text-3xl font-semibold tracking-tight">Panel admina</h1>
+      <p className="mt-2 max-w-[70ch] text-muted-foreground">
+        Przegląd kont, budżetów, limitów person, zdarzeń moderacji i logu audytowego akcji administracyjnych.
+      </p>
+
+      <Tabs defaultValue="users" className="mt-6">
+        <TabsList>
+          <TabsTrigger value="users">Użytkownicy</TabsTrigger>
+          <TabsTrigger value="moderation">Moderacja</TabsTrigger>
+          <TabsTrigger value="audit">Log audytowy</TabsTrigger>
+        </TabsList>
+        <TabsContent value="users" className="mt-4">
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground">Ładowanie…</p>
+          ) : (
+            <AdminUsersTable users={users ?? []} />
+          )}
+        </TabsContent>
+        <TabsContent value="moderation" className="mt-4">
+          <ModerationEventsPanel />
+        </TabsContent>
+        <TabsContent value="audit" className="mt-4">
+          <AuditLogPanel />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

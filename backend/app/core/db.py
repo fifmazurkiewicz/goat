@@ -17,6 +17,19 @@ from sqlalchemy.pool import NullPool
 
 from app.core.config import settings
 
+
+def _asyncpg_url(url: str) -> str:
+    """Wymusza dialect `postgresql+asyncpg` — zwykłe `postgresql://` mapuje się na
+    synchroniczny psycopg2, którego nie mamy w zależnościach (architecture.md §2)."""
+    if url.startswith("postgresql+asyncpg://"):
+        return url
+    if url.startswith("postgres://"):
+        return "postgresql+asyncpg://" + url.removeprefix("postgres://")
+    if url.startswith("postgresql://"):
+        return "postgresql+asyncpg://" + url.removeprefix("postgresql://")
+    return url
+
+
 # NullPool: pooling robi Supavisor (Supabase), aplikacja go nie duplikuje drugą
 # warstwą poolingu po swojej stronie.
 #
@@ -29,7 +42,7 @@ from app.core.config import settings
 # cache po stronie klienta (statement_cache_size=0) to jedyny bezpieczny sposób
 # działania w tym trybie (patrz architecture.md sekcja 2, ADR-3).
 engine = create_async_engine(
-    settings.database_url,
+    _asyncpg_url(settings.database_url),
     poolclass=NullPool,
     connect_args={"statement_cache_size": 0},
 )
