@@ -20,6 +20,10 @@ import { ResponsiveDialog } from "@/components/common/ResponsiveDialog";
 import { PersonaColumnsEditor } from "@/components/personas/PersonaColumnsEditor";
 import { useCreatePersona, usePersonaTemplates, usePlanTemplates, useUpdatePersona } from "@/hooks/usePersonas";
 import { ApiError } from "@/lib/api-client";
+import {
+  columnsFromTemplateOverrides,
+  templateOverridesFromColumns,
+} from "@/lib/persona-template-overrides";
 import { cn } from "@/lib/utils";
 import { personaFormSchema, SYSTEM_PROMPT_MAX_LENGTH, type PersonaFormValues } from "@/lib/validation/persona-schema";
 import type { Persona } from "@/types/api";
@@ -37,8 +41,9 @@ const DETAIL_LEVEL_OPTIONS: { value: PersonaFormValues["detail_level"]; label: s
 
 /**
  * Dialog "Dodaj personę" / edycja promptu — React Hook Form + Zod, sekcje: podstawowe
- * dane / system prompt / persona_constraints / struktura dnia (Accordion, zaawansowane).
+ * dane / system prompt / struktura dnia (Accordion, zaawansowane).
  * docs/technical/frontend.md sekcja 7. `Sheet` na mobile (§11) przez `ResponsiveDialog`.
+ * `persona_constraints` celowo nieobecne — pole systemowe (ai-pipeline.md).
  */
 export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDialogProps) {
   const isEdit = Boolean(persona);
@@ -59,12 +64,9 @@ export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDi
       persona_type: persona?.type ?? "",
       name: persona?.name ?? "",
       system_prompt: persona?.system_prompt ?? "",
-      persona_constraints: persona?.persona_constraints ?? "",
       detail_level: persona?.detail_level ?? "simple",
       plan_template_id: persona?.plan_template_id ?? null,
-      columns: persona?.template_overrides?.length
-        ? persona.template_overrides
-        : [{ name: "Kolumna 1" }],
+      columns: columnsFromTemplateOverrides(persona?.template_overrides),
       custom_result_category: persona?.custom_result_category ?? null,
     },
   });
@@ -76,10 +78,9 @@ export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDi
       persona_type: persona?.type ?? "",
       name: persona?.name ?? "",
       system_prompt: persona?.system_prompt ?? "",
-      persona_constraints: persona?.persona_constraints ?? "",
       detail_level: persona?.detail_level ?? "simple",
       plan_template_id: persona?.plan_template_id ?? null,
-      columns: persona?.template_overrides?.length ? persona.template_overrides : [{ name: "Kolumna 1" }],
+      columns: columnsFromTemplateOverrides(persona?.template_overrides),
       custom_result_category: persona?.custom_result_category ?? null,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -101,7 +102,7 @@ export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDi
     const template = templates?.find((t) => t.id === templateId);
     if (!template) return;
     form.setValue("base_template_id", templateId, { shouldValidate: true });
-    form.setValue("persona_type", template.type);
+    form.setValue("persona_type", template.type, { shouldValidate: true });
     form.setValue("name", template.label);
     if (!isEdit) {
       form.setValue("system_prompt", template.default_prompt, { shouldValidate: true });
@@ -120,6 +121,26 @@ export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDi
   }
 
   async function onSubmit(values: PersonaFormValues) {
+    if (!isEdit) {
+      if (!values.base_template_id.trim()) {
+        form.setError("base_template_id", { message: "Wybierz szablon" });
+        toast.error("Popraw błędy w formularzu przed zapisem");
+        return;
+      }
+      if (!values.persona_type.trim()) {
+        form.setError("persona_type", { message: "Wybierz gotowiec" });
+        toast.error("Popraw błędy w formularzu przed zapisem");
+        return;
+      }
+    }
+
+    const templateOverrides = templateOverridesFromColumns(values.columns);
+    if (templateOverrides.columns.length === 0) {
+      form.setError("columns", { message: "Dodaj przynajmniej jedną kolumnę" });
+      toast.error("Popraw błędy w formularzu przed zapisem");
+      return;
+    }
+
     try {
       if (isEdit && persona) {
         await updatePersona.mutateAsync({
@@ -127,9 +148,8 @@ export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDi
           input: {
             name: values.name,
             system_prompt: values.system_prompt,
-            persona_constraints: values.persona_constraints || null,
             detail_level: values.detail_level,
-            template_overrides: values.columns,
+            template_overrides: templateOverrides,
             plan_template_id: values.plan_template_id,
             custom_result_category: values.custom_result_category,
           },
@@ -138,12 +158,12 @@ export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDi
       } else {
         await createPersona.mutateAsync({
           base_template_id: values.base_template_id,
-          // Backend wymaga `type` — bierzemy z wybranego gotowca (form.persona_type).
           type: values.persona_type as Persona["type"],
           name: values.name,
           system_prompt: values.system_prompt,
           detail_level: values.detail_level,
           plan_template_id: values.plan_template_id,
+          template_overrides: templateOverrides,
           custom_result_category: values.custom_result_category,
         });
         toast.success("Dodano nową personę");
@@ -154,6 +174,10 @@ export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDi
         err instanceof ApiError ? err.message : "Nie udało się zapisać persony. Spróbuj ponownie.";
       toast.error(message);
     }
+  }
+
+  function onInvalid() {
+    toast.error("Popraw błędy w formularzu przed zapisem");
   }
 
   const isPending = createPersona.isPending || updatePersona.isPending;
@@ -181,7 +205,7 @@ export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDi
       }
     >
       <FormProvider {...form}>
-        <form id="persona-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+        <form id="persona-form" onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-5">
           {!isEdit && (
             <div className="space-y-2">
               <Label htmlFor="persona-template">Wybierz gotowiec</Label>
@@ -220,6 +244,9 @@ export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDi
               {form.formState.errors.base_template_id ? (
                 <p className="text-sm text-destructive">{form.formState.errors.base_template_id.message}</p>
               ) : null}
+              {form.formState.errors.persona_type ? (
+                <p className="text-sm text-destructive">{form.formState.errors.persona_type.message}</p>
+              ) : null}
             </div>
           )}
 
@@ -233,7 +260,7 @@ export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDi
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label htmlFor="persona-prompt">System prompt (edytowalna część)</Label>
+              <Label htmlFor="persona-prompt">Styl i zakres pomocy</Label>
               <span className="text-xs text-muted-foreground">
                 {systemPromptValue.length}/{SYSTEM_PROMPT_MAX_LENGTH}
               </span>
@@ -243,21 +270,15 @@ export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDi
               rows={6}
               className="min-h-[140px]"
               maxLength={SYSTEM_PROMPT_MAX_LENGTH}
+              placeholder="Ton rozmowy, w czym ma pomagać, jak współpracować z innymi personami…"
               {...form.register("system_prompt")}
             />
+            <p className="text-xs text-muted-foreground">
+              Zasady bezpieczeństwa aplikacji działają zawsze — niezależnie od tego, co tu wpiszesz.
+            </p>
             {form.formState.errors.system_prompt ? (
               <p className="text-sm text-destructive">{form.formState.errors.system_prompt.message}</p>
             ) : null}
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="persona-constraints">Twarde ograniczenia (np. kontuzje)</Label>
-            <Textarea
-              id="persona-constraints"
-              rows={2}
-              placeholder="np. uraz kolana — unikać przysiadów pełnych"
-              {...form.register("persona_constraints")}
-            />
           </div>
 
           <div className="space-y-2">

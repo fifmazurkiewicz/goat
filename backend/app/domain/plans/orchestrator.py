@@ -29,15 +29,16 @@ from typing import Any, Protocol
 import structlog
 
 from app.core.config import settings
-from app.core.db import rls_connection
+from app.core.db import rls_connection, service_role_connection
 from app.core.dependencies import get_pricing_cache
+from app.domain.chat.preamble import build_system_prompt
 from app.domain.personas.service import resolve_persona_columns
 from app.domain.usage.service import UsageLimitService
 from app.repositories.personas_repo import PersonasRepo
 from app.repositories.plans_repo import PlanItemRow, PlansRepo
 from app.repositories.profiles_repo import ProfilesRepo
 from app.repositories.results_repo import ResultsRepo
-from app.repositories.templates_repo import PlanTemplatesRepo
+from app.repositories.templates_repo import PersonaTemplatesRepo, PlanTemplatesRepo
 from app.repositories.usage_limits_repo import UsageLimitsRepo
 from app.repositories.user_profile_repo import UserProfileRepo
 
@@ -353,8 +354,17 @@ class PlanOrchestrator:
         semaphore: asyncio.Semaphore,
     ) -> list[dict[str, Any]]:
         async with semaphore:
+            template_safety: str | None = None
+            if persona.base_template_id:
+                async with service_role_connection() as sconn:
+                    template_safety = await PersonaTemplatesRepo(sconn).get_safety_prompt(
+                        persona.base_template_id
+                    )
+            persona_block = build_system_prompt(
+                persona.system_prompt, template_safety_prompt=template_safety
+            )
             system_message = (
-                f"{persona.system_prompt}\n\n"
+                f"{persona_block}\n\n"
                 f"Wygeneruj plan typu '{plan.period_type}' dla okresu "
                 f"{plan.start_date.isoformat()}..{plan.end_date.isoformat()}. Kolumny do "
                 f"wypełnienia w każdym wierszu (W TEJ KOLEJNOŚCI): {columns}. "

@@ -22,7 +22,7 @@ import structlog
 from pydantic import ValidationError as PydanticValidationError
 
 from app.core.config import settings
-from app.core.db import rls_connection
+from app.core.db import rls_connection, service_role_connection
 from app.core.dependencies import get_moderation_service, get_pricing_cache
 from app.core.exceptions import AppError, ConflictError, NotFoundError, ValidationError
 from app.domain.chat.context_builder import ContextBuilder
@@ -38,6 +38,7 @@ from app.repositories.chat_repo import ChatRepo
 from app.repositories.personas_repo import PersonasRepo
 from app.repositories.profiles_repo import ProfilesRepo
 from app.repositories.results_repo import ResultsRepo
+from app.repositories.templates_repo import PersonaTemplatesRepo
 from app.repositories.usage_limits_repo import UsageLimitsRepo
 from app.repositories.user_profile_repo import UserProfileRepo
 
@@ -123,6 +124,13 @@ class ChatOrchestrator:
             user_id=user_id, message=user_message, session_id=session_id
         )
 
+        template_safety: str | None = None
+        if persona.base_template_id:
+            async with service_role_connection() as sconn:
+                template_safety = await PersonaTemplatesRepo(sconn).get_safety_prompt(
+                    persona.base_template_id
+                )
+
         async with rls_connection(self._claims) as conn:
             context_builder = ContextBuilder(
                 ChatRepo(conn), history_window_messages=settings.chat_history_window_messages
@@ -135,6 +143,7 @@ class ChatOrchestrator:
                 persona_system_prompt=persona.system_prompt,
                 persona_constraints=persona.persona_constraints,
                 user_profile=user_profile,
+                template_safety_prompt=template_safety,
             )
             history = await context_builder.build_message_history(
                 session_id=session_id, session_type=session_type, persona_id=persona.id

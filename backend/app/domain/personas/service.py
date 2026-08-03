@@ -122,8 +122,11 @@ class PersonaService:
         aktywna domyślnie (`active=true`), więc limit jest sprawdzany na KAŻDYM create."""
         await self.assert_can_activate_persona(user_id)
 
-        persona_type = payload["type"]
-        name = payload["name"]
+        # `persona_constraints` nigdy z klienta (ai-pipeline.md — pole systemowe).
+        safe_payload = {k: v for k, v in payload.items() if k != "persona_constraints"}
+
+        persona_type = safe_payload["type"]
+        name = safe_payload["name"]
         base_slug = generate_base_slug(persona_type, name)
         existing_slugs = await self._personas_repo.list_slugs_for_user(user_id)
         slug = resolve_slug_collision(base_slug, existing_slugs)
@@ -131,7 +134,7 @@ class PersonaService:
         moderation = await self._moderation_service.check_persona_prompt(
             user_id=user_id,
             persona_id=None,
-            user_prompt=payload["system_prompt"],
+            user_prompt=safe_payload["system_prompt"],
             trigger_type="persona_create",
         )
         if moderation.status == "rejected":
@@ -142,7 +145,7 @@ class PersonaService:
             )
 
         values = {
-            **payload,
+            **safe_payload,
             "slug": slug,
             "moderation_status": moderation.status,
             "moderation_checked_prompt_hash": moderation.checked_prompt_hash,
@@ -159,7 +162,10 @@ class PersonaService:
         if existing is None:
             raise NotFoundError(f"Persona {persona_id!r} nie istnieje lub nie należy do usera.")
 
-        values: dict[str, Any] = dict(updates)
+        # End-user nie może nadpisać ograniczeń medycznych/systemowych.
+        values: dict[str, Any] = {
+            k: v for k, v in updates.items() if k != "persona_constraints"
+        }
 
         if "name" in updates and updates["name"] != existing.name:
             base_slug = generate_base_slug(existing.type, updates["name"])
@@ -232,7 +238,8 @@ class PersonaService:
             "template_overrides": source.template_overrides,
             "detail_level": source.detail_level,
             "custom_result_category": source.custom_result_category,
-            "persona_constraints": source.persona_constraints,
+            # Constraints są operatorskie per-konto — nie kopiujemy z community.
+            "persona_constraints": None,
             "is_shared": False,
             "slug": slug,
             "moderation_status": source.moderation_status,
@@ -249,17 +256,9 @@ def resolve_persona_columns(
     """Merguje kolumny persony z jej bazowym `plan_template`.
 
     Kontrakt (docs/technical/database-schema.md): `plan_templates.default_columns`
-    to bazowa lista kolumn (np. `["Ćwiczenie","Serie","Powtórzenia","Ciężar","Uwagi"]`),
-    a `personas.template_overrides` może nadpisywać tę listę.
-
-    ZAŁOŻENIE (dokumentacja nie precyzuje dokładnego JSON-shape `template_overrides`
-    poza "walidowane Pydantic/Zod PRZED zapisem" i opisem edytora w frontend.md §7 —
-    lista edytowalna przez `useFieldArray`, reorder/dodaj/usuń): `template_overrides`
-    ma opcjonalny klucz `"columns": list[str]`, będący PEŁNĄ, gotową listą kolumn
-    ustawioną przez usera w edytorze (nie diff/patch per-klucz) — to najprostsza
-    interpretacja zgodna z UI opisanym w frontend.md. Brak klucza `columns` (albo
-    `template_overrides is None`) -> używamy `default_columns` bazowego szablonu bez
-    zmian. Deduplikacja jako tania asercja na wypadek błędu w danych wejściowych.
+    to baza; `personas.template_overrides` ma kształt `{"columns": list[str]}` —
+    pełna lista kolumn z edytora (nie diff). Brak klucza `columns` / `None` →
+    `default_columns`. Deduplikacja chroni przed uszkodzonymi danymi w DB.
     """
     default_columns: list[str] = list((plan_template or {}).get("default_columns") or [])
     overrides = persona.get("template_overrides") or {}

@@ -13,10 +13,12 @@ export function resultsKey(category: ResultCategory) {
  * metryce dla wykresu robione po stronie klienta na już pobranych wynikach kategorii
  * (rząd dziesiątek wpisów, brak potrzeby osobnego requestu per metryka).
  */
-export function useResults(category: ResultCategory) {
+export function useResults(category: ResultCategory | null | undefined) {
   return useQuery({
-    queryKey: resultsKey(category),
-    queryFn: () => apiFetch<Result[]>(`/api/v1/results?category=${encodeURIComponent(category)}`),
+    queryKey: resultsKey(category ?? "strength"),
+    queryFn: () =>
+      apiFetch<Result[]>(`/api/v1/results?category=${encodeURIComponent(category!)}`),
+    enabled: Boolean(category),
   });
 }
 

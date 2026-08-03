@@ -8,7 +8,6 @@ function buildValidInput(overrides: Partial<Record<string, unknown>> = {}) {
     persona_type: "personal_trainer",
     name: "Trener Kasia",
     system_prompt: "Jesteś doświadczonym trenerem personalnym specjalizującym się w sile.",
-    persona_constraints: "",
     detail_level: "simple",
     plan_template_id: null,
     columns: [{ name: "Ćwiczenie" }, { name: "Serie" }],

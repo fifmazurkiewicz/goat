@@ -11,8 +11,9 @@ Vite + React + TypeScript + Tailwind + shadcn/ui, hosting Vercel (Hobby — skal
 /chat, /chat/:sessionId → chroniona (auth) — sesje 'persona' (1:1) i 'general' (auto-routing, ADR-13)
 /plans                → chroniona (auth)
 /results              → chroniona (auth)
-/settings             → chroniona (auth) — nick, motyw, katalog ćwiczeń (ADR-14, ADR-15)
-/admin                → chroniona (auth + is_admin)
+/settings             → chroniona (auth) — nick (+ Zapisz nick), motyw, katalog ćwiczeń (ADR-14, ADR-15)
+/admin                → chroniona (auth + is_admin); bootstrap: wyłącznie fmazurkiewicz@gmail.com
+…
 ```
 
 **Route guard "min. 1 aktywna persona" dla `/chat` i `/plans` — DECYZJA: odłożony, nie blokuje pierwszej iteracji.** Zaimplementować dopiero gdy core flow (persony → czat → wyniki → plan) działa end-to-end. Gdy zostanie dodany: w loaderze route'u (nie w komponencie strony, żeby uniknąć flasha przed redirectem), warunek czytany z `usePersonaStore` (współdzielony z galerią onboardingu, nie duplikowany fetch).
@@ -111,19 +112,21 @@ PlansPage (smart) — activeMonth/activeDate z URL search params (linkowalne)
 
 **Nowa funkcja (MVP):** per kategoria, wykres liniowy wartości w czasie (`logged_date` na osi X), filtrowany po `metric` — np. trend wagi ciała, progresja ciężaru w danym ćwiczeniu (bench press 1RM), czasy biegowe. Biblioteka: **`recharts`** przez gotowy `Chart` komponent shadcn/ui (spójny styling z resztą UI, mniej kodu niż surowy recharts). Dane z istniejącego `GET /results?category=&metric=` (indeks `results_user_category_metric_date` w bazie wspiera te zapytania) — bez zmian schematu.
 
+**Taby kategorii nie są stałą listą sportów.** Budowane z aktywnych person usera (`resultCategoryTabsFromPersonas`): np. `personal_trainer`/`motor_coach` → Siłownia, `dietitian` → Dieta, `badminton_coach` → Badminton. Brak persony triathlon/basen = brak tych tabów. Logo/nazwa **Coach** w app shell → `/chat`.
+
 ## 7. Formularz edycji persony
 
-React Hook Form + Zod (`zodResolver`). Sekcje: podstawowe dane / system prompt (`Textarea` z auto-resize, licznik znaków) / `persona_constraints` (krótkie pole tekstowe) / struktura dnia jako "zaawansowane" (`Accordion`, domyślnie zwinięte — progressive disclosure).
+React Hook Form + Zod (`zodResolver`). Sekcje: podstawowe dane / **„Jak ma się zachowywać”** (`system_prompt` — styl i zakres pomocy; bez treści medycznych) / struktura dnia jako "zaawansowane" (`Accordion`). Reguły lekarz/leki/red flags są w `app_private` + preambule — UI informuje, że są stałe. `persona_constraints` nieobecne w formularzu.
 
-Edytor kolumn (`template_overrides`): lista edytowalna przez `useFieldArray` (nazwa kolumny + ↑/↓ reorder + usuń + "+ Dodaj kolumnę") — bez drag-n-drop na MVP, strzałki wystarczą. Walidacja Zod: min. 1 kolumna, max ~8, unikalne nazwy, `custom_result_category` wymagane warunkowo (`superRefine`) dla `type==='custom'`.
+Edytor kolumn: UI trzyma listę `{ name }[]` w formularzu; przy zapisie mapuje na kontrakt API `template_overrides: { columns: string[] }` (zgodnie z `resolve_persona_columns` w backendzie). Lista edytowalna przez `useFieldArray` (nazwa + ↑/↓ + usuń + "+ Dodaj kolumnę"). Walidacja Zod: min. 1 kolumna, max ~8, unikalne nazwy, `custom_result_category` wymagane warunkowo (`superRefine`) dla `type==='custom'`. Przy błędach walidacji — toast + komunikaty przy polach (w tym przycisk submit nie może „milczeć”).
 
 ## 7a. `/settings` — konto, motyw, katalog ćwiczeń (ADR-14, ADR-15)
 
 ```
 SettingsPage (smart)
-├─ AccountSettingsCard (dumb) — nick (input, PATCH /api/v1/account debounced) + przełącznik
-│  motywu jasny/ciemny (ZUSTAND lokalny store `useThemeStore`, PERSYSTOWANY WYŁĄCZNIE w
-│  localStorage — bez round-tripu do API, ADR-15)
+├─ AccountSettingsCard (dumb) — nick (input + przycisk „Zapisz nick”, PATCH /api/v1/account)
+│  + przełącznik motywu jasny/ciemny (`useThemeStore`, tylko localStorage, ADR-15);
+│  `is_admin` z GET /account → `useAuthStore` (zakładka Admin w shellu)
 └─ ExerciseCatalog (smart)
    ├─ ExerciseSearchBar (dumb) — pole szukania + filter-chipy kategorii, `overflow-x-auto`
    │  na mobile (NIE flex-wrap — wrap zajmuje zbyt dużo wysokości ekranu przed treścią)

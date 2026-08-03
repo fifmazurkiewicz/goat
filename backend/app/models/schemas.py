@@ -25,6 +25,23 @@ DetailLevel = Literal["simple", "detailed"]
 ModerationStatus = Literal["pending", "approved", "rejected"]
 
 
+class TemplateOverrides(BaseModel):
+    """Kształt `personas.template_overrides` — `{"columns":[...]}` (database-schema.md)."""
+
+    columns: list[str] = Field(min_length=1, max_length=8)
+
+    @model_validator(mode="after")
+    def _nonempty_unique_columns(self) -> "TemplateOverrides":
+        cleaned = [c.strip() for c in self.columns]
+        if any(not c for c in cleaned):
+            raise ValueError("Nazwy kolumn nie mogą być puste.")
+        normalized = [c.casefold() for c in cleaned]
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("Nazwy kolumn muszą być unikalne.")
+        self.columns = cleaned
+        return self
+
+
 class PersonaBase(BaseModel):
     type: PersonaType
     name: str = Field(min_length=1, max_length=100)
@@ -34,8 +51,9 @@ class PersonaBase(BaseModel):
     chat_model: str = "anthropic/claude-haiku-4.5"
     detail_level: DetailLevel = "simple"
     custom_result_category: str | None = None
-    persona_constraints: str | None = Field(default=None, max_length=1000)
     is_shared: bool = False
+    # `persona_constraints` celowo NIE jest w DTO API — pole systemowe/operatorskie
+    # (ai-pipeline.md); żyje w DB i jest czytane tylko server-side (chat/plan).
 
 
 class PersonaCreate(PersonaBase):
@@ -43,7 +61,7 @@ class PersonaCreate(PersonaBase):
     plan_template_id: str | None = None
     # Walidowane (schema-level, dodatkowo do przyszłej walidacji semantycznej w
     # PersonaService) PRZED zapisem — fail fast, patrz database-schema.md.
-    template_overrides: dict[str, Any] | None = None
+    template_overrides: TemplateOverrides | None = None
 
     @model_validator(mode="after")
     def _custom_requires_category(self) -> "PersonaCreate":
@@ -65,9 +83,9 @@ class PersonaUpdate(BaseModel):
     chat_model: str | None = None
     detail_level: DetailLevel | None = None
     custom_result_category: str | None = None
-    persona_constraints: str | None = Field(default=None, max_length=1000)
     is_shared: bool | None = None
-    template_overrides: dict[str, Any] | None = None
+    plan_template_id: str | None = None
+    template_overrides: TemplateOverrides | None = None
     active: bool | None = None
 
 
@@ -249,6 +267,7 @@ class AccountOut(BaseModel):
 
     id: str
     nick: str | None = None
+    is_admin: bool = False
 
 
 class AccountUpdate(BaseModel):

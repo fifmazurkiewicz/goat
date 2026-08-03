@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
 import {
   Select,
@@ -11,45 +12,83 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddResultDialog } from "@/components/results/AddResultDialog";
 import { ResultsChart } from "@/components/results/ResultsChart";
 import { ResultsTable } from "@/components/results/ResultsTable";
+import { usePersonas } from "@/hooks/usePersonas";
 import { useResults } from "@/hooks/useResults";
+import { resultCategoryTabsFromPersonas } from "@/lib/result-categories";
 import type { ResultCategory } from "@/types/api";
 
-const CATEGORY_TABS: { key: ResultCategory; label: string }[] = [
-  { key: "strength", label: "Siłownia" },
-  { key: "diet", label: "Dieta" },
-  { key: "swimming", label: "Basen" },
-  { key: "triathlon", label: "Triathlon" },
-  { key: "badminton", label: "Badminton" },
-];
-
 /**
- * Taby kategorii, wykres liniowy per metryka (ADR-9) i tabela z edycją inline
- * (docs/technical/frontend.md sekcja 6).
+ * Taby kategorii z aktywnych person usera, wykres liniowy per metryka (ADR-9)
+ * i tabela z edycją inline (docs/technical/frontend.md sekcja 6).
  */
 export default function ResultsPage() {
-  const [category, setCategory] = useState<ResultCategory>("strength");
+  const { data: personasData, isLoading: personasLoading } = usePersonas();
+  const categoryTabs = useMemo(
+    () => resultCategoryTabsFromPersonas(personasData?.items ?? []),
+    [personasData?.items]
+  );
+
+  const [category, setCategory] = useState<ResultCategory | null>(null);
   const [metric, setMetric] = useState<string | null>(null);
-  const { data: results, isLoading } = useResults(category);
+
+  useEffect(() => {
+    if (categoryTabs.length === 0) {
+      setCategory(null);
+      return;
+    }
+    if (!category || !categoryTabs.some((t) => t.key === category)) {
+      setCategory(categoryTabs[0].key);
+      setMetric(null);
+    }
+  }, [categoryTabs, category]);
+
+  const activeCategory = category ?? categoryTabs[0]?.key ?? null;
+  const { data: results, isLoading } = useResults(activeCategory);
+  const resultsLoading = !activeCategory || isLoading;
 
   const metrics = useMemo(() => Array.from(new Set((results ?? []).map((r) => r.metric))), [results]);
   const selectedMetric = metric && metrics.includes(metric) ? metric : (metrics[0] ?? null);
+
+  if (personasLoading) {
+    return (
+      <div className="container py-10">
+        <h1 className="text-3xl font-semibold tracking-tight">Wyniki</h1>
+        <p className="mt-6 text-sm text-muted-foreground">Ładowanie…</p>
+      </div>
+    );
+  }
+
+  if (categoryTabs.length === 0 || !activeCategory) {
+    return (
+      <div className="container py-10">
+        <h1 className="mb-6 text-3xl font-semibold tracking-tight">Wyniki</h1>
+        <p className="text-sm text-muted-foreground">
+          Kategorie wyników zależą od Twoich person.{" "}
+          <Link to="/personas" className="underline underline-offset-2 hover:text-foreground">
+            Dodaj personę
+          </Link>
+          , żeby zobaczyć Siłownię, Dietę, Badminton itd.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="container py-10">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-semibold tracking-tight">Wyniki</h1>
-        <AddResultDialog category={category} />
+        <AddResultDialog category={activeCategory} />
       </div>
 
       <Tabs
-        value={category}
+        value={activeCategory}
         onValueChange={(value) => {
           setCategory(value as ResultCategory);
           setMetric(null);
         }}
       >
         <TabsList>
-          {CATEGORY_TABS.map((tab) => (
+          {categoryTabs.map((tab) => (
             <TabsTrigger key={tab.key} value={tab.key}>
               {tab.label}
             </TabsTrigger>
@@ -57,7 +96,7 @@ export default function ResultsPage() {
         </TabsList>
       </Tabs>
 
-      {isLoading ? (
+      {resultsLoading ? (
         <p className="mt-6 text-sm text-muted-foreground">Ładowanie…</p>
       ) : (
         <div className="mt-6 space-y-6">
@@ -86,7 +125,7 @@ export default function ResultsPage() {
             )}
           </div>
 
-          <ResultsTable results={results ?? []} category={category} />
+          <ResultsTable results={results ?? []} category={activeCategory} />
         </div>
       )}
     </div>

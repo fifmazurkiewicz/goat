@@ -88,7 +88,7 @@ export function PersonaCard({ persona, onOpenConfig, onEdit }: PersonaCardProps)
           )}
         </div>
         <Button type="button" variant="ghost" size="sm" className="justify-start px-0" onClick={() => onOpenConfig(persona)}>
-          Zobacz pełną konfigurację →
+          Zobacz konfigurację →
         </Button>
         <div className="mt-auto flex gap-2">
           <Button type="button" variant="outline" className="flex-1" onClick={() => onEdit(persona)}>

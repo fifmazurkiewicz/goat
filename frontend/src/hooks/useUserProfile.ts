@@ -7,7 +7,7 @@ const USER_PROFILE_KEY = ["user-profile"] as const;
 
 /**
  * `user_profile` (biometria, ADR-11) — WSPÓLNY dla wszystkich person usera, odróżnij
- * od `Persona.persona_constraints`. Używany m.in. w dialogu "Zobacz pełną konfigurację"
+ * od systemowego `personas.persona_constraints` (niewidoczne w API). Używany m.in. w dialogu "Zobacz pełną konfigurację"
  * na /personas (co widzi dana persona) i na /profile (formularz-fallback).
  */
 export function useUserProfile() {

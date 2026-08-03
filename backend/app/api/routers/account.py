@@ -23,7 +23,7 @@ async def get_account(auth: AuthContext = Depends(get_current_user)) -> AccountO
     # `profiles` ma wiersz od rejestracji (trigger `handle_new_user`) — brak wiersza
     # oznaczałby niespójny stan konta, nie normalną ścieżkę "jeszcze nieuzupełnione".
     if profile is None:
-        return AccountOut(id=auth.user_id, nick=None)
+        return AccountOut(id=auth.user_id, nick=None, is_admin=False)
     return AccountOut.model_validate(profile)
 
 

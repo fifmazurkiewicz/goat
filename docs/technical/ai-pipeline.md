@@ -35,7 +35,7 @@ chce podać któregoś pola — kontynuuj z tym, co masz.
 
 Ta instrukcja znika automatycznie z promptu, gdy profil jest kompletny — nie wymaga osobnej logiki "czy to pierwsza rozmowa", tylko stanu danych.
 
-**Fallback — formularz `/profile`.** Nie każdy user chce najpierw "pogadać" o wadze — prosty formularz (`GET`/`PATCH /api/v1/profile`) jako alternatywna, szybsza ścieżka wypełnienia tych samych pól. Obie ścieżki piszą do tej samej tabeli, więc się nie duplikują ani nie kolidują.
+**Fallback API** — `GET`/`PATCH /api/v1/profile` (bez zakładki w nav; biometria głównie przez czat). Obie ścieżki piszą do tej samej tabeli.
 
 **Zasilanie generowania planu.** `user_profile` przekazywany explicite do plannera (etap 1 i 2, architecture.md sekcja 4) obok `persona_constraints` — dane biometryczne wpływają np. na cele kaloryczne (dietetyk), dobór obciążeń adekwatny do wieku/poziomu (trener siłowni). Brak kompletnego profilu **nie blokuje** generowania planu (zgodne z ADR-8 — nie dodajemy nowych twardych blokad w MVP), ale planner dostaje informację o brakach i może w notatkach zaznaczyć że plan jest wstępny/ogólny do czasu uzupełnienia danych.
 
@@ -117,7 +117,13 @@ Pełny opis pipeline'u w [`architecture.md`](architecture.md#4-generowanie-planu
 
 ### `persona_constraints` — twarde ograniczenia niezależne od czatu
 
-Plan bazuje wyłącznie na `results` + poprzednim planie, nie na historii czatu (zbyt niedeterministyczne). Problem: user może powiedzieć w czacie "mam kontuzję kolana, unikaj przysiadów" — to nigdy nie trafi do plannera bez dedykowanego mechanizmu. **Rozwiązanie:** pole `personas.persona_constraints` — krótka, edytowalna przez usera notatka twardych ograniczeń, przekazywana do plannera **explicite** w każdym etapie (2 i 3) jako twarde ograniczenie, oddzielone od reszty kontekstu. Prostsze i bardziej niezawodne niż ekstrakcja z czatu.
+Plan bazuje wyłącznie na `results` + poprzednim planie, nie na historii czatu (zbyt niedeterministyczne). Problem: kontuzja / zalecenie lekarskie wspomniane tylko w czacie nigdy nie trafi do plannera bez dedykowanego mechanizmu. **Rozwiązanie:** pole `personas.persona_constraints` — krótka notatka twardych ograniczeń (np. uraz, zakaz ćwiczenia), przekazywana do plannera **explicite** w każdym etapie (2 i 3) oraz do `ContextBuilder` czatu, oddzielona od reszty kontekstu.
+
+**Dostęp (świadoma decyzja produktowa):** pole jest **wyłącznie systemowe / operatorskie** — end-user **nie widzi** go w UI ani w odpowiedziach API (`PersonaOut` go nie zwraca) i **nie może** go ustawić przez `POST/PATCH /personas` (pole usunięte z DTO create/update; serwis dodatkowo odrzuca próbę zapisu). Wypełnianie: seed/admin/przyszły panel operatorski albo bezpośredni zapis w DB — nie formularz persony.
+
+### `safety_prompt` gotowca — reguły medyczne osobno od zachowania
+
+Obok `persona_constraints` (per-instancja persony) gotowiec ma stały overlay w `app_private.persona_template_safety`, doklejany przy czacie/planie po `base_template_id` (połączenie `service_role`). `default_prompt` / `system_prompt` zawierają wyłącznie zachowanie. Spec: `docs/superpowers/specs/2026-08-04-persona-safety-prompt-design.md`.
 
 ## 5. Golden test cases (regresja w CI)
 

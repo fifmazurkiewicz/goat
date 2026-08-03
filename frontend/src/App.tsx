@@ -13,13 +13,13 @@ import LoginPage from "@/pages/LoginPage";
 import OnboardingPage from "@/pages/OnboardingPage";
 import PersonasPage from "@/pages/PersonasPage";
 import PlansPage from "@/pages/PlansPage";
-import ProfilePage from "@/pages/ProfilePage";
 import ResultsPage from "@/pages/ResultsPage";
 import SettingsPage from "@/pages/SettingsPage";
 
 /**
  * Routing zgodny z docs/technical/frontend.md sekcja 1. Guard "min. 1
  * aktywna persona" na /chat i /plans — świadomie odłożony (ADR-8).
+ * `/profile` usunięte z nav — biometria przez czat (`update_user_profile`).
  */
 const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/personas" replace /> },
@@ -37,7 +37,7 @@ const router = createBrowserRouter([
       { path: "/chat/:sessionId", element: <ChatPage /> },
       { path: "/plans", element: <PlansPage /> },
       { path: "/results", element: <ResultsPage /> },
-      { path: "/profile", element: <ProfilePage /> },
+      { path: "/profile", element: <Navigate to="/settings" replace /> },
       { path: "/settings", element: <SettingsPage /> },
       {
         path: "/admin",

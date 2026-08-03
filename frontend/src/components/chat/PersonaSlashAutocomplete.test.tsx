@@ -18,7 +18,6 @@ function makePersona(overrides: Partial<Persona>): Persona {
     template_overrides: null,
     detail_level: "simple",
     custom_result_category: null,
-    persona_constraints: null,
     slug: "trener_badmintona_kasia_wilk",
     is_shared: false,
     moderation_status: "approved",

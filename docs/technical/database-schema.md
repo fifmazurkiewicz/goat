@@ -6,7 +6,7 @@
 -- ============ PROFIL ============
 profiles (
   id uuid PK references auth.users,
-  is_admin boolean default false,
+  is_admin boolean default false,  -- bootstrap: wyłącznie fmazurkiewicz@gmail.com (handle_new_user + seed z auth.users)
   -- Limit aktywnych person PER KONTO, edytowalny przez admina (ADR-12) — zastępuje
   -- globalną stałą "5". Żyje tu (nie w usage_limits — PK (user_id, period_start),
   -- resetowane co okres), bo ma trwać niezależnie od okresu rozliczeniowego.
@@ -23,11 +23,18 @@ profiles (
 -- ============ GOTOWCE (seed, read-only dla usera) ============
 persona_templates (
   id uuid PK,
-  type text,   -- 'personal_trainer'|'dietitian'|'sport_psychologist'|'psychologist'|'motor_coach'|'badminton_coach'
-  default_prompt text,
+  type text,   -- 'personal_trainer'|'dietitian'|...
+  default_prompt text,  -- TYLKO zachowanie/styl (kopiowane do personas.system_prompt)
   label text,
   created_at timestamptz default now()
 )
+
+-- Poza PostgREST — lekarz/leki/red flags per gotowiec (spec 2026-08-04)
+app_private.persona_template_safety (
+  template_id uuid PK → persona_templates,
+  safety_prompt text not null
+)
+-- GRANT SELECT wyłącznie service_role; brak dostępu anon/authenticated
 
 plan_templates (
   id uuid PK,
@@ -60,11 +67,11 @@ personas (
   base_template_id uuid FK -> persona_templates,
   chat_model text default 'anthropic/claude-haiku-4.5',
   plan_template_id uuid FK -> plan_templates,
-  template_overrides jsonb,                     -- walidowane Pydantic/Zod PRZED zapisem (fail fast, nie late failure)
+  template_overrides jsonb,                     -- kształt: {"columns": ["…"]} — walidowane Pydantic/Zod PRZED zapisem
   detail_level text default 'simple',           -- 'simple'|'detailed'
   custom_result_category text,                  -- wymagane gdy type='custom' — mapowanie na 1 z 5 kategorii albo 'custom'
-  persona_constraints text,                     -- NOWE: twarde ograniczenia (kontuzje itp.) przekazywane wprost do plannera,
-                                                 -- niezależnie od czatu/summary — patrz ai-pipeline.md
+  persona_constraints text,                     -- twarde ograniczenia (kontuzje/zalecenia) → planner + ContextBuilder;
+                                                 -- NIE w PersonaOut / NIE w create|update DTO (tylko system/operator)
   slug text not null,                           -- ADR-13: stabilny identyfikator do "/slug wiadomość" w ogólnym
                                                  -- czacie; generowany z type+name, regenerowany przy zmianie nazwy;
                                                  -- unikalny per user (nie globalnie)
@@ -82,7 +89,8 @@ personas (
 -- ADR-12): trigger jako ostatnia linia obrony + walidacja w API (czytelny komunikat, nie 500).
 
 -- ============ PROFIL UŻYTKOWNIKA (biometria, WSPÓLNY dla wszystkich person usera) ============
--- Odróżnij od personas.persona_constraints (specyficzne dla danej persony, np. kontuzja
+-- Odróżnij od personas.persona_constraints (specyficzne dla danej persony; systemowe —
+-- niewidoczne/niedostępne dla end-usera w API; np. kontuzja ustawiona operatorsko).
 -- zgłoszona akurat trenerowi siłowni). Wypełniany konwersacyjnie przez tool `update_user_profile`
 -- (dowolna persona), z formularzem /profile jako fallback — patrz ai-pipeline.md sekcja 0.
 user_profile (

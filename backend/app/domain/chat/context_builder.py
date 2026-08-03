@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any, Protocol
 
-from app.domain.chat.preamble import build_system_prompt as build_preamble_prompt
+from app.domain.chat.preamble import build_system_prompt as build_preamble_composed
 from app.domain.chat.tools import build_profile_intake_instruction
 from app.models.schemas import UserProfileOut
 
@@ -88,8 +88,13 @@ class ContextBuilder:
         persona_system_prompt: str,
         persona_constraints: str | None,
         user_profile: UserProfileOut | None,
+        template_safety_prompt: str | None = None,
     ) -> str:
-        segments = [build_preamble_prompt(persona_system_prompt)]
+        segments = [
+            build_preamble_composed(
+                persona_system_prompt, template_safety_prompt=template_safety_prompt
+            )
+        ]
 
         if persona_constraints:
             segments.append(f"[TWARDE OGRANICZENIA PERSONY]\n{persona_constraints}")

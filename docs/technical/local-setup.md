@@ -1,49 +1,203 @@
 # Uruchomienie lokalne
 
-Projekt musi dać się w pełni uruchomić lokalnie — backend i frontend — bez Dockera i bez deployu na Render/Vercel.
+**Aktualnie setupujemy chmurę** — pełna ścieżka: [`cloud-setup.md`](cloud-setup.md) (projekt Supabase **`goat`**).
 
-## 1. Baza danych
+Ten dokument: lokalny loop (backend/frontend na maszynie + ten sam projekt Supabase `goat`, albo w przyszłości lokalny Postgres). Bez Dockera.
 
-Rekomendowane: **Supabase Cloud, projekt dev** (`coach-dev`) — najszybszy start, RLS działa tak samo jak na produkcji.
+---
 
-1. Utwórz projekt `coach-dev` w Supabase (Free tier).
-2. Skonfiguruj Google OAuth: Dashboard → Authentication → Providers → Google (Client ID/Secret z Google Cloud Console).
-3. Dodaj redirect URL `http://localhost:3000/**` w Authentication → URL Configuration.
-4. Zastosuj migracje: `supabase link --project-ref <dev-ref>` → `supabase db push`.
+## A. Supabase — ten sam projekt `goat` (już z cloud-setup)
 
-Alternatywa: natywny lokalny Postgres 16 (`createdb coach_dev`) + `psql -f supabase/migrations/*.sql` ręcznie — wymaga własnej konfiguracji auth (poza zakresem tego dokumentu, Supabase Cloud jest prostsze).
+Jeśli projekt `goat` i migracje są już w chmurze, **nie twórz drugiego projektu**. Użyj tych samych kluczy / poolera z [`cloud-setup.md`](cloud-setup.md) §1.4.
 
-## 2. Backend
+Gdybyś startował od zera tylko lokalnie (bez deployu):
 
-```bash
-cd backend
+### A1. Projekt
+
+1. [supabase.com](https://supabase.com) → **New project**.
+2. Name: **`goat`** (nie `coach-dev`).
+3. Database password: **wygeneruj i zapisz**.
+4. Region: np. **Frankfurt**.
+5. Active → zapisz **Reference ID** (`<ref>`).
+
+### A2. Google OAuth (Google Cloud + Supabase)
+
+**Google Cloud Console** ([console.cloud.google.com](https://console.cloud.google.com)):
+
+1. Utwórz / wybierz projekt GCP.
+2. APIs & Services → **OAuth consent screen** → External → wypełnij nazwę apki, swój email → Save.
+3. APIs & Services → **Credentials** → Create credentials → **OAuth client ID** → Application type: **Web application**.
+4. Authorized JavaScript origins: `http://localhost:3000`
+5. Authorized redirect URIs:  
+   `https://<ref>.supabase.co/auth/v1/callback`
+6. Create → skopiuj **Client ID** i **Client Secret**.
+
+**Supabase Dashboard:**
+
+1. Authentication → **Providers** → **Google** → Enable.
+2. Wklej Client ID i Client Secret → Save.
+3. Authentication → **URL Configuration** — do local dodaj obok prod:
+   - Redirect URLs: `http://localhost:3000/**` (Site URL może zostać `https://goat.fmazurkiewicz.dev`).
+
+### A3. Migracje (SQL Editor — bez CLI)
+
+1. W repo otwórz pliki:
+   - `supabase/migrations/0001_init.sql`
+   - `supabase/migrations/0002_exercise_catalog.sql`
+2. Supabase → **SQL** → **New query**.
+3. Wklej **całą** treść `0001_init.sql` → **Run** (musi przejść bez błędu).
+4. Nowa query → wklej **całą** treść `0002_exercise_catalog.sql` → **Run**.
+5. **Table Editor** — powinny być m.in.:
+   - `profiles`, `personas`, `persona_templates`, `plan_templates`, `allowed_metrics`
+   - `chat_sessions`, `chat_messages`, `results`, `plans`, `plan_items`
+   - `usage_limits`, `exercises`
+6. Sprawdź seed: `persona_templates` i `exercises` mają wiersze.
+
+### A4. Skopiuj connection string i klucze
+
+**Database** (Project Settings → Database):
+
+1. Connection string → **URI**.
+2. Wybierz **Connection pooling** (Supavisor), mode **Transaction**, port **6543**.
+3. Skopiuj URI i podmień `[YOUR-PASSWORD]` na hasło z A1.  
+   Przykładowy kształt (host/region mogą się różnić — bierz z UI):
+
+```text
+postgresql://postgres.<ref>:<HASLO>@aws-0-eu-central-1.pooler.supabase.com:6543/postgres
+```
+
+Dla backendu dodaj dialect: `postgresql+asyncpg://...` (zamień prefiks `postgresql://` na `postgresql+asyncpg://`).
+
+**API** (Project Settings → API):
+
+| Pole w panelu | Gdzie wstawisz |
+|---|---|
+| Project URL | `SUPABASE_URL`, `VITE_SUPABASE_URL` |
+| `anon` `public` | `VITE_SUPABASE_ANON_KEY` |
+| `service_role` `secret` | `SUPABASE_SERVICE_ROLE_KEY` (tylko backend!) |
+
+JWKS (stały wzorzec):
+
+```text
+https://<ref>.supabase.co/auth/v1/.well-known/jwks.json
+```
+
+---
+
+## B. OpenRouter (LLM)
+
+1. [openrouter.ai](https://openrouter.ai) → konto → API Keys → Create key.
+2. Zapisz klucz (pójdzie do `OPENROUTER_API_KEY` w backendzie).
+3. Opcjonalnie: ustaw soft limit wydatków + alert mailowy.
+
+---
+
+## C. Pliki env (lokalnie, nie commitować)
+
+### C1. Backend
+
+```powershell
+cd C:\Users\MSI\PycharmProjects\goat\backend
+copy .env.example .env
+```
+
+Edytuj `backend/.env`:
+
+```env
+ENVIRONMENT=local
+
+DATABASE_URL=postgresql+asyncpg://postgres.<ref>:<HASLO>@aws-0-eu-central-1.pooler.supabase.com:6543/postgres
+SUPABASE_URL=https://<ref>.supabase.co
+SUPABASE_JWKS_URL=https://<ref>.supabase.co/auth/v1/.well-known/jwks.json
+SUPABASE_SERVICE_ROLE_KEY=<service_role z panelu>
+
+OPENROUTER_API_KEY=<klucz z OpenRouter>
+OPENROUTER_CHAT_MODEL=anthropic/claude-haiku-4.5
+OPENROUTER_PLANNER_MODEL=anthropic/claude-sonnet-4.6
+
+CORS_ORIGINS=http://localhost:3000
+```
+
+### C2. Frontend
+
+```powershell
+cd C:\Users\MSI\PycharmProjects\goat\frontend
+copy .env.example .env.local
+```
+
+Edytuj `frontend/.env.local`:
+
+```env
+VITE_SUPABASE_URL=https://<ref>.supabase.co
+VITE_SUPABASE_ANON_KEY=<anon key z panelu>
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+Nigdy nie commituj `.env` / `.env.local` i nie wklejaj sekretów do czatu.
+
+---
+
+## D. Uruchomienie procesów
+
+### D1. Backend (terminal 1)
+
+```powershell
+cd C:\Users\MSI\PycharmProjects\goat\backend
 uv sync
-cp ../.env.example .env
-# uzupełnij DATABASE_URL, SUPABASE_URL, SUPABASE_JWKS_URL, OPENROUTER_API_KEY
 uv run uvicorn app.main:app --reload --port 8000
 ```
 
-Wartości sekretów (klucz OpenRouter, Supabase keys) uzupełnij samodzielnie — nigdy nie wklejaj ich do czatu/repo.
+### D2. Frontend (terminal 2)
 
-## 3. Frontend
-
-```bash
-cd frontend
+```powershell
+cd C:\Users\MSI\PycharmProjects\goat\frontend
 npm install
-cp .env.example .env.local
-# uzupełnij VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_API_BASE_URL=http://localhost:8000
 npm run dev
 ```
 
-## 4. Smoke test
+Frontend: `http://localhost:3000`  
+API: `http://localhost:8000`
 
-1. `curl http://localhost:8000/api/health` → `200 OK`.
-2. Otwórz `http://localhost:3000`, zaloguj się przez Google (dev Supabase project).
-3. Utwórz personę (galeria 6 szablonów), wyślij testową wiadomość w czacie → zweryfikuj streaming SSE (tokeny na żywo) i inline chip przy zapisaniu wyniku.
-4. Wygeneruj plan tygodniowy → zweryfikuj że `job_id` jest zwracany i frontend pollinguje aż do statusu `success`/`partial_success`.
-5. Sprawdź `/results` — wykres trendu dla zalogowanej metryki.
+---
 
-## Uwagi
+## E. Smoke test
 
-- Backend nie wymaga Dockera do developmentu — Docker jest używany wyłącznie w Dockerfile do deployu na Render i w CI do testów migracji.
-- `backend/.env` i `frontend/.env.local` nigdy nie trafiają do repo (`.gitignore`).
+1. `curl http://localhost:8000/api/health` → `200` / `{"status":"ok"}` (lub równoważne).
+2. Przeglądarka → `http://localhost:3000` → **Zaloguj przez Google**.
+3. Po logowaniu w Supabase → Authentication → Users powinien być Twój user; w Table Editor → `profiles` wiersz z tym samym `id`.
+4. Utwórz personę z szablonu.
+5. Wyślij wiadomość w czacie → streaming tokenów (SSE).
+6. (Opcjonalnie) wygeneruj plan tygodniowy → status joba `success` / `partial_success`.
+7. Sprawdź `/results` i `/settings`.
+
+---
+
+## F. Na później — lokalny Postgres zamiast Supabase DB
+
+Gdy zechcesz `DATABASE_URL` na `localhost` (Auth może zostać w Supabase Cloud):
+
+1. Postgres 16 lokalnie → `CREATE DATABASE coach_dev;`
+2. Stub `auth` (jak w CI `.github/workflows/ci.yml`) — `pgcrypto` + `auth.users` + `auth.uid()`.
+3. `psql -f supabase/migrations/0001_init.sql` potem `0002_exercise_catalog.sql`.
+4. `DATABASE_URL=postgresql+asyncpg://postgres:...@localhost:5432/coach_dev`
+5. Po pierwszym Google login wstaw UUID z JWT (`sub`) do lokalnego `auth.users` (FK).
+
+Szczegóły nie są potrzebne przy pierwszym setupie — wróć tu dopiero gdy świadomie przełączysz DB.
+
+---
+
+## Checklist (pierwszy raz)
+
+| # | Krok | OK? |
+|---|---|---|
+| 1 | Projekt Supabase **`goat`** Active (zwykle już z cloud-setup) | |
+| 2 | Google OAuth w GCP + Supabase Providers | |
+| 3 | Site URL / Redirect `localhost:3000` | |
+| 4 | SQL: `0001_init` + `0002_exercise_catalog` | |
+| 5 | Table Editor: tabele + seed | |
+| 6 | OpenRouter API key | |
+| 7 | `backend/.env` uzupełniony (pooler + keys) | |
+| 8 | `frontend/.env.local` uzupełniony | |
+| 9 | `uv run uvicorn` na :8000 | |
+| 10 | `npm run dev` na :3000 | |
+| 11 | Health + login Google + persona + czat | |

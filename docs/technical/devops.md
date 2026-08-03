@@ -48,22 +48,22 @@ Pełna checklista w [`local-setup.md`](local-setup.md). Zasada: projekt musi da�
 | `SUPABASE_SERVICE_ROLE_KEY` | **tylko** Render (secret) | Backend-only, Admin API. Nigdy w repo/frontendzie |
 | `OPENROUTER_API_KEY` | Render (secret) | |
 | `OPENROUTER_CHAT_MODEL` / `OPENROUTER_PLANNER_MODEL` | Render + `.env.example` | env-driven, nie hardkodowane |
-| `CORS_ORIGINS` | Render | `http://localhost:3000,https://coach.fmazurkiewicz.dev` + regex `*.vercel.app` dla preview |
+| `CORS_ORIGINS` | Render | `https://goat.fmazurkiewicz.dev` (+ `http://localhost:3000` gdy testujesz API lokalnie) + regex `*.vercel.app` dla preview |
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_BASE_URL` | Vercel + `frontend/.env.local` | Publiczne, bezpieczne w bundlu (chronione przez RLS) |
 
 Zasady: `SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`, `DATABASE_URL`, `SUPABASE_ACCESS_TOKEN` (CLI) — nigdy do repo/frontendu. `.gitignore` obejmuje `.env`, `.env.*` poza `!.env.example`, `frontend/.env.local`.
 
 ## 6. Migracje Supabase
 
-Dwa projekty: `coach-dev`, `coach-prod` (mieszczą się we Free tier organizacji). `supabase/migrations/*.sql` jako jedyne źródło prawdy (Supabase CLI, **nie** Alembic — backend łączy się surowym SQLAlchemy Core bez ORM-owego systemu migracji).
+Projekt Supabase: **`goat`** (jeden cloud na start; osobny `goat-dev` tylko gdy świadomie rozdzielisz środowiska). `supabase/migrations/*.sql` jako jedyne źródło prawdy (**nie** Alembic).
 
-1. Lokalnie/dev: `supabase link --project-ref <dev-ref>` + `supabase db push`.
-2. CI (`migrations-check` przy każdym PR): Postgres w kontenerze CI, `supabase db reset` na czystej bazie — weryfikacja że wszystkie migracje aplikują się od zera.
-3. Prod: **ręczny, świadomy krok** (`workflow_dispatch`), nie auto-apply na push do main.
+1. Cloud (aktualny setup): migracje przez SQL Editor albo `supabase link` + `supabase db push` — patrz [`cloud-setup.md`](cloud-setup.md).
+2. CI (`migrations-check` przy każdym PR): Postgres w kontenerze CI, aplikacja migracji od zera.
+3. Kolejne migracje na prod: **ręczny, świadomy krok**, nie auto-apply na push do main.
 
 ## 7. Autentykacja — Google OAuth (bez magic linka)
 
-**Decyzja:** wyłącznie Google OAuth przez Supabase Auth. Konfiguracja: Supabase Dashboard → Authentication → Providers → Google (Client ID/Secret z Google Cloud Console), redirect URL `http://localhost:3000/**` (dev) i `https://coach.fmazurkiewicz.dev/**` (prod) dodane w Supabase Auth settings i w Google Cloud Console OAuth consent screen.
+**Decyzja:** wyłącznie Google OAuth przez Supabase Auth. Redirecty: `https://goat.fmazurkiewicz.dev/**` (prod); `http://localhost:3000/**` dodajesz gdy wrócisz do local. Szczegóły: [`cloud-setup.md`](cloud-setup.md).
 
 ## 8. CI/CD — `.github/workflows/ci.yml`
 
@@ -82,8 +82,8 @@ Logi Render (wbudowane), Sentry free tier (backend Python SDK + frontend React S
 
 | Typ | Nazwa | Wartość | Proxy |
 |---|---|---|---|
-| CNAME | `coach` | `cname.vercel-dns.com` | DNS only |
-| CNAME | `api-coach` | `<service>.onrender.com` | DNS only (podwójny proxy koliduje z SSE) |
+| CNAME | `goat` | `cname.vercel-dns.com` | DNS only |
+| CNAME | `api-goat` | `<service>.onrender.com` | DNS only (podwójny proxy koliduje z SSE) |
 
 ## 11. Koszt
 

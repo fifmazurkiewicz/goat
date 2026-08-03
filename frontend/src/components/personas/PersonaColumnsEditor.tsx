@@ -28,42 +28,48 @@ export function PersonaColumnsEditor() {
       <Label>Kolumny rozpiski</Label>
       <div className="space-y-2">
         {fields.map((field, index) => (
-          <div key={field.id} className="flex items-center gap-2">
-            <Input
-              {...register(`columns.${index}.name` as const)}
-              aria-label={`Nazwa kolumny ${index + 1}`}
-              placeholder="np. Ćwiczenie"
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              disabled={index === 0}
-              onClick={() => move(index, index - 1)}
-              aria-label="Przesuń wyżej"
-            >
-              <ArrowUp className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              disabled={index === fields.length - 1}
-              onClick={() => move(index, index + 1)}
-              aria-label="Przesuń niżej"
-            >
-              <ArrowDown className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              disabled={fields.length <= 1}
-              onClick={() => remove(index)}
-              aria-label="Usuń kolumnę"
-            >
-              <X className="h-4 w-4" />
-            </Button>
+          <div key={field.id} className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Input
+                {...register(`columns.${index}.name` as const)}
+                aria-label={`Nazwa kolumny ${index + 1}`}
+                placeholder="np. Ćwiczenie"
+                aria-invalid={Boolean(errors.columns?.[index]?.name)}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                disabled={index === 0}
+                onClick={() => move(index, index - 1)}
+                aria-label="Przesuń wyżej"
+              >
+                <ArrowUp className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                disabled={index === fields.length - 1}
+                onClick={() => move(index, index + 1)}
+                aria-label="Przesuń niżej"
+              >
+                <ArrowDown className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                disabled={fields.length <= 1}
+                onClick={() => remove(index)}
+                aria-label="Usuń kolumnę"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            {errors.columns?.[index]?.name?.message ? (
+              <p className="text-sm text-destructive">{errors.columns[index]?.name?.message}</p>
+            ) : null}
           </div>
         ))}
       </div>

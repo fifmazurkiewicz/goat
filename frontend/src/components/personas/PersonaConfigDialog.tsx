@@ -19,7 +19,7 @@ const GOAL_LABELS: Record<string, string> = {
   sport_specific: "Cel specyficzny dla dyscypliny",
 };
 
-/** "Zobacz pełną konfigurację" — user_profile + pełny prompt + poziom szczegółowości. */
+/** Konfiguracja persony — warstwa usera (styl, profil, detail). Bez safety/constraints. */
 export function PersonaConfigDialog({ persona, onOpenChange, onEdit }: PersonaConfigDialogProps) {
   const { data: userProfile } = useUserProfile();
 
@@ -28,14 +28,18 @@ export function PersonaConfigDialog({ persona, onOpenChange, onEdit }: PersonaCo
       open={Boolean(persona)}
       onOpenChange={onOpenChange}
       title={persona?.name ?? ""}
-      description={persona ? PERSONA_TYPE_LABELS[persona.type] : undefined}
+      description={
+        persona
+          ? `${PERSONA_TYPE_LABELS[persona.type]}. To ustawienia, które kontrolujesz — aplikacja zawsze stosuje własne zasady bezpieczeństwa.`
+          : undefined
+      }
       className="sm:max-w-xl"
       footer={
         <>
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Zamknij
           </Button>
-          {persona && onEdit ? <Button onClick={() => onEdit(persona)}>Edytuj prompt</Button> : null}
+          {persona && onEdit ? <Button onClick={() => onEdit(persona)}>Edytuj styl</Button> : null}
         </>
       }
     >
@@ -76,22 +80,10 @@ export function PersonaConfigDialog({ persona, onOpenChange, onEdit }: PersonaCo
 
           <div>
             <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Jak ma odpowiadać (prompt)
+              Styl i zakres pomocy
             </div>
             <p className="mt-1 whitespace-pre-line text-sm">{persona.system_prompt}</p>
           </div>
-
-          {persona.persona_constraints ? (
-            <>
-              <Separator />
-              <div>
-                <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Twarde ograniczenia
-                </div>
-                <p className="mt-1 whitespace-pre-line text-sm">{persona.persona_constraints}</p>
-              </div>
-            </>
-          ) : null}
         </div>
       ) : null}
     </ResponsiveDialog>

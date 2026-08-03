@@ -57,6 +57,19 @@ class PersonaTemplatesRepo:
         row = result.one_or_none()
         return _row_to_persona_template(row) if row is not None else None
 
+    async def get_safety_prompt(self, template_id: str) -> str | None:
+        """Odczyt `app_private.persona_template_safety` — wołać wyłącznie na połączeniu
+        `service_role` (brak GRANT dla anon/authenticated)."""
+        result = await self._conn.execute(
+            text(
+                "SELECT safety_prompt FROM app_private.persona_template_safety "
+                "WHERE template_id = :id"
+            ),
+            {"id": template_id},
+        )
+        row = result.one_or_none()
+        return str(row.safety_prompt) if row is not None else None
+
 
 class PlanTemplatesRepo:
     def __init__(self, conn: AsyncConnection) -> None:

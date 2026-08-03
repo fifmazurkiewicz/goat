@@ -18,8 +18,8 @@ export type DetailLevel = "simple" | "detailed";
 
 export type ModerationStatus = "pending" | "approved" | "rejected";
 
-export interface TemplateOverrideColumn {
-  name: string;
+export interface TemplateOverrides {
+  columns: string[];
 }
 
 export interface Persona {
@@ -31,10 +31,9 @@ export interface Persona {
   base_template_id: string | null;
   chat_model: string;
   plan_template_id: string | null;
-  template_overrides: TemplateOverrideColumn[] | null;
+  template_overrides: TemplateOverrides | null;
   detail_level: DetailLevel;
   custom_result_category: string | null;
-  persona_constraints: string | null;
   // ADR-13: stabilny identyfikator do "/slug wiadomość" w ogólnym czacie —
   // generowany z type+name, regenerowany przy zmianie nazwy, unikalny per user.
   slug: string;
@@ -70,6 +69,7 @@ export interface PersonaCreateInput {
   system_prompt: string;
   detail_level: DetailLevel;
   plan_template_id?: string | null;
+  template_overrides?: TemplateOverrides | null;
   custom_result_category?: string | null;
 }
 
@@ -87,7 +87,6 @@ export type PersonaUpdateInput = Partial<
     | "system_prompt"
     | "detail_level"
     | "template_overrides"
-    | "persona_constraints"
     | "custom_result_category"
     | "active"
     | "plan_template_id"
@@ -240,8 +239,9 @@ export interface UsageLimits {
 }
 
 // Profil biometryczny — WSPÓLNY dla wszystkich person usera (odróżnij od
-// Persona.persona_constraints, specyficznego dla danej persony). Wypełniany docelowo
-// konwersacyjnie (tool `update_user_profile` w dowolnej rozmowie) — ten typ opisuje
+// systemowego `personas.persona_constraints`, niewidocznego w API dla end-usera).
+// Wypełniany docelowo konwersacyjnie (tool `update_user_profile` w dowolnej rozmowie)
+// — ten typ opisuje
 // zarówno kształt zwracany przez `GET /profile`, jak i ciało `PATCH /profile`
 // (formularz-fallback). Patrz docs/technical/ai-pipeline.md sekcja 0, ADR-11.
 export type Sex = "male" | "female" | "other";
@@ -321,8 +321,10 @@ export interface ModerationEvent {
 // ADR-15: konto — nick + motyw. Motyw NIE jest tu (localStorage-only, useThemeStore) —
 // ten typ opisuje wyłącznie kontrakt GET/PATCH /api/v1/account.
 export interface Account {
+  id: string;
   nick: string | null;
-  email: string;
+  is_admin: boolean;
+  email?: string;
 }
 
 export type AccountUpdateInput = Partial<Pick<Account, "nick">>;
