@@ -19,8 +19,6 @@ from app.domain.chat.persona_scope import ROUTING_CLASSIFIER_RULES, routing_pers
 
 logger = structlog.get_logger(__name__)
 
-CHAT_MAX_PERSONAS_PER_TURN = 3
-
 _SLASH_PREFIX_RE = re.compile(r"^/([a-z0-9_]+)(?:\s+|$)")
 
 
@@ -109,8 +107,6 @@ def _normalize_persona_ids(raw_ids: list[str], allowlist: list[str]) -> list[str
         if persona_id in allow and persona_id not in seen:
             out.append(persona_id)
             seen.add(persona_id)
-        if len(out) >= CHAT_MAX_PERSONAS_PER_TURN:
-            break
     return out
 
 
@@ -172,7 +168,7 @@ class ChatRoutingService:
         if len(active_personas) == 1:
             return [ids[0]]
 
-        max_n = min(len(ids), CHAT_MAX_PERSONAS_PER_TURN)
+        max_n = len(ids)
         descriptions = "\n".join(
             routing_persona_line(
                 persona_id=persona.id,

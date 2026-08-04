@@ -1,43 +1,35 @@
 # Goat (Kierownik Zespołu) — dokumentacja techniczna
 
-**Status:** wdrożone (2026-08-04)  
-**ADR:** [ADR-17](../adr/decisions.md#adr-17-kierownik-zespołu-goat--koordynacja-sesji-general)  
-**Audyt:** [2026-08-04-goat-team-lead-audit.md](./audits/2026-08-04-goat-team-lead-audit.md)
+**Status:** wdrożone (2026-08-04), **zmiana UX 2026-08-04** — Goat jako jedyny głos userowi  
+**ADR:** [ADR-17](../adr/decisions.md#adr-17-kierownik-zespołu-goat--koordynacja-sesji-general)
 
 ## Przegląd
 
-**Goat** to systemowa, niewidoczna w galerii persona koordynująca sesję **Ogólna rozmowa** (`session_type=general`). User nie konfiguruje Goata — istnieje wyłącznie w kodzie (`TeamLeadService`, `TeamLeadSpeaker`).
+**Goat** to systemowa persona koordynująca sesję **Ogólna rozmowa** (`session_type=general`). User nie konfiguruje Goata — istnieje wyłącznie w kodzie (`TeamLeadService`, `TeamLeadSpeaker`).
 
-| Tryb | Widoczność Goata |
-|------|------------------|
-| Zwykłe pytanie (dieta, trening, technika) | Niewidoczny — odpowiadają trenerzy |
-| Prośba o plan tygodnia/miesiąca / harmonizacja | **Widoczny** jako „Goat · Kierownik Zespołu” |
+| Tryb | Kto mówi do usera |
+|------|-------------------|
+| Ogólna rozmowa (auto-routing, roundtable) | **Goat · Kierownik Zespołu** — przekazuje odpowiedzi trenerów |
+| `/slug` lub multi-slash | **Wybrana persona** — bezpośrednio (bez relay Goata) |
+| Prośba o plan tygodnia/miesiąca | **Goat** — `rebuild_plan` + potwierdzenie |
 
 Sesja w UI nadal nazywa się **Ogólna rozmowa**.
 
-## Przepływ tury (`general`)
+## Przepływ tury (`general`, bez slashy)
 
 ```mermaid
 sequenceDiagram
     actor U as User
     participant TL as TeamLeadService
-    participant GO as Goat (TeamLeadSpeaker)
-    participant TR as Trenerzy
+    participant GO as Goat (relay)
+    participant TR as Trener (backstage)
 
     U->>TL: wiadomość
-    Note over TL: team_phase planning → LLM lub slash
-    TL-->>TR: ConsultationPlan (persona_ids, briefy)
-
-    alt user_requests_plan_rebuild
-        GO->>GO: rebuild_plan
-        Note over GO: persona_id=null w DB/SSE
-        alt is_plan_coordination_only
-            Note over U: done — bez trenerów
-        end
-    end
-
-    loop max 3 trenerów
-        TR->>TR: odpowiedź z briefem + prior_summaries
+    TL-->>TR: ConsultationPlan + briefy
+    loop wszyscy aktywni trenerzy
+        Note over TR: LLM + narzędzia (bez streamu tokenów do usera)
+        TR-->>GO: surowa odpowiedź
+        GO->>U: relay Markdown (persona_id=null)
     end
 ```
 
@@ -77,8 +69,9 @@ Deterministycznie (bez `complete_json`):
 
 | Plik | Rola |
 |------|------|
-| `frontend/src/lib/team-lead.ts` | `isTeamLeadAssistantMessage`, `TEAM_LEAD_DISPLAY_LABEL` |
-| `frontend/src/components/chat/ChatWindow.tsx` | Nagłówek „Goat · Kierownik Zespołu” nad wiadomością |
+| `frontend/src/lib/team-lead.ts` | `TEAM_LEAD_DISPLAY_LABEL` |
+| `frontend/src/components/chat/ChatWindow.tsx` | Goat domyślnie; persona tylko gdy `persona_id` (slash) |
+| `frontend/src/components/chat/ChatHeader.tsx` | Badge „Goat · Kierownik” |
 | `frontend/src/hooks/useChatTurnRunner.ts` | `persona_turn_start` → `streaming.personaLabel` |
 
 Wiadomości Goata w DB: `role=assistant`, `persona_id=NULL`.

@@ -100,7 +100,7 @@ async def chat_stream_endpoint(request: Request, ...):
 Obok sesji `persona` (1:1, opisanej wyżej — bez zmian w jej logice) istnieje sesja `general`
 (`chat_sessions.session_type='general'`, `persona_id IS NULL`). W sesji `general` backend
 **najpierw koordynuje turę przez Kierownika Zespołu (Goat, ADR-17)**, potem deleguje do 1..N
-trenerów sekwencyjnie (max 3):
+trenerów sekwencyjnie (wszyscy aktywni, max 5 per konto):
 
 1. **`TeamLeadService.plan_consultation`** — wybór person + brief per trener:
    - **Parsowanie `/slug` / multi-slash** — deterministyczne, zero LLM (`parse_multi_slash_command`).

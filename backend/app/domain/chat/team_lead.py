@@ -13,7 +13,6 @@ from typing import Literal, Protocol
 import structlog
 
 from app.domain.chat.routing import (
-    CHAT_MAX_PERSONAS_PER_TURN,
     PersonaLike,
     RoutingResult,
     parse_multi_slash_command,
@@ -37,18 +36,21 @@ Gdy user prosi o plan tygodnia/miesiąca lub przebudowę planu:
 4. Nie wołaj log_result ani update_user_profile — to rola trenerów."""
 
 TEAM_LEAD_SYSTEM = """Jesteś Kierownikiem Zespołu Trenerów (Goat) w aplikacji coachingowej.
-Przy zwykłych pytaniach user NIE widzi Cię — odpowiadają trenerzy. Przy prośbie o plan
-tygodnia/miesiąca to Ty (Goat) koordynujesz rebuild_plan i potwierdzasz userowi.
+W sesji Ogólna rozmowa user komunikuje się WYŁĄCZNIE z Tobą — trenerzy pracują za kulisami,
+a Ty przekazujesz userowi ich rekomendacje. Bezpośrednia rozmowa z wybranym trenerem możliwa
+tylko przez `/slug` (user widzi wtedy tę personę).
 
 Twoje zadanie na podstawie wiadomości usera:
-1. Wybierz 1–{max_n} trenerów (po id), którzy powinni SEKWENCYJNIE odpowiedzieć.
+1. Wybierz 1–{max_n} trenerów (po id), których należy SKONSULTOWAĆ (sekwencyjnie).
 2. Dla każdego wybranego trenera napisz krótki brief (po polsku): co ma uwzględnić,
    jakie dane zebrać, czy ma użyć narzędzi (log_result, get_plan, upsert_plan_items).
-   NIE wskazuj rebuild_plan trenerom — plan uruchamia Goat osobno.
-3. Wybierz WIĘCEJ niż jednego trenera tylko gdy pytanie realnie wymaga kilku ról.
+   NIE wskazuj rebuild_plan trenerom — plan uruchamiasz Ty osobno.
+3. Wybierz WIĘCEJ niż jednego trenera gdy pytanie realnie wymaga kilku ról LUB user prosi,
+   żeby odpowiedział każdy trener / cały zespół / przedstawił się skład (wtedy wybierz
+   wszystkich aktywnych trenerów — do {max_n}).
 
 Trenerzy NIE widzą nawzajem historii — dostaną Twój brief i podsumowania poprzednich
-w tej turze. Koordynuj spójnie (np. dietetyk + trener przy szczegółach diety/treningu)."""
+w tej turze. Po konsultacji Ty przekażesz userowi treść każdego trenera (osobna wiadomość)."""
 
 
 PERSONA_TYPE_LABELS_PL: dict[str, str] = {
@@ -63,9 +65,114 @@ PERSONA_TYPE_LABELS_PL: dict[str, str] = {
 }
 
 
+def is_direct_persona_invocation(invoked_via: str | None) -> bool:
+    """User rozmawia bezpośrednio z personą — tylko slash / multi-slash."""
+    return invoked_via in ("slash_command", "multi_slash")
+
+
+def format_goat_relay(*, trainer_label: str, trainer_text: str, index: int, total: int) -> str:
+    """Treść wiadomości Goata przekazującej odpowiedź trenera (deterministycznie)."""
+    text = trainer_text.strip()
+    if not text:
+        return ""
+    if total == 1:
+        return f"Po konsultacji z **{trainer_label}** przekazuję:\n\n{text}"
+    if index == 0 and total > 1:
+        return f"Skonsultowałem się z zespołem. Oto wypowiedzi trenerów:\n\n### {trainer_label}\n\n{text}"
+    return f"### {trainer_label}\n\n{text}"
+
+
 def persona_display_label(persona: PersonaLike) -> str:
     role = PERSONA_TYPE_LABELS_PL.get(persona.type, persona.type)
-    return f"{persona.name} · {role}"
+    name = (persona.name or "").strip()
+    if name.lower() == role.lower():
+        return role
+    return f"{name} · {role}"
+
+
+def user_requests_all_trainers(message: str) -> bool:
+    """Heurystyka: user prosi o wypowiedź każdego trenera / całego składu."""
+    lower = message.lower()
+    needles = (
+        "niech każdy",
+        "niech kazdy",
+        "niech każdy powie",
+        "niech kazdy powie",
+        "każdy napis",
+        "kazdy napis",
+        "każdy powie",
+        "kazdy powie",
+        "każdy coś",
+        "kazdy cos",
+        "coś od siebie",
+        "cos od siebie",
+        "wszyscy trener",
+        "cały zespół",
+        "caly zespol",
+        "od każdego",
+        "od kazdego",
+        "przedstaw się",
+        "przedstawcie się",
+        "przedstaw sie",
+        "przedstawcie sie",
+    )
+    if any(n in lower for n in needles):
+        return True
+    if ("skład" in lower or "sklad" in lower) and ("zespół" in lower or "zespol" in lower):
+        return any(
+            w in lower
+            for w in ("trener", "person", "persony", "kto", "jakich", "składa", "sklada")
+        )
+    if "z jakich person" in lower or "z jakich trener" in lower:
+        return True
+    return False
+
+
+_ROUNDTABLE_PERSONA_BRIEF = """To runda zespołowa — każdy aktywny trener odpowiada osobno w tej turze
+(przekaże Goat). NIE proś usera o osobne wiadomości do innych trenerów ani /slash — oni też
+odpowiedzą zaraz po Tobie.
+
+1) Krótko (1–3 zdania): kim jesteś w zespole usera i co robisz dla niego we własnym zakresie.
+2) Gdy user pyta «co wiesz o mnie» — podaj tylko to, co wynika z profilu/wyników w TWOIM
+   zakresie (bez powtarzania całego profilu ani listy innych ról).
+3) Nie mów za innych trenerów — tylko własny wkład.
+
+Format: Markdown, ## nagłówki, listy `-`."""
+
+
+def build_all_trainers_consultation(
+    *, message: str, active_personas: list[PersonaLike]
+) -> ConsultationPlan | None:
+    """Roundtable — deterministyczny wybór wielu trenerów bez LLM kierownika."""
+    if len(active_personas) < 2 or not user_requests_all_trainers(message):
+        return None
+
+    selected = list(active_personas)
+    names = ", ".join(p.slug for p in selected)
+    return ConsultationPlan(
+        persona_ids=[p.id for p in selected],
+        invoked_via="auto_routed",
+        content=message,
+        team_brief=(
+            f"Runda zespołowa — user prosi o wkład od każdego trenera ({names}). "
+            "Każdy odpowiada wyłącznie we własnym zakresie. Inni trenerzy odpowiedzą "
+            "w tej samej turze — NIE kieruj usera do osobnych wiadomości."
+        ),
+        per_persona_briefs={p.id: _ROUNDTABLE_PERSONA_BRIEF for p in selected},
+        status_message="Przygotowuję odpowiedzi zespołu trenerów…",
+    )
+
+
+def enforce_roundtable_plan(
+    plan: ConsultationPlan, *, message: str, active_personas: list[PersonaLike]
+) -> ConsultationPlan:
+    """Gdy user prosi o cały zespół, wymuś wszystkich aktywnych (nadpisuje wybór LLM)."""
+    if not user_requests_all_trainers(message) or len(active_personas) < 2:
+        return plan
+    if len(plan.persona_ids) >= len(active_personas):
+        return plan
+    all_trainers = build_all_trainers_consultation(message=message, active_personas=active_personas)
+    return all_trainers if all_trainers is not None else plan
 
 
 def user_requests_plan_rebuild(message: str) -> bool:
@@ -236,9 +343,14 @@ class TeamLeadService:
                 status_message=f"{p.slug} analizuje…",
             )
 
-        return await self._classify_with_briefs(
+        all_trainers = build_all_trainers_consultation(message=message, active_personas=active_personas)
+        if all_trainers is not None:
+            return all_trainers
+
+        plan = await self._classify_with_briefs(
             message=message, active_personas=active_personas, session_id=session_id
         )
+        return enforce_roundtable_plan(plan, message=message, active_personas=active_personas)
 
     async def _classify_with_briefs(
         self,
@@ -248,7 +360,7 @@ class TeamLeadService:
         session_id: str | None = None,
     ) -> ConsultationPlan:
         ids = [p.id for p in active_personas]
-        max_n = min(len(ids), CHAT_MAX_PERSONAS_PER_TURN)
+        max_n = len(ids)
         roster = "\n".join(
             routing_persona_line(
                 persona_id=p.id,
@@ -296,7 +408,15 @@ class TeamLeadService:
             raw_ids = result.get("persona_ids")
             if not isinstance(raw_ids, list):
                 raw_ids = []
-            normalized = [str(x) for x in raw_ids if str(x) in ids][:max_n]
+            normalized = [str(x) for x in raw_ids if str(x) in ids]
+            # dedupe, zachowaj kolejność
+            seen: set[str] = set()
+            deduped: list[str] = []
+            for pid in normalized:
+                if pid not in seen:
+                    deduped.append(pid)
+                    seen.add(pid)
+            normalized = deduped
             if not normalized:
                 normalized = [ids[0]]
 
@@ -311,13 +431,17 @@ class TeamLeadService:
             team_brief = str(result.get("team_brief") or "Koordynacja zespołu trenerów.")
             status = str(result.get("status_message") or "Uzgodniam z zespołem trenerów…")
 
-            return ConsultationPlan(
-                persona_ids=normalized,
-                invoked_via="team_lead",
-                content=message,
-                team_brief=team_brief,
-                per_persona_briefs=briefs,
-                status_message=status[:200],
+            return enforce_roundtable_plan(
+                ConsultationPlan(
+                    persona_ids=normalized,
+                    invoked_via="team_lead",
+                    content=message,
+                    team_brief=team_brief,
+                    per_persona_briefs=briefs,
+                    status_message=status[:200],
+                ),
+                message=message,
+                active_personas=active_personas,
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("team_lead_consultation_failed", error=str(exc))
@@ -326,13 +450,17 @@ class TeamLeadService:
                 last = await self._chat_repo.get_last_responding_persona(session_id)
                 if last is not None and last in ids:
                     fallback_id = last
-            return ConsultationPlan(
-                persona_ids=[fallback_id],
-                invoked_via="auto_routed",
-                content=message,
-                team_brief="Fallback — odpowiedz jako pierwszy dostępny trener.",
-                per_persona_briefs={fallback_id: "Odpowiedz na pytanie usera."},
-                status_message="Przygotowuję odpowiedź…",
+            return enforce_roundtable_plan(
+                ConsultationPlan(
+                    persona_ids=[fallback_id],
+                    invoked_via="auto_routed",
+                    content=message,
+                    team_brief="Fallback — odpowiedz jako pierwszy dostępny trener.",
+                    per_persona_briefs={fallback_id: "Odpowiedz na pytanie usera."},
+                    status_message="Przygotowuję odpowiedź…",
+                ),
+                message=message,
+                active_personas=active_personas,
             )
 
 

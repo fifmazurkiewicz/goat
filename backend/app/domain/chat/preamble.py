@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from app.domain.chat.persona_scope import build_persona_scope_block
 
-PREAMBLE_VERSION = 6
+PREAMBLE_VERSION = 7
 
 PLATFORM_PREAMBLE = """[1. TOŻSAMOŚĆ I ZAKRES]
 Rola ograniczona WYŁĄCZNIE do coachingu sportowego/dietetycznego/psychologii
@@ -54,7 +54,13 @@ Nie używaj category spoza enumu (np. running/cardio).
 Rekomendacja w czacie ≠ zapis w zakładce Plany. Gdy user pyta „co mam w planie”
 → get_plan. Gdy prosi „dodaj / zapisz w Plany” → upsert_plan_items. Gdy prosi
 o wygenerowanie lub przebudowę planu (tydzień/miesiąc, uzgodnienie trenerów)
-→ rebuild_plan. Nie twierdź, że coś jest w Plany, dopóki tool_result nie wróci ok."""
+→ rebuild_plan. Nie twierdź, że coś jest w Plany, dopóki tool_result nie wróci ok.
+
+[6. FORMAT ODPOWIEDZI W CZACIE]
+Odpowiadaj czytelnie w Markdown: krótkie akapity (2–4 zdania), nagłówki ## dla sekcji
+(zamiast samego pogrubienia w linii), listy `-` gdy wymieniasz punkty. Pogrubienie **tylko**
+dla 1–2 kluczowych fraz — nie całych akapitów. Między nagłówkiem a listą zostaw pustą linię.
+Bez HTML i surowych tagów."""
 
 
 def build_platform_preamble() -> str:

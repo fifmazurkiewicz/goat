@@ -35,6 +35,8 @@ from app.domain.chat.team_lead import (
     build_consultation_user_message,
     build_plan_only_consultation,
     consultation_to_routing,
+    format_goat_relay,
+    is_direct_persona_invocation,
     is_plan_coordination_only,
     persona_display_label,
     user_requests_plan_rebuild,
@@ -130,6 +132,57 @@ def _persist_persona_id(persona: Any) -> str | None:
     return None if getattr(persona, "type", None) == "team_lead" else persona.id
 
 
+def _chunk_text_for_stream(text: str, chunk_size: int = 28) -> list[str]:
+    if not text:
+        return []
+    return [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
+
+
+async def _relay_trainer_response_via_goat(
+    *,
+    claims: dict[str, Any],
+    session_id: str,
+    queue: asyncio.Queue[dict[str, Any]],
+    trainer_label: str,
+    trainer_text: str | None,
+    index: int,
+    total: int,
+) -> None:
+    relay = format_goat_relay(
+        trainer_label=trainer_label,
+        trainer_text=trainer_text or "",
+        index=index,
+        total=total,
+    )
+    if not relay.strip():
+        return
+
+    await _emit(
+        queue,
+        "persona_turn_start",
+        {"persona_id": None, "persona_label": TEAM_LEAD_DISPLAY_LABEL},
+    )
+    await _emit_persona_status(queue, persona=TeamLeadSpeaker(), phase="writing")
+    for chunk in _chunk_text_for_stream(relay):
+        await _emit(queue, "token", {"text": chunk})
+
+    async with rls_connection(claims) as conn:
+        chat_repo = ChatRepo(conn)
+        await chat_repo.insert_assistant_message(
+            session_id=session_id,
+            content=relay,
+            tool_calls=None,
+            persona_id=None,
+        )
+        await chat_repo.touch_session(session_id)
+
+    await _emit(
+        queue,
+        "persona_turn_end",
+        {"persona_id": None, "persona_label": TEAM_LEAD_DISPLAY_LABEL},
+    )
+
+
 async def _emit_team_phase(
     queue: asyncio.Queue[dict[str, Any]], *, phase: str, message: str
 ) -> None:
@@ -216,6 +269,8 @@ class ChatOrchestrator:
         queue: asyncio.Queue[dict[str, Any]],
         emit_done: bool = True,
         allowed_persona_ids: list[str] | None = None,
+        client_visible: bool = True,
+        status_label: str | None = None,
     ) -> tuple[bool, str | None]:
         """Obsługuje jedną turę persony. Zwraca `(sukces, treść odpowiedzi assistant)`."""
         try:
@@ -228,6 +283,8 @@ class ChatOrchestrator:
                 queue=queue,
                 emit_done=emit_done,
                 allowed_persona_ids=allowed_persona_ids,
+                client_visible=client_visible,
+                status_label=status_label,
             )
         except asyncio.CancelledError:
             raise
@@ -256,6 +313,8 @@ class ChatOrchestrator:
         queue: asyncio.Queue[dict[str, Any]],
         emit_done: bool = True,
         allowed_persona_ids: list[str] | None = None,
+        client_visible: bool = True,
+        status_label: str | None = None,
     ) -> tuple[bool, str | None]:
         # Warstwa C (security.md §1) — świadomie fail-open: `check_chat_message` już
         # zaloguje trafienie do `moderation_events` (do przeglądu), ale NIE blokujemy tu
@@ -318,7 +377,12 @@ class ChatOrchestrator:
         ]
         chat_model = settings.openrouter_chat_model
 
-        await _emit_persona_status(queue, persona=persona, phase="thinking")
+        await _emit_persona_status(
+            queue,
+            persona=persona,
+            phase="thinking",
+            label=status_label,
+        )
         emitted_writing_status = False
 
         for round_index in range(settings.chat_max_tool_rounds):
@@ -352,9 +416,12 @@ class ChatOrchestrator:
                 if delta.get("content"):
                     if not emitted_writing_status:
                         emitted_writing_status = True
-                        await _emit_persona_status(queue, persona=persona, phase="writing")
+                        await _emit_persona_status(
+                            queue, persona=persona, phase="writing", label=status_label
+                        )
                     content_buffer.append(delta["content"])
-                    await _emit(queue, "token", {"text": delta["content"]})
+                    if client_visible:
+                        await _emit(queue, "token", {"text": delta["content"]})
 
                 for tool_call_delta in delta.get("tool_calls") or []:
                     index = tool_call_delta.get("index", 0)
@@ -367,11 +434,15 @@ class ChatOrchestrator:
                             "tool_call_start",
                             {
                                 "name": buffer.name,
-                                "persona_id": _persist_persona_id(persona),
+                                "persona_id": None if status_label else _persist_persona_id(persona),
                             },
                         )
                         await _emit_persona_status(
-                            queue, persona=persona, phase="tool", tool_name=buffer.name
+                            queue,
+                            persona=persona,
+                            phase="tool",
+                            tool_name=buffer.name,
+                            label=status_label,
                         )
 
             actual_cost = await self._reconcile_round_cost(
@@ -413,18 +484,21 @@ class ChatOrchestrator:
                 continue
 
             # finish_reason == 'stop' (albo brak dalszych tool calls) -> koniec tury.
-            await _emit_persona_status(queue, persona=persona, phase="wrapping_up")
-            async with rls_connection(self._claims) as conn:
-                chat_repo = ChatRepo(conn)
-                await chat_repo.insert_assistant_message(
-                    session_id=session_id,
-                    content=assistant_content,
-                    tool_calls=None,
-                    persona_id=_persist_persona_id(persona),
-                )
-                await chat_repo.touch_session(session_id)
+            await _emit_persona_status(
+                queue, persona=persona, phase="wrapping_up", label=status_label
+            )
+            if client_visible:
+                async with rls_connection(self._claims) as conn:
+                    chat_repo = ChatRepo(conn)
+                    await chat_repo.insert_assistant_message(
+                        session_id=session_id,
+                        content=assistant_content,
+                        tool_calls=None,
+                        persona_id=_persist_persona_id(persona),
+                    )
+                    await chat_repo.touch_session(session_id)
 
-            await _emit_persona_status(queue, persona=persona, phase="done")
+            await _emit_persona_status(queue, persona=persona, phase="done", label=status_label)
             if emit_done:
                 await _emit(queue, "turn_complete", {})
                 await queue.put({"event": "done", "data": "{}"})
@@ -863,6 +937,9 @@ async def _run_chat_turn_body(
             await queue.put({"event": "done", "data": "{}"})
             return
 
+    direct_persona = is_direct_persona_invocation(invoked_via)
+    total_trainers = len(persona_ids)
+
     for index, persona_id in enumerate(persona_ids):
         persona = personas_by_id.get(persona_id)
         if persona is None:
@@ -883,11 +960,21 @@ async def _run_chat_turn_body(
             )
 
         display_label = persona_display_label(persona)
-        await _emit(
-            queue,
-            "persona_turn_start",
-            {"persona_id": persona.id, "persona_label": display_label},
-        )
+        backstage = session_type == "general" and not direct_persona
+
+        if backstage:
+            await _emit(
+                queue,
+                "team_status",
+                {"message": f"Goat konsultuje {display_label}…"},
+            )
+        else:
+            await _emit(
+                queue,
+                "persona_turn_start",
+                {"persona_id": persona.id, "persona_label": display_label},
+            )
+
         ok, assistant_text = await orchestrator.handle_message(
             user_id=user_id,
             session_id=session_id,
@@ -895,8 +982,10 @@ async def _run_chat_turn_body(
             persona=persona,
             user_message=turn_message,
             queue=queue,
-            emit_done=(index == len(persona_ids) - 1),
+            emit_done=False,
             allowed_persona_ids=active_ids,
+            client_visible=not backstage,
+            status_label=TEAM_LEAD_DISPLAY_LABEL if backstage else None,
         )
         if assistant_text and assistant_text.strip():
             summary = assistant_text.strip()
@@ -905,8 +994,23 @@ async def _run_chat_turn_body(
             prior_summaries.append((persona.name, summary))
         if not ok:
             return
-        await _emit(
-            queue,
-            "persona_turn_end",
-            {"persona_id": persona.id, "persona_label": display_label},
-        )
+
+        if backstage:
+            await _relay_trainer_response_via_goat(
+                claims=claims,
+                session_id=session_id,
+                queue=queue,
+                trainer_label=display_label,
+                trainer_text=assistant_text,
+                index=index,
+                total=total_trainers,
+            )
+        else:
+            await _emit(
+                queue,
+                "persona_turn_end",
+                {"persona_id": persona.id, "persona_label": display_label},
+            )
+
+    await _emit(queue, "turn_complete", {})
+    await queue.put({"event": "done", "data": "{}"})

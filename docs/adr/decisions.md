@@ -275,10 +275,11 @@ rolami (ADR-2), nie rozproszone między trenerami (wcześniej dietetyk uruchamia
   `status_message`. Trenerzy dostają segmenty `[BRIEF…]` i `[REKOMENDACJE…]` (niewidoczne w UI).
 - **Bypass deterministyczny** (bez LLM kierownika): `/slug`, multi-slash, dokładnie jedna aktywna
   persona — zachowanie zgodne z ADR-13 dla wyboru person.
-- **Widoczność:** przy zwykłych pytaniach user widzi tylko trenerów. Przy prośbie o plan
-  tygodnia/miesiąca (`user_requests_plan_rebuild`) Goat odpowiada widocznie jako
-  **„Goat · Kierownik Zespołu”**, woła `rebuild_plan`. Gdy prośba dotyczy wyłącznie planu
-  (`is_plan_coordination_only`), tura kończy się po Goacie — bez kolejnych trenerów.
+- **Widoczność (2026-08-04):** W sesji `general` user rozmawia **wyłącznie z Goat** — trenerzy
+  konsultowani za kulisami (`client_visible=False`), Goat przekazuje odpowiedź (`format_goat_relay`,
+  `persona_id=null`). **Wyjątek:** `/slug` / multi-slash — user widzi wybraną personę bezpośrednio.
+  Przy prośbie o plan tygodnia/miesiąca Goat woła `rebuild_plan` i potwierdza. Gdy prośba dotyczy
+  wyłącznie planu (`is_plan_coordination_only`), tura kończy się po Goacie — bez kolejnych trenerów.
 - **Narzędzia:** Goat — `get_plan`, `rebuild_plan`; trenerzy — reszta **bez** `rebuild_plan`
   (`get_trainer_chat_tools`).
 - **Granice ról:** `[ZAKRES ROLI]` (`persona_scope.py`) + overlay safety (migracja `0009`).

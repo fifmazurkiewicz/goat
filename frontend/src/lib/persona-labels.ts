@@ -39,6 +39,15 @@ export function personaAvatarColor(personaId: string): string {
   return AVATAR_PALETTE[Math.abs(hash) % AVATAR_PALETTE.length];
 }
 
+export function formatPersonaDisplayLabel(name: string, type: PersonaType): string {
+  const role = PERSONA_TYPE_LABELS[type];
+  const trimmed = name.trim();
+  if (trimmed.toLowerCase() === role.toLowerCase()) {
+    return role;
+  }
+  return `${trimmed} · ${role}`;
+}
+
 export function personaInitials(name: string): string {
   return name
     .split(/\s+/)

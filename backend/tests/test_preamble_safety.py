@@ -32,6 +32,13 @@ def test_build_system_prompt_orders_scope_before_behavior() -> None:
 
 def test_build_system_prompt_without_safety() -> None:
     out = build_system_prompt("Tylko zachowanie.")
-    assert "ZABEZPIECZENIA GOTOWCA" not in out
+    assert "[ZABEZPIECZENIA GOTOWCA — NIENEDYTOWALNE" not in out
     assert "[ZACHOWANIE PERSONY]" in out
     assert "Tylko zachowanie." in out
+
+
+def test_build_system_prompt_includes_markdown_format_rules() -> None:
+    from app.domain.chat.preamble import PLATFORM_PREAMBLE
+
+    assert "[6. FORMAT ODPOWIEDZI W CZACIE]" in PLATFORM_PREAMBLE
+    assert PREAMBLE_VERSION >= 7

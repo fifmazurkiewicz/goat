@@ -42,11 +42,15 @@ export function ChatHeader({ session, persona, onOpenDrawer }: ChatHeaderProps) 
             <div className="font-semibold leading-tight">
               {sessionDisplayTitle(session, "Ogólna rozmowa")}
             </div>
-            <div className="text-xs text-muted-foreground">Odpowiada właściwy trener wg tematu pytania</div>
+            <div className="text-xs text-muted-foreground">
+              Goat koordynuje zespół — rozmawiasz z Kierownikiem; trenerzy przez /slug
+            </div>
           </div>
         )}
       </div>
-      {session.session_type === "general" ? <Badge variant="outline">Auto-routing</Badge> : null}
+      {session.session_type === "general" ? (
+        <Badge variant="outline">Goat · Kierownik</Badge>
+      ) : null}
     </div>
   );
 }

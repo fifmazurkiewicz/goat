@@ -11,8 +11,8 @@ export const TOOL_ACTION_LABELS: Record<string, string> = {
   rebuild_plan: "uzgadnia plan między trenerami",
 };
 
-export const ROUTING_STATUS = "Dobieram trenera…";
-export const TEAM_STATUS_DEFAULT = "Uzgodniam z zespołem trenerów…";
+export const ROUTING_STATUS = "Goat dobiera trenerów…";
+export const TEAM_STATUS_DEFAULT = "Goat uzgadnia z zespołem…";
 export const PREPARING_STATUS = "Przygotowuję odpowiedź…";
 export const DEFAULT_TOOL_ACTION = "wykonuje akcję";
 

@@ -9,8 +9,8 @@ import { MessageList } from "@/components/chat/MessageList";
 import { useChatMessages } from "@/hooks/useChatSessions";
 import { useChatStream } from "@/hooks/useChatStream";
 import { useUsageLimitsStore } from "@/store/useUsageLimitsStore";
-import { PERSONA_TYPE_LABELS } from "@/lib/persona-labels";
-import { isTeamLeadAssistantMessage, TEAM_LEAD_DISPLAY_LABEL } from "@/lib/team-lead";
+import { formatPersonaDisplayLabel } from "@/lib/persona-labels";
+import { TEAM_LEAD_DISPLAY_LABEL } from "@/lib/team-lead";
 import type { ChatMessage, ChatSession, Persona } from "@/types/api";
 
 interface ChatWindowProps {
@@ -51,12 +51,13 @@ export function ChatWindow({ session, personas, onOpenDrawer }: ChatWindowProps)
   const personaLabelFor = useCallback(
     (message: ChatMessage) => {
       if (session.session_type !== "general") return null;
-      if (isTeamLeadAssistantMessage(message, session.session_type)) {
-        return TEAM_LEAD_DISPLAY_LABEL;
+      if (message.role !== "assistant") return null;
+      // Bezpośrednia rozmowa z personą — tylko /slug (assistant ma persona_id).
+      if (message.persona_id) {
+        const persona = personas.find((p) => p.id === message.persona_id);
+        return persona ? formatPersonaDisplayLabel(persona.name, persona.type) : null;
       }
-      if (!message.persona_id) return null;
-      const persona = personas.find((p) => p.id === message.persona_id);
-      return persona ? `${persona.name} · ${PERSONA_TYPE_LABELS[persona.type]}` : null;
+      return TEAM_LEAD_DISPLAY_LABEL;
     },
     [personas, session.session_type]
   );

@@ -8,9 +8,15 @@ import pytest
 
 from app.domain.chat.team_lead import (
     TeamLeadService,
+    ConsultationPlan,
     build_consultation_user_message,
     build_plan_only_consultation,
+    build_all_trainers_consultation,
+    enforce_roundtable_plan,
+    format_goat_relay,
+    is_direct_persona_invocation,
     is_plan_coordination_only,
+    user_requests_all_trainers,
     user_requests_plan_rebuild,
 )
 
@@ -75,6 +81,96 @@ def test_persona_display_label_for_trainer() -> None:
 
     p = _FakePersona(id="b", type="personal_trainer", slug="trener", name="Kasia")
     assert persona_display_label(p) == "Kasia · Trener personalny"
+
+
+def test_persona_display_label_dedupes_when_name_equals_role() -> None:
+    from app.domain.chat.team_lead import persona_display_label
+
+    p = _FakePersona(id="a", type="dietitian", slug="dietetyk", name="Dietetyk")
+    assert persona_display_label(p) == "Dietetyk"
+
+
+def test_is_direct_persona_invocation_only_for_slash() -> None:
+    assert is_direct_persona_invocation("slash_command")
+    assert is_direct_persona_invocation("multi_slash")
+    assert not is_direct_persona_invocation("auto_routed")
+    assert not is_direct_persona_invocation(None)
+
+
+def test_format_goat_relay_single_trainer() -> None:
+    out = format_goat_relay(trainer_label="Anna · Dietetyk", trainer_text="Jedz więcej białka.", index=0, total=1)
+    assert "Anna · Dietetyk" in out
+    assert "Jedz więcej białka." in out
+
+
+def test_format_goat_relay_roundtable() -> None:
+    out = format_goat_relay(trainer_label="Trener", trainer_text="Siła.", index=0, total=2)
+    assert "Skonsultowałem się" in out
+    out2 = format_goat_relay(trainer_label="Dietetyk", trainer_text="Dieta.", index=1, total=2)
+    assert out2.startswith("### Dietetyk")
+
+
+def test_user_requests_all_trainers_detects_roundtable() -> None:
+    assert user_requests_all_trainers("Niech każdy napisze coś od siebie")
+    assert user_requests_all_trainers("Z jakich trenerów składa się nasz zespół?")
+    assert user_requests_all_trainers(
+        "Co wiesz o mnie? Z jakich person składa się nasz zespół? Niech każdy powie coś od siebie"
+    )
+    assert user_requests_all_trainers("Niech każdy powie coś od siebie")
+
+
+def test_user_requests_all_trainers_negative() -> None:
+    assert not user_requests_all_trainers("Co jem na śniadanie?")
+
+
+def test_build_all_trainers_consultation_selects_all_active() -> None:
+    personas = [
+        _FakePersona(id="a", type="dietitian", slug="dietetyk"),
+        _FakePersona(id="b", type="personal_trainer", slug="trener"),
+        _FakePersona(id="c", type="motor_coach", slug="motoryka"),
+        _FakePersona(id="d", type="badminton_coach", slug="badminton"),
+    ]
+    plan = build_all_trainers_consultation(
+        message="Niech każdy napisze coś od siebie", active_personas=personas
+    )
+    assert plan is not None
+    assert plan.persona_ids == ["a", "b", "c", "d"]
+    assert "NIE proś usera" in plan.per_persona_briefs["a"]
+
+
+def test_enforce_roundtable_plan_overrides_single_llm_pick() -> None:
+    personas = [
+        _FakePersona(id="a", type="dietitian", slug="dietetyk"),
+        _FakePersona(id="b", type="personal_trainer", slug="trener"),
+    ]
+    llm_plan = ConsultationPlan(
+        persona_ids=["a"],
+        invoked_via="team_lead",
+        content="Niech każdy powie coś od siebie",
+        team_brief="x",
+        per_persona_briefs={"a": "y"},
+    )
+    enforced = enforce_roundtable_plan(
+        llm_plan,
+        message="Niech każdy powie coś od siebie",
+        active_personas=personas,
+    )
+    assert enforced.persona_ids == ["a", "b"]
+
+
+@pytest.mark.asyncio
+async def test_plan_consultation_all_trainers_skips_llm():
+    personas = [
+        _FakePersona(id="a", type="dietitian", slug="dietetyk"),
+        _FakePersona(id="b", type="personal_trainer", slug="trener"),
+    ]
+    service = TeamLeadService(_FakeLLMNoCall(), chat_model="test")
+    plan = await service.plan_consultation(
+        message="Co wiesz o mnie? Niech każdy napisze coś od siebie.",
+        active_personas=personas,
+    )
+    assert plan.persona_ids == ["a", "b"]
+    assert plan.invoked_via == "auto_routed"
 
 
 @pytest.mark.asyncio

@@ -39,4 +39,17 @@ describe("MessageBubble", () => {
     );
     expect(screen.getByText("Goat · Kierownik Zespołu")).toBeInTheDocument();
   });
+
+  it("renderuje nagłówki ## i listy Markdown", () => {
+    render(
+      <MessageBubble
+        message={{
+          role: "assistant",
+          content: "## Co o Tobie wiem\n\n- waga 97 kg\n- cel: badminton",
+        }}
+      />
+    );
+    expect(screen.getByRole("heading", { level: 2, name: "Co o Tobie wiem" })).toBeInTheDocument();
+    expect(screen.getByText("waga 97 kg")).toBeInTheDocument();
+  });
 });

@@ -65,8 +65,10 @@ z ich obszarów — krótko wskaż właściwą rolę albo ogranicz się do wąsk
 ROUTING_CLASSIFIER_RULES = """Zasady wyboru person:
 - Każda persona odpowiada TYLKO ze swojego obszaru (patrz „zakres” przy każdej roli).
 - NIGDY nie wybieraj persony, jeśli główny temat wiadomości leży poza jej zakresem.
-- Przy wielu tematach w jednej wiadomości wybierz kilka person (max limit) — każda potem mówi
+- Przy wielu tematach w jednej wiadomości wybierz kilka person — każda potem mówi
   wyłącznie ze swojego zakresu, nie za inne.
+- Gdy user prosi, żeby odpowiedział każdy trener / cały zespół / przedstawił się skład —
+  wybierz **wszystkich** aktywnych trenerów usera.
 - Przykłady: dieta/makro → dietetyk; siła/hipertrofia → trener personalny; plyometria/bieganie/skok
   → trener motoryczny; badminton → trener badmintona; motywacja/stres startowy → psycholog sportowy."""
 
