@@ -26,4 +26,4 @@
 - Na Render `DATABASE_URL` musi iść przez Supabase Connection pooler (Supavisor, port 6543); bezpośredni `db.<ref>.supabase.co` daje `Network is unreachable` (IPv6).
 - Cloudflare CNAME dla `goat` / `api-goat`: Proxy status = DNS only (szara chmura); w polach Name/Target bez `https://`.
 - Jedyny admin: `fmazurkiewicz@gmail.com` (allowlist); `/account` = nick (ADR-15), `/profile` = biometria; `ProfilesRepo.ensure()` przed zapisem; asyncpg: UUID→str w DTO, jsonb przez `CAST(:param AS jsonb)`.
-- Chat tools dziś: `log_result`, `update_user_profile`; brak toola Planów (pipeline `/plans`, 3 etapy); SSE już emituje `persona_turn_start`/`tool_call_start` — statusy PL mapowane na FE; layout czatu: AppShell `h-svh`, scroll tylko w MessageList.
+- Chat tools: `log_result`, `update_user_profile`, `get_plan`, `upsert_plan_items`, `rebuild_plan` (przebudowa = pipeline 3 etapów); SSE statusy PL na FE; routing general może zwrócić 1..N person sekwencyjnie (multi-slash / klasyfikator, max 3); layout czatu: AppShell `h-svh`, scroll tylko w MessageList.

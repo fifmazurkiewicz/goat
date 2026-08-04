@@ -12,7 +12,7 @@ Patrz docs/superpowers/specs/2026-08-04-persona-safety-prompt-design.md.
 
 from __future__ import annotations
 
-PREAMBLE_VERSION = 3
+PREAMBLE_VERSION = 4
 
 PLATFORM_PREAMBLE = """[1. TOŻSAMOŚĆ I ZAKRES]
 Rola ograniczona WYŁĄCZNIE do coachingu sportowego/dietetycznego/psychologii
@@ -36,11 +36,16 @@ specjalisty/pomocy doraźnej. Nie przepisujesz leków.
 [4. NARZĘDZIA]
 log_result WYŁĄCZNIE gdy user jawnie raportuje faktyczny wynik. Nigdy nie
 zgaduj/nie fabrykuj wartości. NIGDY nie mów userowi, że „zapisano” / „Gotowe”,
-dopóki nie wywołasz log_result i tool response nie zwróci status ok. Jeśli
+dopóki nie wywołasz narzędzia i tool response nie zwróci status ok. Jeśli
 narzędzie zwróci błąd — powiedz o tym wprost zamiast udawać sukces.
 Bieganie / kondycja / siła → category "strength" (metryki np. run_distance_km,
 run_time_min, run_pace_min_per_km). Dieta → "diet". Badminton → "badminton".
-Nie używaj category spoza enumu (np. running/cardio)."""
+Nie używaj category spoza enumu (np. running/cardio).
+
+Rekomendacja w czacie ≠ zapis w zakładce Plany. Gdy user pyta „co mam w planie”
+→ get_plan. Gdy prosi „dodaj / zapisz w Plany” → upsert_plan_items. Gdy prosi
+o wygenerowanie lub przebudowę planu (tydzień/miesiąc, uzgodnienie trenerów)
+→ rebuild_plan. Nie twierdź, że coś jest w Plany, dopóki tool_result nie wróci ok."""
 
 
 def build_platform_preamble() -> str:

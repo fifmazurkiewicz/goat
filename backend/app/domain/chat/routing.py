@@ -1,9 +1,9 @@
-"""`ChatRoutingService` — wybór DOKŁADNIE JEDNEJ persony odpowiadającej w sesji `general`
-(ADR-13, architecture.md sekcja 3a, ai-pipeline.md sekcja 1a).
+"""`ChatRoutingService` — wybór 1..N person odpowiadających sekwencyjnie w sesji `general`
+(ADR-13 supersede: multi-persona turns, architecture.md sekcja 3a).
 
-Kolejność: (1) deterministyczne parsowanie `/slug` (zero LLM), (2) tanie wywołanie
-klasyfikujące `chat_model` z `response_format: json_schema` ograniczonym do aktywnych
-person, (3) fallback — ostatnia odpowiadająca persona w sesji, albo pierwsza aktywna.
+Kolejność: (1) deterministyczne parsowanie jednego lub wielu `/slug` (zero LLM),
+(2) tanie wywołanie klasyfikujące `chat_model` z `persona_ids[]`,
+(3) fallback — ostatnia odpowiadająca persona / pierwsza aktywna (lista 1-el.).
 """
 
 from __future__ import annotations
@@ -16,7 +16,9 @@ import structlog
 
 logger = structlog.get_logger(__name__)
 
-_SLASH_COMMAND_RE = re.compile(r"^/([a-z0-9_]+)\s+(.+)", re.DOTALL)
+CHAT_MAX_PERSONAS_PER_TURN = 3
+
+_SLASH_PREFIX_RE = re.compile(r"^/([a-z0-9_]+)(?:\s+|$)")
 
 
 class PersonaLike(Protocol):
@@ -28,9 +30,9 @@ class PersonaLike(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class RoutingResult:
-    persona_id: str
-    invoked_via: Literal["slash_command", "auto_routed"]
-    content: str  # treść wiadomości (bez prefiksu `/slug` gdy dotyczy)
+    persona_ids: list[str]
+    invoked_via: Literal["slash_command", "multi_slash", "auto_routed"]
+    content: str  # treść bez prefiksów `/slug`
 
 
 class RoutingLLMClientProtocol(Protocol):
@@ -55,21 +57,58 @@ def _first_sentence(text: str, *, max_length: int = 200) -> str:
     return stripped[:max_length]
 
 
+def parse_multi_slash_command(
+    message: str, active_personas: list[PersonaLike]
+) -> tuple[list[PersonaLike], str] | None:
+    """Wszystkie `/slug` na początku wiadomości (kolejność zachowana, dedupe po id).
+
+    `None` gdy brak prefiksu `/`, nieznany slug w łańcuchu albo pusta treść po slugach.
+    """
+    text = message.strip()
+    personas: list[PersonaLike] = []
+    seen: set[str] = set()
+    pos = 0
+    while True:
+        match = _SLASH_PREFIX_RE.match(text[pos:])
+        if match is None:
+            break
+        slug = match.group(1)
+        match_persona = next((p for p in active_personas if p.slug == slug), None)
+        if match_persona is None:
+            return None
+        if match_persona.id not in seen:
+            personas.append(match_persona)
+            seen.add(match_persona.id)
+        pos += match.end()
+    if not personas:
+        return None
+    rest = text[pos:].strip()
+    if not rest:
+        return None
+    return personas, rest
+
+
 def parse_slash_command(
     message: str, active_personas: list[PersonaLike]
 ) -> tuple[PersonaLike, str] | None:
-    """Parsowanie `/slug treść` — deterministyczne, zero LLM (architecture.md §3a pkt 1).
-    Lookup wyłącznie wśród AKTYWNYCH person usera. `None` gdy brak prefiksu `/` albo
-    slug nie pasuje do żadnej aktywnej persony (wtedy traktujemy jako zwykłą wiadomość,
-    routing klasyfikatorem przejmuje kontrolę)."""
-    match = _SLASH_COMMAND_RE.match(message.strip())
-    if match is None:
+    """Kompatybilność: pojedynczy `/slug treść` → pierwsza persona z multi-parsera."""
+    multi = parse_multi_slash_command(message, active_personas)
+    if multi is None or len(multi[0]) != 1:
         return None
-    slug, rest = match.group(1), match.group(2)
-    for persona in active_personas:
-        if persona.slug == slug:
-            return persona, rest
-    return None
+    return multi[0][0], multi[1]
+
+
+def _normalize_persona_ids(raw_ids: list[str], allowlist: list[str]) -> list[str]:
+    allow = set(allowlist)
+    out: list[str] = []
+    seen: set[str] = set()
+    for persona_id in raw_ids:
+        if persona_id in allow and persona_id not in seen:
+            out.append(persona_id)
+            seen.add(persona_id)
+        if len(out) >= CHAT_MAX_PERSONAS_PER_TURN:
+            break
+    return out
 
 
 class ChatRoutingService:
@@ -92,40 +131,59 @@ class ChatRoutingService:
         if not active_personas:
             raise ValueError("route() wymaga co najmniej jednej aktywnej persony.")
 
-        slash_match = parse_slash_command(message, active_personas)
+        slash_match = parse_multi_slash_command(message, active_personas)
         if slash_match is not None:
-            persona, rest = slash_match
-            return RoutingResult(persona_id=persona.id, invoked_via="slash_command", content=rest)
+            personas, rest = slash_match
+            invoked: Literal["slash_command", "multi_slash"] = (
+                "multi_slash" if len(personas) > 1 else "slash_command"
+            )
+            return RoutingResult(
+                persona_ids=[p.id for p in personas],
+                invoked_via=invoked,
+                content=rest,
+            )
 
-        persona_id = await self._classify(
+        persona_ids = await self._classify(
             session_id=session_id, message=message, active_personas=active_personas
         )
-        return RoutingResult(persona_id=persona_id, invoked_via="auto_routed", content=message)
+        return RoutingResult(persona_ids=persona_ids, invoked_via="auto_routed", content=message)
 
     async def _classify(
         self, *, session_id: str, message: str, active_personas: list[PersonaLike]
-    ) -> str:
+    ) -> list[str]:
         ids = [persona.id for persona in active_personas]
 
         if len(active_personas) == 1:
-            return ids[0]
+            return [ids[0]]
 
+        max_n = min(len(ids), CHAT_MAX_PERSONAS_PER_TURN)
         descriptions = "\n".join(
             f"- id={persona.id} | typ={persona.type} | {_first_sentence(persona.system_prompt)}"
             for persona in active_personas
         )
         system_message = (
-            "Wybierz DOKŁADNIE jedną personę (po polu id), która najlepiej odpowie na "
-            "wiadomość użytkownika w kontekście coachingu sportowego/dietetycznego/"
-            "psychologicznego. Dostępne persony:\n" + descriptions
+            "Wybierz od 1 do "
+            f"{max_n} person (po polu id), które powinny ODPOWIEDZIEĆ SEKWENCYJNIE na "
+            "wiadomość użytkownika. Wybierz WIĘCEJ NIŻ JEDNĄ tylko gdy pytanie realnie "
+            "dotyka kilku ról (np. trening + dieta). Kolejność listy = kolejność odpowiedzi. "
+            "Dostępne persony:\n"
+            + descriptions
         )
         json_schema = {
             "name": _ROUTING_JSON_SCHEMA_NAME,
             "strict": True,
             "schema": {
                 "type": "object",
-                "properties": {"persona_id": {"type": "string", "enum": ids}},
-                "required": ["persona_id"],
+                "properties": {
+                    "persona_ids": {
+                        "type": "array",
+                        "items": {"type": "string", "enum": ids},
+                        "minItems": 1,
+                        "maxItems": max_n,
+                        "uniqueItems": True,
+                    }
+                },
+                "required": ["persona_ids"],
                 "additionalProperties": False,
             },
         }
@@ -138,16 +196,24 @@ class ChatRoutingService:
                     {"role": "user", "content": message},
                 ],
                 json_schema=json_schema,
-                max_tokens=50,
+                max_tokens=120,
             )
-            persona_id = result.get("persona_id")
-            if persona_id in ids:
-                return persona_id  # type: ignore[return-value]
-            logger.warning("routing_classifier_invalid_id", returned=persona_id)
-        except Exception as exc:  # noqa: BLE001 — fallback poniżej, nie eskalujemy
+            raw_list = result.get("persona_ids")
+            if not isinstance(raw_list, list):
+                # Legacy single-id response
+                legacy = result.get("persona_id")
+                raw_list = [legacy] if isinstance(legacy, str) else []
+            normalized = _normalize_persona_ids(
+                [str(x) for x in raw_list],
+                ids,
+            )
+            if normalized:
+                return normalized
+            logger.warning("routing_classifier_invalid_ids", returned=raw_list)
+        except Exception as exc:  # noqa: BLE001 — fallback poniżej
             logger.warning("routing_classifier_failed", error=str(exc))
 
         fallback = await self._chat_repo.get_last_responding_persona(session_id)
         if fallback is not None and fallback in ids:
-            return fallback
-        return ids[0]
+            return [fallback]
+        return [ids[0]]

@@ -6,6 +6,9 @@
 export const TOOL_ACTION_LABELS: Record<string, string> = {
   log_result: "zapisuje wynik",
   update_user_profile: "aktualizuje profil",
+  get_plan: "przegląda plan",
+  upsert_plan_items: "zapisuje w Plany",
+  rebuild_plan: "uzgadnia plan między trenerami",
 };
 
 export const ROUTING_STATUS = "Dobieram trenera…";

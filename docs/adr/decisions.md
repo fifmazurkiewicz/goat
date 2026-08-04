@@ -157,29 +157,28 @@ użytkownik potwierdził ten kierunek.
   mogą pochodzić od różnych person) + `chat_messages.invoked_via` (`'auto_routed'` | `'slash_command'`).
 - `personas.slug`, unikalny per user, generowany z `type + name` przy tworzeniu i **regenerowany przy
   zmianie nazwy** (kolizje rozwiązywane numerycznym suffixem w `PersonaService`).
-- **Routing — dokładnie JEDNA persona odpowiada na turę** (nie wiele naraz), wybierana przez lekki
-  "menadżer rozmowy": (1) parsowanie `/slug` ma pierwszeństwo i jest deterministyczne (regex + lookup
-  po `personas.slug` wśród aktywnych person usera, zero wywołania LLM); (2) w braku `/slug` — tanie
-  wywołanie klasyfikujące (`chat_model`, `response_format: json_schema`, input: krótkie opisy ról
-  aktywnych person, nie pełne system prompty) zwraca dokładnie jeden `persona_id`; (3) wybrana persona
-  odpowiada przez ISTNIEJĄCY `ChatOrchestrator.handle_message` bez zmian w jego logice pojedynczej
-  persony — routing to wyłącznie krok wyboru `persona_id` PRZED wywołaniem tej metody.
+- **Routing — jedna lub wiele person sekwencyjnie na turę użytkownika** (max 3 przy
+  auto-routingu), wybierane przez lekki "menadżer rozmowy": (1) parsowanie jednego lub
+  wielu `/slug` na początku wiadomości (kolejność = kolejność odpowiedzi,
+  `invoked_via='multi_slash'` gdy ≥2); (2) w braku slashy — klasyfikator zwraca
+  `persona_ids[]` (1..N gdy pytanie styka się z ≥2 rolami); (3) każda wybrana persona
+  odpowiada przez ISTNIEJĄCY `ChatOrchestrator.handle_message` sekwencyjnie —
+  wiele `persona_turn_start`, **jedno** `done` na końcu.
 - **Fallback przy niepewnym/braku trafienia klasyfikatora:** persona, która ostatnio odpowiadała w tej
   sesji `general` (kontynuacja kontekstu); jeśli to pierwsza wiadomość sesji bez wcześniejszej historii
   — pierwsza aktywna persona usera (deterministyczne, bez dodatkowego pytania zwrotnego w MVP).
 - `ContextBuilder` budując system prompt dla persony X w sesji `general` filtruje historię: wszystkie
   `role='user'` (wspólne) + `role in ('assistant','tool')` WHERE `persona_id = X` — inaczej persona X
   "widziałaby" w historii odpowiedzi innych person jako własne.
-- Kontrakt SSE (`architecture.md` §3) rozszerzony o `persona_id`/`persona_label` w eventach oraz nowy
-  event `persona_turn_start {persona_id, persona_label}` przed tokenami danej tury.
-- Frontend: input czatu w sesji `general` ma autouzupełnianie po wpisaniu `/` (dropdown z
-  avatarem/nazwą aktywnych person, nie surowy slug) — składnia deweloperska bez podpowiedzi byłaby
-  praktycznie nieodkrywalna dla nietechnicznego usera.
+- Kontrakt SSE (`architecture.md` §3) rozszerzony o `persona_id`/`persona_label` w eventach oraz
+  event `persona_turn_start {persona_id, persona_label}` przed tokenami każdej tury persony.
+- Frontend: input czatu w sesji `general` ma autouzupełnianie po wpisaniu `/`; przy multi-reply
+  finalizuje poprzednią odpowiedź do cache historii przed kolejnym `persona_turn_start`.
+- Toole planu w czacie: `get_plan`, `upsert_plan_items`, `rebuild_plan` (pełny pipeline 1–3).
 
-**Konsekwencje:** jedna persona na turę (nie kilka) upraszcza UX, koszt i kontrakt SSE względem
-pierwotnej makiety, kosztem utraty scenariusza "dwóch trenerów komentujących to samo naraz" (świadomie
-odrzucony). Wymaga rozszerzenia `frontend.md` (routing + komponent auto-uzupełniania) i `ai-pipeline.md`
-(nowa sekcja o klasyfikatorze routingu, analogiczna do sekcji o moderacji).
+**Konsekwencje:** multi-persona zwiększa koszt/latencję (N wywołań LLM) względem pierwotnego
+uproszczenia „1 persona”; limit 3 oraz sekwencyjność chronią UX i budżet. Wymaga statusów
+streamu (Faza 1) i aktualizacji `frontend.md` / `ai-pipeline.md`.
 
 ---
 

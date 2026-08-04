@@ -118,16 +118,19 @@ tę samą pętlę co dla sesji `persona`:
    `invoked_via='auto_routed'` zapisywane razem z wiadomością. Routing to wyłącznie krok PRZED tym
    wywołaniem, nie osobna ścieżka logiki tool-callingu/streamingu.
 5. Backend emituje `persona_turn_start {persona_id, persona_label}` do kolejki PRZED pierwszym
-   tokenem danej tury — frontend renderuje nagłówek z nazwą/awatarem persony zanim przyjdzie treść.
+   tokenem **każdej** tury persony — przy multi-reply (1..N person sekwencyjnie, max 3) event
+   powtarza się N razy; `done` jest emitowane **raz** na końcu całej tury użytkownika.
+   Frontend po kolejnym `persona_turn_start` finalizuje poprzednią odpowiedź do cache historii.
 6. `ContextBuilder` budując prompt dla persony X w sesji `general` filtruje historię: wszystkie
    `role='user'` (wspólne dla wszystkich person w tej sesji) + `role in ('assistant','tool')` WHERE
    `chat_messages.persona_id = X` — inaczej persona X "widziałaby" w kontekście odpowiedzi innych
    person jako własne, co psuje spójność głosu i tool-callingu.
 
-**Świadomie odrzucone:** wiele person odpowiadających na tę samą wiadomość w jednej turze (pierwotny
-pomysł z makiety) — audyt architektoniczny + UX wskazał ryzyko dezorientacji usera (sprzeczne rady,
-niejasność "z kim rozmawiam") i podwojony koszt/latencję bez proporcjonalnej wartości; użytkownik
-potwierdził uproszczenie do jednej persony na turę.
+**Aktualizacja (2026-08-04):** routing może zwrócić wiele `persona_ids` (klasyfikator lub
+multi-slash `/a /b treść`). Świadomie odrzucone: równoległe / przeplatane tokeny.
+
+Narzędzia czatu obejmują też `get_plan` / `upsert_plan_items` / `rebuild_plan` (zapis w zakładce
+Plany + pełny pipeline 3-etapowy przy przebudowie).
 
 ## 4. Generowanie planu — pipeline (decyzja: priorytet to SYNCHRONIZACJA między personami)
 

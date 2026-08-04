@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
 import { ApiError } from "@/lib/api-client";
 import { streamErrorMessage } from "@/lib/chat-messages";
@@ -12,6 +12,7 @@ import {
 import { streamChatMessage } from "@/lib/sse";
 import { messagesKey } from "@/hooks/useChatSessions";
 import { useRefreshUsage } from "@/hooks/useUsage";
+import { usePlanGenerationStore } from "@/store/usePlanGenerationStore";
 import type { ChatMessage } from "@/types/api";
 import type { ChatStreamToolResultEvent } from "@/types/chat-stream";
 
@@ -42,12 +43,11 @@ export interface UseChatStreamOptions {
   sessionType?: string;
 }
 
+const PLAN_TOOL_NAMES = new Set(["get_plan", "upsert_plan_items", "rebuild_plan"]);
+
 /**
  * JEDYNE miejsce otwierające/zamykające SSE (docs/technical/frontend.md sekcja 4).
- * `fetch` + `ReadableStream` (nie `EventSource`, sekcja 3) przez `streamChatMessage`.
- * Batchuje tokeny przez `requestAnimationFrame` zamiast re-renderować przy każdym
- * fragmencie, i invaliduje `['results']` po `tool_result` (sekcja 2).
- * Status „persona + akcja” z `persona_turn_start` / `tool_call_start` (mapa PL na FE).
+ * Multi-persona: kolejne `persona_turn_start` finalizują poprzednią odpowiedź do cache historii.
  */
 export function useChatStream(sessionId: string | undefined, options?: UseChatStreamOptions) {
   const queryClient = useQueryClient();
@@ -63,6 +63,9 @@ export function useChatStream(sessionId: string | undefined, options?: UseChatSt
   const rafRef = useRef<number | null>(null);
   const lastContentRef = useRef<string>("");
   const personaLabelRef = useRef<string | null>(null);
+  const personaIdRef = useRef<string | null>(null);
+  const toolResultsRef = useRef<ChatStreamToolResultEvent[]>([]);
+  const turnActiveRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -90,6 +93,9 @@ export function useChatStream(sessionId: string | undefined, options?: UseChatSt
 
       lastContentRef.current = content;
       personaLabelRef.current = null;
+      personaIdRef.current = null;
+      toolResultsRef.current = [];
+      turnActiveRef.current = false;
       setError(null);
       setIsStreaming(true);
       pendingContentRef.current = "";
@@ -115,6 +121,13 @@ export function useChatStream(sessionId: string | undefined, options?: UseChatSt
         ]);
       }
 
+      const syncFlushPending = () => {
+        if (rafRef.current != null) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = null;
+        }
+      };
+
       try {
         for await (const event of streamChatMessage({
           sessionId,
@@ -123,13 +136,26 @@ export function useChatStream(sessionId: string | undefined, options?: UseChatSt
         })) {
           switch (event.type) {
             case "persona_turn_start":
+              if (turnActiveRef.current) {
+                syncFlushPending();
+                finalizeStreamingTurn(queryClient, sessionId, {
+                  content: pendingContentRef.current,
+                  personaId: personaIdRef.current,
+                  toolResults: toolResultsRef.current,
+                });
+              }
+              turnActiveRef.current = true;
+              pendingContentRef.current = "";
+              toolResultsRef.current = [];
+              personaIdRef.current = event.persona_id;
               personaLabelRef.current = event.persona_label;
-              setStreaming((prev) => ({
-                ...(prev ?? emptyStreaming()),
+              setStreaming({
+                content: "",
                 personaId: event.persona_id,
                 personaLabel: event.persona_label,
                 statusLabel: personaThinkingStatus(event.persona_label),
-              }));
+                toolResults: [],
+              });
               break;
             case "token":
               pendingContentRef.current += event.text;
@@ -144,18 +170,30 @@ export function useChatStream(sessionId: string | undefined, options?: UseChatSt
               }));
               break;
             }
-            case "tool_result":
+            case "tool_result": {
+              const normalized = normalizeToolResultEvent(
+                event as ChatStreamToolResultEvent & Record<string, unknown>
+              );
+              toolResultsRef.current = [...toolResultsRef.current, normalized];
               setStreaming((prev) => ({
                 ...(prev ?? emptyStreaming()),
                 statusLabel: personaThinkingStatus(personaLabelRef.current ?? prev?.personaLabel),
-                toolResults: [
-                  ...(prev?.toolResults ?? []),
-                  normalizeToolResultEvent(event as ChatStreamToolResultEvent & Record<string, unknown>),
-                ],
+                toolResults: toolResultsRef.current,
               }));
               void queryClient.invalidateQueries({ queryKey: ["results"] });
+              if (PLAN_TOOL_NAMES.has(normalized.tool_name)) {
+                void queryClient.invalidateQueries({ queryKey: ["plans"] });
+              }
+              const jobId =
+                typeof (event as { job_id?: unknown }).job_id === "string"
+                  ? (event as { job_id: string }).job_id
+                  : null;
+              if (normalized.tool_name === "rebuild_plan" && jobId) {
+                usePlanGenerationStore.getState().startJob(jobId);
+              }
               refreshUsage();
               break;
+            }
             case "error":
               setError({ message: streamErrorMessage(event), canRetry: true });
               break;
@@ -194,6 +232,33 @@ export function useChatStream(sessionId: string | undefined, options?: UseChatSt
   return { sendMessage, retry, clearError, isStreaming, streaming, error };
 }
 
+/** Dopina ukończoną turę persony do cache zanim wystartuje kolejna (multi-reply). */
+export function finalizeStreamingTurn(
+  queryClient: QueryClient,
+  sessionId: string,
+  turn: {
+    content: string;
+    personaId: string | null;
+    toolResults: ChatStreamToolResultEvent[];
+  }
+): void {
+  if (!turn.content.trim() && turn.toolResults.length === 0) return;
+  const id = `streamed-${turn.personaId ?? "x"}-${Date.now()}`;
+  queryClient.setQueryData<ChatMessage[]>(messagesKey(sessionId), (old) => [
+    ...(old ?? []),
+    {
+      id,
+      session_id: sessionId,
+      role: "assistant",
+      content: turn.content,
+      tool_calls: null,
+      persona_id: turn.personaId,
+      invoked_via: null,
+      created_at: new Date().toISOString(),
+    },
+  ]);
+}
+
 /** Backend bywa z `{name, result}` — FE kontrakt to `{tool_name, summary, success}`. */
 function normalizeToolResultEvent(
   event: ChatStreamToolResultEvent & Record<string, unknown>
@@ -204,6 +269,7 @@ function normalizeToolResultEvent(
       tool_name: event.tool_name,
       summary: event.summary,
       success: Boolean(event.success),
+      ...(typeof event.job_id === "string" ? { job_id: event.job_id } : {}),
     };
   }
 

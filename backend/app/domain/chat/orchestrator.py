@@ -26,6 +26,7 @@ from app.core.db import rls_connection, service_role_connection
 from app.core.dependencies import get_moderation_service, get_pricing_cache
 from app.core.exceptions import AppError, ConflictError, NotFoundError, ValidationError
 from app.domain.chat.context_builder import ContextBuilder
+from app.domain.chat.plan_tools import ChatPlanToolsService
 from app.domain.chat.routing import ChatRoutingService, RoutingResult
 from app.domain.chat.tools import get_chat_tools
 from app.domain.results.metrics_cache import allowed_metrics_cache
@@ -59,6 +60,7 @@ def _tool_result_event_payload(name: str, response_content: str) -> dict[str, An
     """Kontrakt FE (`tool_name`/`summary`/`success`) — nie surowy JSON tool response."""
     summary = "Wykonano narzędzie"
     success = True
+    job_id: str | None = None
     try:
         parsed = json.loads(response_content) if response_content else {}
     except json.JSONDecodeError:
@@ -84,9 +86,30 @@ def _tool_result_event_payload(name: str, response_content: str) -> dict[str, An
                 success = False
             else:
                 summary = "Zapisano wynik" if ok == 1 else f"Zapisano {ok} wyników"
+        elif name == "get_plan":
+            if parsed.get("status") == "empty":
+                summary = "Brak planu w kalendarzu"
+            else:
+                n = len(parsed.get("items") or [])
+                summary = f"Plan: {n} pozycji"
+            success = parsed.get("status") != "error"
+        elif name == "upsert_plan_items":
+            n = int(parsed.get("upserted") or 0)
+            summary = f"Zapisano {n} pozycji w Plany" if n else "Nie zapisano pozycji planu"
+            success = parsed.get("status") in ("ok", "partial")
+        elif name == "rebuild_plan":
+            job_id = str(parsed["job_id"]) if parsed.get("job_id") else None
+            summary = (
+                f"Uruchomiono przebudowę planu"
+                + (f" (job {job_id[:8]}…)" if job_id else "")
+            )
+            success = parsed.get("status") == "ok"
         elif response_content:
             summary = response_content[:80] + ("…" if len(response_content) > 80 else "")
-    return {"tool_name": name, "summary": summary, "success": success}
+    payload: dict[str, Any] = {"tool_name": name, "summary": summary, "success": success}
+    if job_id:
+        payload["job_id"] = job_id
+    return payload
 
 
 class ChatOrchestrator:
@@ -111,9 +134,14 @@ class ChatOrchestrator:
         persona: Any,
         user_message: str,
         queue: asyncio.Queue[dict[str, Any]],
-    ) -> None:
-        """Obsługuje jedną turę: persona JUŻ wybrana (routing — jeśli dotyczy — zaszedł
-        PRZED wywołaniem tej metody, patrz `run_chat_turn` poniżej i ADR-13)."""
+        emit_done: bool = True,
+    ) -> bool:
+        """Obsługuje jedną turę persony. Zwraca `True` gdy tura zakończyła się sukcesem
+        (można kontynuować kolejną personę). `False` po błędzie — stream już dostał `done`.
+
+        `emit_done=False` przy multi-persona (poza ostatnią) — router SSE kończy na
+        pierwszym `done`.
+        """
         try:
             await self._handle_message_inner(
                 user_id=user_id,
@@ -122,12 +150,15 @@ class ChatOrchestrator:
                 persona=persona,
                 user_message=user_message,
                 queue=queue,
+                emit_done=emit_done,
             )
+            return True
         except asyncio.CancelledError:
             raise
         except AppError as exc:
             await _emit(queue, "error", {"code": exc.code, "message": exc.message})
             await queue.put({"event": "done", "data": "{}"})
+            return False
         except Exception as exc:  # noqa: BLE001 — top-level safety net dla producer taska
             logger.error("chat_orchestrator_unexpected_error", error=str(exc), exc_info=exc)
             await _emit(
@@ -136,6 +167,7 @@ class ChatOrchestrator:
                 {"code": "internal_error", "message": "Wystąpił nieoczekiwany błąd czatu."},
             )
             await queue.put({"event": "done", "data": "{}"})
+            return False
 
     async def _handle_message_inner(
         self,
@@ -146,6 +178,7 @@ class ChatOrchestrator:
         persona: Any,
         user_message: str,
         queue: asyncio.Queue[dict[str, Any]],
+        emit_done: bool = True,
     ) -> None:
         # Warstwa C (security.md §1) — świadomie fail-open: `check_chat_message` już
         # zaloguje trafienie do `moderation_events` (do przeglądu), ale NIE blokujemy tu
@@ -285,7 +318,8 @@ class ChatOrchestrator:
                 )
                 await chat_repo.touch_session(session_id)
 
-            await queue.put({"event": "done", "data": "{}"})
+            if emit_done:
+                await queue.put({"event": "done", "data": "{}"})
             return
 
         # Twardy limit rund osiągnięty bez finish_reason=='stop' — bezpiecznik przeciw
@@ -374,6 +408,7 @@ class ChatOrchestrator:
 
             results_service = ResultsService(ResultsRepo(conn), allowed_metrics_cache)
             user_profile_repo = UserProfileRepo(conn)
+            plan_tools = ChatPlanToolsService(conn, claims=self._claims)
 
             tool_response_messages: list[dict[str, Any]] = []
             for call in tool_calls_payload:
@@ -388,6 +423,7 @@ class ChatOrchestrator:
                     persona_id=persona.id,
                     results_service=results_service,
                     user_profile_repo=user_profile_repo,
+                    plan_tools=plan_tools,
                 )
 
                 await chat_repo.insert_tool_message(
@@ -416,6 +452,7 @@ class ChatOrchestrator:
         persona_id: str,
         results_service: ResultsService,
         user_profile_repo: UserProfileRepo,
+        plan_tools: ChatPlanToolsService,
     ) -> str:
         """Błąd walidacji (JSON niepoprawny / Pydantic) wraca jako tool response, NIGDY
         wyjątek serwera (security.md §3) — niezaufany input mimo że pochodzi z modelu."""
@@ -464,6 +501,39 @@ class ChatOrchestrator:
                 return json.dumps({"status": "no_fields_provided"})
             await user_profile_repo.upsert(user_id, fields)
             return json.dumps({"status": "ok", "updated_fields": list(fields.keys())})
+
+        if name == "get_plan":
+            start = None
+            end = None
+            try:
+                if arguments.get("start_date"):
+                    start = date.fromisoformat(str(arguments["start_date"]))
+                if arguments.get("end_date"):
+                    end = date.fromisoformat(str(arguments["end_date"]))
+            except ValueError as exc:
+                return json.dumps({"error": f"Zła data: {exc}"})
+            result = await plan_tools.get_plan(user_id=user_id, start_date=start, end_date=end)
+            return json.dumps(result, default=str, ensure_ascii=False)
+
+        if name == "upsert_plan_items":
+            entries = arguments.get("entries")
+            if not isinstance(entries, list) or not entries:
+                return json.dumps({"error": "Wymagane entries: lista pozycji planu."})
+            result = await plan_tools.upsert_plan_items(
+                user_id=user_id, persona_id=persona_id, entries=entries
+            )
+            return json.dumps(result, default=str, ensure_ascii=False)
+
+        if name == "rebuild_plan":
+            try:
+                period_type = str(arguments["period_type"])
+                start_date = date.fromisoformat(str(arguments["start_date"]))
+            except (KeyError, ValueError, TypeError) as exc:
+                return json.dumps({"error": f"Nieprawidłowe argumenty rebuild_plan: {exc}"})
+            result = await plan_tools.rebuild_plan(
+                user_id=user_id, period_type=period_type, start_date=start_date
+            )
+            return json.dumps(result, default=str, ensure_ascii=False)
 
         return json.dumps({"error": f"Nieznane narzędzie: {name!r}"})
 
@@ -530,26 +600,32 @@ async def _run_chat_turn_inner(
 
         personas_repo = PersonasRepo(conn)
 
-        if session.session_type == "general":
+        session_type = session.session_type
+        personas_by_id: dict[str, Any] = {}
+
+        if session_type == "general":
             active_personas = await personas_repo.list_active_for_user(user_id)
             if not active_personas:
                 raise ConflictError(
                     "Brak aktywnych person — dodaj przynajmniej jedną personę przed "
                     "rozpoczęciem ogólnej rozmowy."
                 )
+            personas_by_id = {p.id: p for p in active_personas}
             routing_service = ChatRoutingService(
                 llm_client, chat_repo, chat_model=settings.openrouter_chat_model
             )
             routing: RoutingResult = await routing_service.route(
                 session_id=session_id, message=user_message, active_personas=active_personas
             )
-            persona = next(p for p in active_personas if p.id == routing.persona_id)
+            persona_ids = list(routing.persona_ids)
             content = routing.content
             invoked_via: str | None = routing.invoked_via
         else:
             persona = await personas_repo.get_visible(session.persona_id)  # type: ignore[arg-type]
             if persona is None:
                 raise NotFoundError("Persona przypisana do sesji nie istnieje.")
+            personas_by_id = {persona.id: persona}
+            persona_ids = [persona.id]
             content = user_message
             invoked_via = None
 
@@ -568,14 +644,24 @@ async def _run_chat_turn_inner(
                 session_id=session_id, content=content, persona_id=None, invoked_via=invoked_via
             )
 
-    await _emit(queue, "persona_turn_start", {"persona_id": persona.id, "persona_label": persona.name})
-
     orchestrator = ChatOrchestrator(llm_client, claims)
-    await orchestrator.handle_message(
-        user_id=user_id,
-        session_id=session_id,
-        session_type=session.session_type,
-        persona=persona,
-        user_message=content,
-        queue=queue,
-    )
+    for index, persona_id in enumerate(persona_ids):
+        persona = personas_by_id.get(persona_id)
+        if persona is None:
+            raise NotFoundError(f"Persona {persona_id!r} z routingu nie istnieje.")
+        await _emit(
+            queue,
+            "persona_turn_start",
+            {"persona_id": persona.id, "persona_label": persona.name},
+        )
+        ok = await orchestrator.handle_message(
+            user_id=user_id,
+            session_id=session_id,
+            session_type=session_type,
+            persona=persona,
+            user_message=content,
+            queue=queue,
+            emit_done=(index == len(persona_ids) - 1),
+        )
+        if not ok:
+            return

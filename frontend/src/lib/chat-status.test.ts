@@ -20,11 +20,11 @@ describe("chat-status", () => {
     expect(personaThinkingStatus(null)).toBe(PREPARING_STATUS);
   });
 
-  it("personaToolStatus mapuje znane toole", () => {
-    expect(personaToolStatus("Dietetyk", "update_user_profile")).toBe(
-      "Dietetyk aktualizuje profil…"
+  it("personaToolStatus mapuje toole planu", () => {
+    expect(personaToolStatus("Trener", "upsert_plan_items")).toBe("Trener zapisuje w Plany…");
+    expect(personaToolStatus("Dietetyk", "rebuild_plan")).toBe(
+      "Dietetyk uzgadnia plan między trenerami…"
     );
-    expect(personaToolStatus("Trener", "log_result")).toBe("Trener zapisuje wynik…");
   });
 
   it("personaToolStatus: nieznany tool + brak persony", () => {

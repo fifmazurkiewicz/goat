@@ -19,6 +19,8 @@ export interface ChatStreamToolResultEvent {
   tool_name: string;
   summary: string;
   success: boolean;
+  /** Obecne przy `rebuild_plan` — FE startuje polling joba planu. */
+  job_id?: string;
 }
 
 export interface ChatStreamDoneEvent {

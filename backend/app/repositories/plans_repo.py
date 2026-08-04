@@ -129,6 +129,30 @@ class PlansRepo:
         row = result.one_or_none()
         return _row_to_plan(row) if row is not None else None
 
+    async def get_latest_editable_plan_for_user(self, user_id: str) -> PlanRow | None:
+        """Najnowszy plan ready/partial_ready — edycja z czatu (upsert_plan_items)."""
+        result = await self._conn.execute(
+            text(
+                f"""
+                SELECT {_PLAN_COLUMNS} FROM plans
+                WHERE user_id = :user_id AND status IN ('ready', 'partial_ready')
+                ORDER BY created_at DESC
+                LIMIT 1
+                """
+            ),
+            {"user_id": user_id},
+        )
+        row = result.one_or_none()
+        return _row_to_plan(row) if row is not None else None
+
+    async def get_item(self, item_id: str) -> PlanItemRow | None:
+        result = await self._conn.execute(
+            text(f"SELECT {_ITEM_COLUMNS} FROM plan_items WHERE id = :id"),
+            {"id": item_id},
+        )
+        row = result.one_or_none()
+        return _row_to_item(row) if row is not None else None
+
     async def get_plan_for_date(self, target_date: date) -> PlanRow | None:
         """`GET /plans/{date}` — plan obejmujący dany dzień."""
         result = await self._conn.execute(

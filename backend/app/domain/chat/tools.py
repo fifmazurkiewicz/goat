@@ -123,9 +123,97 @@ UPDATE_USER_PROFILE_TOOL_SCHEMA: dict[str, Any] = {
 }
 
 
+GET_PLAN_TOOL_SCHEMA: dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "get_plan",
+        "description": (
+            "Odczytaj aktualny plan użytkownika (zakładka Plany). Wołaj gdy user pyta "
+            "co ma w planie / kalendarzu, albo PRZED edycją. Opcjonalny zakres dat."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "start_date": {"type": "string", "format": "date"},
+                "end_date": {"type": "string", "format": "date"},
+            },
+            "additionalProperties": False,
+        },
+    },
+}
+
+UPSERT_PLAN_ITEMS_TOOL_SCHEMA: dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "upsert_plan_items",
+        "description": (
+            "Dopisz lub zaktualizuj pozycje dnia w zakładce Plany. Wołaj TYLKO gdy user "
+            "jawnie prosi o zapisanie treningu/diety w planie (nie gdy dostajesz samą radę). "
+            "Bez item_id = insert; z item_id = update własnej pozycji. Daty ISO wg "
+            "[KONTEKST CZASOWY]."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "entries": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "item_id": {
+                                "type": "string",
+                                "description": "Opcjonalne — update istniejącego plan_item.",
+                            },
+                            "item_date": {"type": "string", "format": "date"},
+                            "item_type": {"type": "string"},
+                            "title": {"type": "string"},
+                            "columns": {"type": "array", "items": {"type": "string"}},
+                            "rows": {"type": "array", "items": {"type": "object"}},
+                            "notes": {"type": "string"},
+                        },
+                        "required": ["item_date", "item_type", "title", "columns", "rows"],
+                        "additionalProperties": False,
+                    },
+                }
+            },
+            "required": ["entries"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+REBUILD_PLAN_TOOL_SCHEMA: dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "rebuild_plan",
+        "description": (
+            "Uruchom pełną przebudowę planu (wszystkie aktywne persony + harmonizacja). "
+            "Kosztowne — tylko gdy user jawnie prosi o wygenerowanie/przebudowę planu "
+            "na tydzień lub miesiąc."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "period_type": {"type": "string", "enum": ["week", "month"]},
+                "start_date": {"type": "string", "format": "date"},
+            },
+            "required": ["period_type", "start_date"],
+            "additionalProperties": False,
+        },
+    },
+}
+
+
 def get_chat_tools() -> list[dict[str, Any]]:
     """Narzędzia dostępne dla `chat_model` w KAŻDEJ rozmowie (persona i general)."""
-    return [LOG_RESULT_TOOL_SCHEMA, UPDATE_USER_PROFILE_TOOL_SCHEMA]
+    return [
+        LOG_RESULT_TOOL_SCHEMA,
+        UPDATE_USER_PROFILE_TOOL_SCHEMA,
+        GET_PLAN_TOOL_SCHEMA,
+        UPSERT_PLAN_ITEMS_TOOL_SCHEMA,
+        REBUILD_PLAN_TOOL_SCHEMA,
+    ]
 
 
 def build_profile_intake_instruction(profile: UserProfileOut | None) -> str | None:
