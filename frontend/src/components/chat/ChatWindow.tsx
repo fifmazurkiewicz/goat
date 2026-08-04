@@ -28,7 +28,7 @@ export function ChatWindow({ session, personas, onOpenDrawer }: ChatWindowProps)
   const navigate = useNavigate();
   const autoSendDoneRef = useRef(false);
   const { data: messages, isLoading } = useChatMessages(session.id);
-  const { sendMessage, retry, clearError, isStreaming, streaming, error } = useChatStream(session.id, {
+  const { sendMessage, retry, stopGeneration, clearError, isStreaming, streaming, error } = useChatStream(session.id, {
     sessionType: session.session_type,
   });
   const isNearLimit = useUsageLimitsStore((state) => state.isNearLimit);
@@ -63,7 +63,7 @@ export function ChatWindow({ session, personas, onOpenDrawer }: ChatWindowProps)
   );
 
   const isBudgetExceeded = Boolean(error && !error.canRetry);
-  const disabled = isStreaming || isBudgetExceeded;
+  const inputDisabled = isBudgetExceeded;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -106,8 +106,10 @@ export function ChatWindow({ session, personas, onOpenDrawer }: ChatWindowProps)
 
       <ChatInput
         onSend={sendMessage}
-        disabled={disabled}
-        disabledReason={isStreaming ? "Trwa odpowiedź…" : isBudgetExceeded ? "Limit budżetu osiągnięty." : undefined}
+        onStop={stopGeneration}
+        isStreaming={isStreaming}
+        disabled={inputDisabled}
+        disabledReason={isBudgetExceeded ? "Limit budżetu osiągnięty." : undefined}
         showSlashAutocomplete={session.session_type === "general"}
         activePersonas={personas.filter((p) => p.active)}
       />

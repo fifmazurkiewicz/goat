@@ -91,7 +91,7 @@ async def chat_stream_endpoint(request: Request, ...):
 
 **Krytyczne — połączenie DB nie może żyć przez cały czas streamu.** Endpoint czatu NIE bierze długożyjącej zależności DB przez `Depends`. Orkiestrator otwiera krótkie transakcje tylko na moment zapisu (per rundę), zwalniając połączenie natychmiast — inaczej przy kilku równoległych czatach (60-90s każdy) szybko wyczerpuje się pula Supavisor.
 
-**Cancellation:** `request.is_disconnected()` → `orchestrator_task.cancel()` → poprawnie przerywa `httpx.AsyncClient.stream` (zamyka połączenie w `finally`). Orkiestrator nie może łapać `asyncio.CancelledError` szerokim `except Exception`.
+**Cancellation:** Przycisk **Zatrzymaj** → `POST /chat/sessions/{id}/cancel` (`cancel_turn` w `turn_registry`) + `AbortController` na FE zamyka SSE i anuluje `orchestrator_task` — przerywa też `httpx.AsyncClient.stream`. Samo rozłączenie SSE (nawigacja poza czat) **nie** anuluje tury — generowanie może kontynuować w tle (`turn_in_progress`). Orkiestrator nie może łapać `asyncio.CancelledError` szerokim `except Exception`.
 
 **Frontend SSE eventy (kontrakt):** `token`, `tool_call_start`, `tool_result`, `done`, `error`, oraz `persona_turn_start` (patrz niżej) — zdefiniowane jako współdzielony JSON Schema/Pydantic model, żeby frontend i backend nie rozjechały się na nazwach pól.
 

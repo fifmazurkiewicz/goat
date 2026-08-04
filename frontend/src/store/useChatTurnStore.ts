@@ -1,5 +1,6 @@
 import { create } from "zustand";
 
+import { stopChatTurn } from "@/lib/chat-turn-control";
 import type { ChatStreamToolResultEvent } from "@/types/chat-stream";
 
 export interface StreamingAssistantMessage {
@@ -33,6 +34,7 @@ interface ChatTurnState {
   /** Sesje z turą w tle (po nawigacji poza czat). */
   backgroundSessionIds: string[];
   queueTurn: (turn: PendingTurn) => void;
+  stopTurn: (sessionId: string) => void;
   clearPending: () => void;
   setStreamingState: (patch: Partial<Pick<ChatTurnState, "isStreaming" | "streaming" | "error">>) => void;
   setLastContent: (content: string) => void;
@@ -57,6 +59,9 @@ export const useChatTurnStore = create<ChatTurnState>((set, get) => ({
       sessionType: turn.sessionType,
       error: null,
     }),
+  stopTurn: (sessionId) => {
+    void stopChatTurn(sessionId);
+  },
   clearPending: () => set({ pending: null }),
   setStreamingState: (patch) => set(patch),
   setLastContent: (content) => set({ lastContent: content }),

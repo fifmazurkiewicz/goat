@@ -15,6 +15,7 @@ export interface UseChatStreamOptions {
 export function useChatStream(sessionId: string | undefined, options?: UseChatStreamOptions) {
   const sessionType = options?.sessionType ?? "persona";
   const queueTurn = useChatTurnStore((s) => s.queueTurn);
+  const stopTurn = useChatTurnStore((s) => s.stopTurn);
   const lastContent = useChatTurnStore((s) => s.lastContent);
   const clearError = useCallback(() => {
     useChatTurnStore.setState({ error: null });
@@ -45,7 +46,12 @@ export function useChatStream(sessionId: string | undefined, options?: UseChatSt
     if (lastContent) void sendMessage(lastContent, { retry: true });
   }, [lastContent, sendMessage]);
 
-  return { sendMessage, retry, clearError, isStreaming, streaming, error };
+  const stopGeneration = useCallback(() => {
+    if (!sessionId || !isStreaming) return;
+    stopTurn(sessionId);
+  }, [sessionId, isStreaming, stopTurn]);
+
+  return { sendMessage, retry, stopGeneration, clearError, isStreaming, streaming, error };
 }
 
 /** Re-eksport dla useChatTurnRunner — dopina ukończoną turę do cache historii. */

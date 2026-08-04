@@ -19,7 +19,12 @@ from app.core.db import rls_connection
 from app.core.exceptions import NotFoundError
 from app.core.security import AuthContext, get_current_user
 from app.domain.chat.orchestrator import run_chat_turn
-from app.domain.chat.turn_registry import is_turn_in_progress, mark_turn_finished, mark_turn_started
+from app.domain.chat.turn_registry import (
+    cancel_turn,
+    is_turn_in_progress,
+    mark_turn_finished,
+    mark_turn_started,
+)
 from app.models.schemas import (
     ChatMessageOut,
     ChatSendMessage,
@@ -120,6 +125,19 @@ async def chat_turn_status(
             raise NotFoundError(f"Sesja czatu {session_id!r} nie istnieje.")
         in_progress = session.turn_in_progress or is_turn_in_progress(session_id)
     return ChatSessionTurnStatus(in_progress=in_progress)
+
+
+@router.post("/sessions/{session_id}/cancel", status_code=204)
+async def cancel_chat_turn(
+    session_id: str, auth: AuthContext = Depends(get_current_user)
+) -> None:
+    """Przerwanie generowania — user kliknął Zatrzymaj (w przeciwieństwie do nawigacji
+    poza czat, gdzie tura może kontynuować w tle)."""
+    async with rls_connection(auth.claims) as conn:
+        session = await ChatRepo(conn).get_session(session_id)
+        if session is None or session.user_id != auth.user_id:
+            raise NotFoundError(f"Sesja czatu {session_id!r} nie istnieje.")
+    cancel_turn(session_id)
 
 
 @router.post("/sessions/{session_id}/message")

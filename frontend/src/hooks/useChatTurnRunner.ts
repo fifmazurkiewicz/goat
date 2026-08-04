@@ -13,6 +13,10 @@ import {
   TEAM_STATUS_DEFAULT,
 } from "@/lib/chat-status";
 import { streamChatMessage } from "@/lib/sse";
+import {
+  registerChatTurnAbort,
+  unregisterChatTurnAbort,
+} from "@/lib/chat-turn-control";
 import { messagesKey } from "@/hooks/useChatSessions";
 import { finalizeStreamingTurn } from "@/hooks/useChatStream.impl";
 import { useRefreshUsage } from "@/hooks/useUsage";
@@ -45,7 +49,6 @@ export function useChatTurnRunner() {
   const removeBackgroundSession = useChatTurnStore((s) => s.removeBackgroundSession);
 
   const runningRef = useRef(false);
-  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!pending || runningRef.current) return;
@@ -55,7 +58,7 @@ export function useChatTurnRunner() {
     runningRef.current = true;
 
     const controller = new AbortController();
-    abortRef.current = controller;
+    registerChatTurnAbort(sessionId, controller);
 
     setLastContent(content);
     setStreamingState({
@@ -265,6 +268,7 @@ export function useChatTurnRunner() {
         }
       } finally {
         syncFlush();
+        const userStopped = controller.signal.aborted;
         if (turnActive && (pendingContent.trim() || toolResults.length > 0)) {
           finalizeStreamingTurn(queryClient, sessionId, {
             content: pendingContent,
@@ -274,13 +278,15 @@ export function useChatTurnRunner() {
         }
         setStreamingState({ isStreaming: false, streaming: null });
         removeBackgroundSession(sessionId);
-        void queryClient.invalidateQueries({ queryKey: messagesKey(sessionId) });
+        if (!userStopped) {
+          void queryClient.invalidateQueries({ queryKey: messagesKey(sessionId) });
+        }
         void queryClient.invalidateQueries({ queryKey: ["chat-sessions"] });
         if (planToolsTouched) {
           void queryClient.invalidateQueries({ queryKey: ["plans"] });
         }
         runningRef.current = false;
-        abortRef.current = null;
+        unregisterChatTurnAbort(sessionId);
       }
     })();
   }, [
@@ -292,6 +298,4 @@ export function useChatTurnRunner() {
     setLastContent,
     removeBackgroundSession,
   ]);
-
-  return abortRef;
 }

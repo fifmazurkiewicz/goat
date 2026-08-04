@@ -22,3 +22,12 @@ def mark_turn_finished(session_id: str) -> None:
 def is_turn_in_progress(session_id: str) -> bool:
     task = _active.get(session_id)
     return task is not None and not task.done()
+
+
+def cancel_turn(session_id: str) -> bool:
+    """Anuluje aktywną turę (przycisk Zatrzymaj) — zatrzymuje generowanie LLM."""
+    task = _active.get(session_id)
+    if task is None or task.done():
+        return False
+    task.cancel()
+    return True

@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { Square } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
@@ -9,6 +10,8 @@ import type { Persona } from "@/types/api";
 
 interface ChatInputProps {
   onSend: (content: string) => void;
+  onStop?: () => void;
+  isStreaming?: boolean;
   disabled: boolean;
   disabledReason?: string;
   /** Dropdown "/" tylko w sesji `general` — w sesji `persona` kontekst już wiadomy (ADR-13). */
@@ -23,6 +26,8 @@ interface ChatInputProps {
  */
 export function ChatInput({
   onSend,
+  onStop,
+  isStreaming = false,
   disabled,
   disabledReason,
   showSlashAutocomplete,
@@ -50,7 +55,7 @@ export function ChatInput({
 
   function handleSubmit() {
     const trimmed = value.trim();
-    if (!trimmed || disabled) return;
+    if (!trimmed || disabled || isStreaming) return;
     onSend(trimmed);
     setValue("");
     setActiveIndex(0);
@@ -101,11 +106,18 @@ export function ChatInput({
               placeholder="Napisz wiadomość..."
               rows={1}
               className="min-h-10 flex-1 resize-none"
-              disabled={disabled}
+              disabled={disabled || isStreaming}
             />
-            <Button type="button" onClick={handleSubmit} disabled={disabled || !value.trim()}>
-              Wyślij
-            </Button>
+            {isStreaming ? (
+              <Button type="button" variant="destructive" onClick={onStop}>
+                <Square className="mr-1 h-3.5 w-3.5 fill-current" />
+                Zatrzymaj
+              </Button>
+            ) : (
+              <Button type="button" onClick={handleSubmit} disabled={disabled || !value.trim()}>
+                Wyślij
+              </Button>
+            )}
           </div>
         </PopoverAnchor>
         <PopoverContent
@@ -122,7 +134,10 @@ export function ChatInput({
         </PopoverContent>
       </Popover>
       {disabled && disabledReason ? <p className="mt-2 text-xs text-muted-foreground">{disabledReason}</p> : null}
-      {!disabled && value.startsWith("/") && !isAutocompleteOpen ? (
+      {isStreaming ? (
+        <p className="mt-2 text-xs text-muted-foreground">Generowanie odpowiedzi — możesz przerwać w dowolnym momencie.</p>
+      ) : null}
+      {!disabled && !isStreaming && value.startsWith("/") && !isAutocompleteOpen ? (
         <p className="mt-2 text-xs text-muted-foreground/70">
           Wywołanie persony jako komendy — model rozpozna ją i odpowie w jej imieniu.
         </p>
