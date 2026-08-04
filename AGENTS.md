@@ -10,8 +10,8 @@
 - Klik w brand/nazwę „Coach” w nawigacji wraca do ekranu chatu; zakładka Profil usunięta — nick w ustawieniach konta.
 - Domyślne/seed wyniki mają zależeć od person użytkownika, nie od uniwersalnych hardcoded sportów (np. badminton/triathlon dla każdego).
 - Usuwanie persony: z dialogu edycji (nie tylko z karty na liście).
-- W czacie nie pokazywać surowych logów/`role=tool` JSON — tylko `user`/`assistant` (chipy tooli: czytelne summary).
-- Odpowiedzi asystenta w czacie jako Markdown (pogrubienia, listy), nie surowe `**`.
+- W czacie: status „persona + akcja po ludzku” (jedna linia, znika przy pierwszym tokenie); Markdown zamiast surowych `**`; bez logów/`role=tool` JSON (chipy tooli: czytelne summary); pole Wyślij zawsze w viewport bez scrolla strony; OK kilka wiadomości od trenerów przy uzgadnianiu planu.
+- Persony mają układać plany i zapisywać wyniki (zakładki Plan/Wyniki); plan ma być uzgodniony ze wszystkimi aktywnymi personami (edycja + przebudowa), nie tylko rekomendacja w czacie.
 
 ## Learned Workspace Facts
 
@@ -25,5 +25,5 @@
 - Vercel SPA: `frontend/vercel.json` z rewrite `/(.*) → /index.html` — bez tego odświeżenie `/personas`, `/settings` itd. daje `404` na CDN.
 - Na Render `DATABASE_URL` musi iść przez Supabase Connection pooler (Supavisor, port 6543); bezpośredni `db.<ref>.supabase.co` daje `Network is unreachable` (IPv6).
 - Cloudflare CNAME dla `goat` / `api-goat`: Proxy status = DNS only (szara chmura); w polach Name/Target bez `https://`.
-- Jedyny admin: `fmazurkiewicz@gmail.com` (allowlist); `/account` = nick (ADR-15), `/profile` = biometria — osobne endpointy; `ProfilesRepo.ensure()` przed zapisem nicka/persony.
-- Backend/asyncpg: UUID→str w DTO szablonów; INSERT/UPDATE jsonb przez `CAST(:param AS jsonb)` (sam `json.dumps` bez CAST kończy się błędem typu).
+- Jedyny admin: `fmazurkiewicz@gmail.com` (allowlist); `/account` = nick (ADR-15), `/profile` = biometria; `ProfilesRepo.ensure()` przed zapisem; asyncpg: UUID→str w DTO, jsonb przez `CAST(:param AS jsonb)`.
+- Chat tools dziś: `log_result`, `update_user_profile`; brak toola Planów (pipeline `/plans`, 3 etapy); SSE już emituje `persona_turn_start`/`tool_call_start` — statusy PL mapowane na FE; layout czatu: AppShell `h-svh`, scroll tylko w MessageList.

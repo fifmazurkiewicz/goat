@@ -23,7 +23,9 @@ interface ChatWindowProps {
  */
 export function ChatWindow({ session, personas, onOpenDrawer }: ChatWindowProps) {
   const { data: messages, isLoading } = useChatMessages(session.id);
-  const { sendMessage, retry, clearError, isStreaming, streaming, error } = useChatStream(session.id);
+  const { sendMessage, retry, clearError, isStreaming, streaming, error } = useChatStream(session.id, {
+    sessionType: session.session_type,
+  });
   const isNearLimit = useUsageLimitsStore((state) => state.isNearLimit);
 
   const activePersona = session.persona_id ? personas.find((p) => p.id === session.persona_id) ?? null : null;

@@ -81,6 +81,9 @@ ChatLayout (smart) — drawer open/closed (localStorage), URL sync sessionId;
 │  │  │  (kontekst już wiadomy z ChatHeader). Treść **asystenta** renderowana jako Markdown
 │  │  │  (`react-markdown`, bez raw HTML). Historia UI filtruje `role=tool` i puste
 │  │  │  `assistant` (tool_calls-only) — surowe JSON-y narzędzi zostają w DB dla LLM, nie w bubble.
+│  │  ├─ StreamingStatusLine (dumb) — jedna linia „persona + akcja” podczas ciszy streamu
+│  │  │  (routing / myślenie / `tool_call_start`); mapa PL w `lib/chat-status.ts`; znika przy
+│  │  │  pierwszym `token`. Start: general → „Dobieram trenera…”, persona → „Przygotowuję…”.
 │  │  └─ ToolResultChip (dumb) — inline chip z `tool_result` (pola `tool_name`/`summary`/`success`)
 │  │     w czasie rzeczywistym; po odświeżeniu historii chip znika (wynik widać w `/results` / profilu)
 │  └─ ChatInput (dumb) — disabled podczas streamu i przy 429; w sesji 'general' nasłuchuje na

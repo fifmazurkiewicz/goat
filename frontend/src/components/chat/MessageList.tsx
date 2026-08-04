@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { MessageBubble } from "@/components/chat/MessageBubble";
+import { StreamingStatusLine } from "@/components/chat/StreamingStatusLine";
 import { ToolResultChip } from "@/components/chat/ToolResultChip";
 import type { StreamingAssistantMessage } from "@/hooks/useChatStream";
 import { visibleChatMessages } from "@/lib/chat-messages";
@@ -11,6 +12,7 @@ import type { ChatStreamToolResultEvent } from "@/types/chat-stream";
 type Row =
   | { kind: "chat"; key: string; message: ChatMessage; personaLabel: string | null }
   | { kind: "streaming-tool"; key: string; event: ChatStreamToolResultEvent }
+  | { kind: "streaming-status"; key: string; label: string }
   | { kind: "streaming-text"; key: string; content: string; personaLabel: string | null };
 
 interface MessageListProps {
@@ -23,7 +25,8 @@ interface MessageListProps {
  * `MessageList` (dumb, wirtualizowana przy długiej historii — `@tanstack/react-virtual`,
  * docs/technical/frontend.md sekcja 4). `aria-live="polite"` na kontenerze streamującej
  * wiadomości, nie na całej liście. Historia: tylko `user`/`assistant` z treścią —
- * `role=tool` zostaje w API dla LLM, nie w UI.
+ * `role=tool` zostaje w API dla LLM, nie w UI. Status streamu: jedna linia (podmiana),
+ * widoczna tylko gdy brak tokenów.
  */
 export function MessageList({ messages, personaLabelFor, streaming }: MessageListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
@@ -45,7 +48,14 @@ export function MessageList({ messages, personaLabelFor, streaming }: MessageLis
       event,
     }));
 
-    if (streaming.content || streaming.personaLabel) {
+    const showStatus = Boolean(streaming.statusLabel) && !streaming.content;
+    if (showStatus && streaming.statusLabel) {
+      streamingRows.push({
+        kind: "streaming-status",
+        key: "streaming-status",
+        label: streaming.statusLabel,
+      });
+    } else if (streaming.content || streaming.personaLabel) {
       streamingRows.push({
         kind: "streaming-text",
         key: "streaming-text",
@@ -68,7 +78,7 @@ export function MessageList({ messages, personaLabelFor, streaming }: MessageLis
     if (rows.length === 0) return;
     virtualizer.scrollToIndex(rows.length - 1, { align: "end" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows.length, streaming?.content]);
+  }, [rows.length, streaming?.content, streaming?.statusLabel]);
 
   return (
     <div ref={parentRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
@@ -91,6 +101,7 @@ export function MessageList({ messages, personaLabelFor, streaming }: MessageLis
             >
               {row.kind === "chat" && <MessageBubble message={row.message} personaLabel={row.personaLabel} />}
               {row.kind === "streaming-tool" && <ToolResultChip {...row.event} />}
+              {row.kind === "streaming-status" && <StreamingStatusLine label={row.label} />}
               {row.kind === "streaming-text" && (
                 <div aria-live="polite">
                   <MessageBubble message={{ role: "assistant", content: row.content }} personaLabel={row.personaLabel} />

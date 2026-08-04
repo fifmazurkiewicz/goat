@@ -3,6 +3,12 @@ import { useQueryClient } from "@tanstack/react-query";
 
 import { ApiError } from "@/lib/api-client";
 import { streamErrorMessage } from "@/lib/chat-messages";
+import {
+  initialStreamStatus,
+  personaThinkingStatus,
+  personaToolStatus,
+  resolveToolName,
+} from "@/lib/chat-status";
 import { streamChatMessage } from "@/lib/sse";
 import { messagesKey } from "@/hooks/useChatSessions";
 import { useRefreshUsage } from "@/hooks/useUsage";
@@ -13,6 +19,8 @@ export interface StreamingAssistantMessage {
   content: string;
   personaId: string | null;
   personaLabel: string | null;
+  /** Jedna linia statusu — null gdy lecą tokeny lub stream nieaktywny. */
+  statusLabel: string | null;
   toolResults: ChatStreamToolResultEvent[];
 }
 
@@ -21,22 +29,30 @@ export interface ChatStreamError {
   canRetry: boolean;
 }
 
-const emptyStreaming = (): StreamingAssistantMessage => ({
+const emptyStreaming = (statusLabel: string | null = null): StreamingAssistantMessage => ({
   content: "",
   personaId: null,
   personaLabel: null,
+  statusLabel,
   toolResults: [],
 });
+
+export interface UseChatStreamOptions {
+  /** `general` → start od „Dobieram trenera…”; `persona` → „Przygotowuję odpowiedź…”. */
+  sessionType?: string;
+}
 
 /**
  * JEDYNE miejsce otwierające/zamykające SSE (docs/technical/frontend.md sekcja 4).
  * `fetch` + `ReadableStream` (nie `EventSource`, sekcja 3) przez `streamChatMessage`.
  * Batchuje tokeny przez `requestAnimationFrame` zamiast re-renderować przy każdym
  * fragmencie, i invaliduje `['results']` po `tool_result` (sekcja 2).
+ * Status „persona + akcja” z `persona_turn_start` / `tool_call_start` (mapa PL na FE).
  */
-export function useChatStream(sessionId: string | undefined) {
+export function useChatStream(sessionId: string | undefined, options?: UseChatStreamOptions) {
   const queryClient = useQueryClient();
   const refreshUsage = useRefreshUsage();
+  const sessionType = options?.sessionType ?? "persona";
 
   const [isStreaming, setIsStreaming] = useState(false);
   const [streaming, setStreaming] = useState<StreamingAssistantMessage | null>(null);
@@ -46,6 +62,7 @@ export function useChatStream(sessionId: string | undefined) {
   const pendingContentRef = useRef("");
   const rafRef = useRef<number | null>(null);
   const lastContentRef = useRef<string>("");
+  const personaLabelRef = useRef<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -56,7 +73,9 @@ export function useChatStream(sessionId: string | undefined) {
 
   const flushTokens = useCallback(() => {
     rafRef.current = null;
-    setStreaming((prev) => (prev ? { ...prev, content: pendingContentRef.current } : prev));
+    setStreaming((prev) =>
+      prev ? { ...prev, content: pendingContentRef.current, statusLabel: null } : prev
+    );
   }, []);
 
   const scheduleFlush = useCallback(() => {
@@ -70,10 +89,11 @@ export function useChatStream(sessionId: string | undefined) {
       if (!sessionId || isStreaming) return;
 
       lastContentRef.current = content;
+      personaLabelRef.current = null;
       setError(null);
       setIsStreaming(true);
       pendingContentRef.current = "";
-      setStreaming(emptyStreaming());
+      setStreaming(emptyStreaming(initialStreamStatus(sessionType)));
 
       const controller = new AbortController();
       abortControllerRef.current = controller;
@@ -103,21 +123,31 @@ export function useChatStream(sessionId: string | undefined) {
         })) {
           switch (event.type) {
             case "persona_turn_start":
+              personaLabelRef.current = event.persona_label;
               setStreaming((prev) => ({
                 ...(prev ?? emptyStreaming()),
                 personaId: event.persona_id,
                 personaLabel: event.persona_label,
+                statusLabel: personaThinkingStatus(event.persona_label),
               }));
               break;
             case "token":
               pendingContentRef.current += event.text;
               scheduleFlush();
               break;
-            case "tool_call_start":
+            case "tool_call_start": {
+              const toolName = resolveToolName(event);
+              if (!toolName) break;
+              setStreaming((prev) => ({
+                ...(prev ?? emptyStreaming()),
+                statusLabel: personaToolStatus(personaLabelRef.current ?? prev?.personaLabel, toolName),
+              }));
               break;
+            }
             case "tool_result":
               setStreaming((prev) => ({
                 ...(prev ?? emptyStreaming()),
+                statusLabel: personaThinkingStatus(personaLabelRef.current ?? prev?.personaLabel),
                 toolResults: [
                   ...(prev?.toolResults ?? []),
                   normalizeToolResultEvent(event as ChatStreamToolResultEvent & Record<string, unknown>),
@@ -152,7 +182,7 @@ export function useChatStream(sessionId: string | undefined) {
         }
       }
     },
-    [sessionId, isStreaming, queryClient, scheduleFlush, refreshUsage]
+    [sessionId, sessionType, isStreaming, queryClient, scheduleFlush, refreshUsage]
   );
 
   const retry = useCallback(() => {

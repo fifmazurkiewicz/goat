@@ -9,7 +9,9 @@ export interface ChatStreamTokenEvent {
 
 export interface ChatStreamToolCallStartEvent {
   type: "tool_call_start";
-  tool_name: string;
+  /** Kontrakt FE; backend orkiestratora emituje też `name` — normalizacja w `resolveToolName`. */
+  tool_name?: string;
+  name?: string;
 }
 
 export interface ChatStreamToolResultEvent {
