@@ -55,7 +55,7 @@ Gdy obie zwracają `True` → tura kończy się po Goacie (bez trenerów).
 
 | Rola | Narzędzia |
 |------|-----------|
-| **Goat** | `get_plan`, `rebuild_plan` |
+| **Goat** | `get_plan`, `rebuild_plan`, `update_user_profile` — **bez** `log_result` / `upsert_plan_items` |
 | **Trenerzy** | `log_result`, `update_user_profile`, `get_plan`, `upsert_plan_items` — **bez** `rebuild_plan` |
 
 ### Bypass bez LLM kierownika

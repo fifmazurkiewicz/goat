@@ -22,6 +22,19 @@ def update_user_profile(
 
 Częściowa aktualizacja (tylko podane pola), walidacja zakresów jak w tabeli `user_profile` (`height_cm` 100-250, `weight_kg` 20-400, enumy dla `sex`/`activity_level`/`primary_goal`) — błąd walidacji wraca do modelu jako tool response, nie wyjątek (ten sam wzorzec co `log_result`).
 
+**Kiedy model woła `update_user_profile` (zasady w opisie narzędzia + intake instruction):**
+
+| Sytuacja | Zapis? |
+|----------|--------|
+| User jawnie podaje wartość (np. „ważę 82 kg”, „mam 178 wzrostu”, cel redukcji) | tak — tylko to pole |
+| User podaje trwałą notatkę (kontuzja, alergia, preferencja) | tak — pole `notes` |
+| Profil niekompletny, model dopytuje — user odpowiada konkretem | tak |
+| Model domyśla się / wnioskuje z kontekstu bez jawnej deklaracji usera | **nie** |
+| Jednorazowy wynik treningu („dziś 5 km”) | **nie** — `log_result` |
+| User odmawia podania danych | **nie** — kontynuuj rozmowę |
+
+Dostęp: **trenerzy** (każda persona) oraz **Goat** (gdy user poda dane profilu w tej samej turze, np. przy prośbie o plan). Goat **nie** ma `log_result`.
+
 **Intake instruction — dopytywanie na starcie rozmowy.** `ContextBuilder` (architecture.md sekcja 5) sprawdza kompletność `user_profile` (krytyczne pola: `height_cm`, `weight_kg`, `date_of_birth`, `activity_level`, `primary_goal`) przed zbudowaniem system promptu. Jeśli brakuje — dokleja do promptu dynamiczną instrukcję (NIE część preambułu platformy, osobny, generowany segment).
 
 **Kontekst czasowy:** `ContextBuilder` dokleja też `[KONTEKST CZASOWY]` z dzisiejszą datą ISO i dniem tygodnia w `Europe/Warsaw` — modele nie mają kalendarza z treningu; bez tego „wczoraj” i `log_result.date` są zgadywane.
@@ -37,7 +50,7 @@ chce podać któregoś pola — kontynuuj z tym, co masz.
 
 Ta instrukcja znika automatycznie z promptu, gdy profil jest kompletny — nie wymaga osobnej logiki "czy to pierwsza rozmowa", tylko stanu danych.
 
-**Fallback API** — `GET`/`PATCH /api/v1/profile` (bez zakładki w nav; biometria głównie przez czat). Obie ścieżki piszą do tej samej tabeli.
+**Fallback API + UI** — `GET`/`PATCH /api/v1/profile` oraz zakładka `/profile` (formularz ręczny). Główna ścieżka pozostaje konwersacyjna przez czat. Obie ścieżki piszą do tej samej tabeli.
 
 **Zasilanie generowania planu.** `user_profile` przekazywany explicite do plannera (etap 1 i 2, architecture.md sekcja 4) obok `persona_constraints` — dane biometryczne wpływają np. na cele kaloryczne (dietetyk), dobór obciążeń adekwatny do wieku/poziomu (trener siłowni). Brak kompletnego profilu **nie blokuje** generowania planu (zgodne z ADR-8 — nie dodajemy nowych twardych blokad w MVP), ale planner dostaje informację o brakach i może w notatkach zaznaczyć że plan jest wstępny/ogólny do czasu uzupełnienia danych.
 
@@ -45,8 +58,8 @@ Ta instrukcja znika automatycznie z promptu, gdy profil jest kompletny — nie w
 
 | Rola | Env | Domyślnie |
 |---|---|---|
-| Czat (wszystkie persony, routing, moderacja) | `OPENROUTER_CHAT_MODEL` | `anthropic/claude-haiku-4.5` |
-| Planer (pipeline 3-etapowy) | `OPENROUTER_PLANNER_MODEL` | `anthropic/claude-sonnet-4.6` |
+| Czat (wszystkie persony, routing, moderacja) | `OPENROUTER_CHAT_MODEL` | `x-ai/grok-4-fast` |
+| Planer (pipeline 3-etapowy) | `OPENROUTER_PLANNER_MODEL` (pusty = ten sam co czat) | jak wyżej |
 
 Model czatu **nie jest** przechowywany per-persona w DB — jedna wartość env dla całej aplikacji.
 

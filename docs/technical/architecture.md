@@ -127,7 +127,7 @@ wołany z orchestratora — do deprecacji (P2).
 multi-slash `/a /b treść`). Świadomie odrzucone: równoległe / przeplatane tokeny.
 
 Narzędzia czatu: trenerzy — `get_plan`, `upsert_plan_items`, `log_result`, profil; Goat —
-`get_plan`, `rebuild_plan` (pipeline 3-etapowy).
+`get_plan`, `rebuild_plan`, `update_user_profile` (pipeline 3-etapowy).
 
 ## 4. Generowanie planu — pipeline (decyzja: priorytet to SYNCHRONIZACJA między personami)
 

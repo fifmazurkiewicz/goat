@@ -42,7 +42,11 @@ from app.domain.chat.team_lead import (
     user_requests_plan_rebuild,
 )
 from app.domain.jobs.runner import enqueue_chat_title_async
-from app.domain.chat.tools import get_team_lead_plan_tools, get_trainer_chat_tools
+from app.domain.chat.tools import (
+    TEAM_LEAD_CHAT_TOOL_NAMES,
+    get_team_lead_plan_tools,
+    get_trainer_chat_tools,
+)
 from app.domain.results.metrics_cache import allowed_metrics_cache
 from app.domain.results.service import ResultsService
 from app.domain.usage.service import UsageLimitService
@@ -642,7 +646,7 @@ class ChatOrchestrator:
     ) -> str:
         """Błąd walidacji (JSON niepoprawny / Pydantic) wraca jako tool response, NIGDY
         wyjątek serwera (security.md §3) — niezaufany input mimo że pochodzi z modelu."""
-        if getattr(persona, "type", None) == "team_lead" and name not in {"get_plan", "rebuild_plan"}:
+        if getattr(persona, "type", None) == "team_lead" and name not in TEAM_LEAD_CHAT_TOOL_NAMES:
             return json.dumps(
                 {"error": "Narzędzie niedostępne dla Kierownika Zespołu (Goat)."},
                 ensure_ascii=False,

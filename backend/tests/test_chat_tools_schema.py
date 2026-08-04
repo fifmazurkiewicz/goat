@@ -31,13 +31,14 @@ def test_get_trainer_chat_tools_excludes_rebuild_plan() -> None:
     }
 
 
-def test_get_team_lead_plan_tools_only_get_and_rebuild() -> None:
+def test_get_team_lead_plan_tools_includes_profile() -> None:
     names = {t["function"]["name"] for t in get_team_lead_plan_tools()}
-    assert names == {"get_plan", "rebuild_plan"}
+    assert names == {"get_plan", "rebuild_plan", "update_user_profile"}
 
 
-def test_trainer_and_team_lead_tool_sets_disjoint_except_get_plan() -> None:
+def test_trainer_and_team_lead_tool_sets_disjoint_except_shared() -> None:
     trainer = {t["function"]["name"] for t in get_trainer_chat_tools()}
     goat = {t["function"]["name"] for t in get_team_lead_plan_tools()}
-    assert trainer & goat == {"get_plan"}
+    assert trainer & goat == {"get_plan", "update_user_profile"}
     assert "rebuild_plan" in goat and "rebuild_plan" not in trainer
+    assert "log_result" in trainer and "log_result" not in goat

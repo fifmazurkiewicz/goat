@@ -52,10 +52,9 @@ async def enqueue_background_job(
     coro = _dispatch(job_type=job_type, user_id=user_id, claims=claims, payload=payload)
     runner = _run_job_wrapper(bg_job_id=row.id, claims=claims, coro=coro)
 
-    if background_tasks is not None:
-        background_tasks.add_task(runner)
-    else:
-        asyncio.create_task(runner)
+    # Zawsze asyncio.create_task — BackgroundTasks na Render/części hostów nie
+    # gwarantuje wykonania po 202 (job zostaje w `pending` w nieskończoność).
+    asyncio.create_task(runner)
 
     return row.id
 
@@ -145,6 +144,48 @@ async def enqueue_chat_title_async(
         payload={"session_id": session_id, "message": message[:500]},
         background_tasks=None,
     )
+
+
+async def resume_orphaned_plan_jobs_on_startup() -> None:
+    """Wznawia `plan_generation_jobs` pending/running bez aktywnego wpisu w `background_jobs`."""
+    from sqlalchemy import text
+
+    try:
+        async with service_role_connection() as conn:
+            result = await conn.execute(
+                text(
+                    """
+                    SELECT pgj.id, pgj.plan_id, pgj.user_id
+                    FROM plan_generation_jobs pgj
+                    WHERE pgj.status IN ('pending', 'running')
+                      AND NOT EXISTS (
+                        SELECT 1 FROM background_jobs bj
+                        WHERE bj.job_type = 'plan_generate'
+                          AND bj.payload->>'plan_job_id' = pgj.id::text
+                          AND bj.status IN ('pending', 'running')
+                      )
+                    ORDER BY pgj.created_at ASC
+                    LIMIT 5
+                    """
+                )
+            )
+            rows = list(result)
+    except ProgrammingError as exc:
+        logger.warning("orphaned_plan_jobs_startup_skipped", error=str(exc))
+        return
+
+    for row in rows:
+        user_id = str(row.user_id)
+        plan_job_id = str(row.id)
+        plan_id = str(row.plan_id)
+        logger.info("orphaned_plan_job_resuming", plan_job_id=plan_job_id, plan_id=plan_id)
+        await enqueue_background_job(
+            job_type="plan_generate",
+            user_id=user_id,
+            claims={"sub": user_id},
+            payload={"plan_id": plan_id, "plan_job_id": plan_job_id},
+            background_tasks=None,
+        )
 
 
 async def resume_pending_jobs_on_startup() -> None:

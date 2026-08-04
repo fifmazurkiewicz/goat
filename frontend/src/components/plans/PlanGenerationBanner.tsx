@@ -52,7 +52,7 @@ export function PlanGenerationBanner() {
           Generowanie planu w toku…
         </AlertTitle>
         <AlertDescription className="space-y-3">
-          <p>To może potrwać do kilku minut — możesz spokojnie zamknąć tę stronę.</p>
+          <p>To może potrwać kilka minut — każda persona zapisuje swój fragment osobno; możesz śledzić postęp poniżej.</p>
           {progress !== null ? (
             <div className="space-y-1">
               <div className="h-2 w-full overflow-hidden rounded-full bg-muted">

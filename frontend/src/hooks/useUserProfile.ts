@@ -13,7 +13,7 @@ const USER_PROFILE_KEY = ["user-profile"] as const;
 export function useUserProfile() {
   return useQuery({
     queryKey: USER_PROFILE_KEY,
-    queryFn: () => apiFetch<UserProfile>("/api/v1/profile"),
+    queryFn: () => apiFetch<UserProfile | null>("/api/v1/profile"),
   });
 }
 

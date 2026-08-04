@@ -81,11 +81,14 @@ UPDATE_USER_PROFILE_TOOL_SCHEMA: dict[str, Any] = {
     "function": {
         "name": "update_user_profile",
         "description": (
-            "Zapisuje dane biometryczne/cele usera (waga, wzrost, wiek, poziom aktywności, "
-            "cel) podane w rozmowie. Wołaj gdy user poda którekolwiek z tych danych, "
-            "niezależnie od tego jakiej persony/roli dotyczy rozmowa — profil jest "
-            "wspólny. Częściowa aktualizacja: podawaj TYLKO pola, które user faktycznie "
-            "właśnie podał, nigdy nie zgaduj brakujących."
+            "Zapisuje trwały profil usera (waga, wzrost, data urodzenia, płeć, poziom "
+            "aktywności, cel, notatki). ZASADY: (1) wołaj TYLKO gdy user jawnie poda "
+            "konkretną wartość w tej wiadomości — nie zgaduj, nie wnioskuj z kontekstu; "
+            "(2) częściowa aktualizacja — podawaj wyłącznie pola, które user właśnie "
+            "podaje; (3) `notes` — gdy user poda trwałą informację (kontuzja, alergia, "
+            "preferencje, ograniczenia), która nie pasuje do pól strukturalnych; "
+            "(4) profil jest wspólny dla całego konta — niezależnie od persony/roli; "
+            "(5) nie zapisuj jednorazowych wyników treningu (do tego służy log_result)."
         ),
         "parameters": {
             "type": "object",
@@ -229,10 +232,14 @@ def get_trainer_chat_tools() -> list[dict[str, Any]]:
     ]
 
 
+TEAM_LEAD_CHAT_TOOL_NAMES = frozenset({"get_plan", "rebuild_plan", "update_user_profile"})
+
+
 def get_team_lead_plan_tools() -> list[dict[str, Any]]:
-    """Goat (kierownik) — tylko odczyt/ przebudowa planu, bez log_result ani profilu."""
-    allowed = {"get_plan", "rebuild_plan"}
-    return [t for t in get_chat_tools() if t.get("function", {}).get("name") in allowed]
+    """Goat (kierownik) — plan + profil usera; bez log_result i upsert_plan_items."""
+    return [
+        t for t in get_chat_tools() if t.get("function", {}).get("name") in TEAM_LEAD_CHAT_TOOL_NAMES
+    ]
 
 
 def build_profile_intake_instruction(profile: UserProfileOut | None) -> str | None:
@@ -259,6 +266,6 @@ def build_profile_intake_instruction(profile: UserProfileOut | None) -> str | No
         f"Brakuje: {missing_pl}. Zanim przejdziesz do właściwego coachingu, dopytaj "
         "naturalnie o brakujące dane w 1-2 pierwszych wiadomościach tej rozmowy (nie "
         "jako sztywna ankieta). Gdy user je poda, zapisz je narzędziem "
-        "update_user_profile. Nie blokuj rozmowy, jeśli user nie chce podać któregoś "
+        "update_user_profile (tylko jawnie podane wartości, bez zgadywania). Nie blokuj rozmowy, jeśli user nie chce podać któregoś "
         "pola — kontynuuj z tym, co masz."
     )

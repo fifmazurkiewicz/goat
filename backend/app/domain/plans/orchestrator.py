@@ -166,7 +166,7 @@ class PlanOrchestrator:
         chat_model: str | None = None,
     ) -> None:
         self._llm_client = llm_client
-        self._planner_model = planner_model or settings.openrouter_planner_model
+        self._planner_model = planner_model or settings.openrouter_plan_model
         self._chat_model = chat_model or settings.openrouter_chat_model
 
     async def generate_plan(self, *, plan_id: str, job_id: str, user_id: str, claims: dict) -> None:
@@ -213,7 +213,9 @@ class PlanOrchestrator:
                     {"default_columns": template.default_columns} if template else None,
                 )
 
-            await plans_repo.create_job_personas(job_id, [p.id for p in active_personas])
+            await plans_repo.ensure_job_personas(job_id, [p.id for p in active_personas])
+            job_personas = await plans_repo.list_job_personas(job_id)
+            done_persona_ids = {jp.persona_id for jp in job_personas if jp.status == "done"}
 
         if not active_personas:
             async with rls_connection(claims) as conn:
@@ -222,49 +224,51 @@ class PlanOrchestrator:
                 await repo.update_plan_status(plan_id, "error")
             return
 
+        personas_to_generate = [p for p in active_personas if p.id not in done_persona_ids]
+
         estimated_total_cost = await self._reserve_budget(
-            claims=claims, user_id=user_id, persona_count=len(active_personas)
+            claims=claims, user_id=user_id, persona_count=max(len(personas_to_generate), 1)
         )
         logger.info("plan_generation_budget_reserved", estimated_usd=estimated_total_cost)
 
         user_profile_summary = _summarize_user_profile(user_profile_row)
         results_summary = _summarize_results(recent_results)
 
-        skeleton = await self._run_coordinator_pass(
-            plan=plan, active_personas=active_personas, results_summary=results_summary
-        )
+        skeleton: dict[str, Any]
+        if done_persona_ids:
+            skeleton = {"days": [], "notes": "Wznowiono job — pominięto koordynator (persony done już zapisane)."}
+        else:
+            skeleton = await self._run_coordinator_pass(
+                plan=plan, active_personas=active_personas, results_summary=results_summary
+            )
 
         semaphore = asyncio.Semaphore(settings.plan_persona_concurrency_limit)
-        tasks = [
-            self._generate_for_persona(
+        generate_tasks = [
+            self._generate_and_persist_persona(
                 persona=persona,
                 columns=persona_columns[persona.id],
                 skeleton=skeleton,
                 results_summary=results_summary,
                 user_profile_summary=user_profile_summary,
                 plan=plan,
+                plan_id=plan_id,
+                job_id=job_id,
+                claims=claims,
                 semaphore=semaphore,
             )
-            for persona in active_personas
+            for persona in personas_to_generate
         ]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        if generate_tasks:
+            await asyncio.gather(*generate_tasks, return_exceptions=True)
 
-        draft_items_by_persona: dict[str, list[dict[str, Any]]] = {}
-        succeeded_personas = []
-        for persona, result in zip(active_personas, results, strict=True):
-            async with rls_connection(claims) as conn:
-                plans_repo = PlansRepo(conn)
-                if isinstance(result, BaseException):
-                    logger.error(
-                        "plan_persona_generation_failed", persona_id=persona.id, error=str(result)
-                    )
-                    await plans_repo.update_job_persona_status(
-                        job_id, persona.id, "failed", last_error=str(result)[:500]
-                    )
-                    continue
-                draft_items_by_persona[persona.id] = result
-                succeeded_personas.append(persona)
-                await plans_repo.update_job_persona_status(job_id, persona.id, "done")
+        async with rls_connection(claims) as conn:
+            plans_repo = PlansRepo(conn)
+            job_personas_after = await plans_repo.list_job_personas(job_id)
+            succeeded_personas = [
+                p for p in active_personas if any(
+                    jp.persona_id == p.id and jp.status == "done" for jp in job_personas_after
+                )
+            ]
 
         if not succeeded_personas:
             async with rls_connection(claims) as conn:
@@ -275,13 +279,12 @@ class PlanOrchestrator:
                 await repo.update_plan_status(plan_id, "error")
             return
 
-        item_lookup: dict[tuple[str, str], PlanItemRow] = {}
         async with rls_connection(claims) as conn:
             plans_repo = PlansRepo(conn)
-            for persona in succeeded_personas:
-                inserted = await plans_repo.insert_items(plan_id, draft_items_by_persona[persona.id])
-                for item in inserted:
-                    item_lookup[(item.persona_id, item.item_date.isoformat())] = item
+            all_items = await plans_repo.list_items_for_plan(plan_id)
+            item_lookup = {
+                (item.persona_id, item.item_date.isoformat()): item for item in all_items
+            }
 
         try:
             await self._run_harmonization(
@@ -342,6 +345,47 @@ class PlanOrchestrator:
             logger.warning("plan_coordinator_pass_failed", error=str(exc))
             return {"days": [], "notes": ""}
 
+    async def _generate_and_persist_persona(
+        self,
+        *,
+        persona: Any,
+        columns: list[str],
+        skeleton: dict[str, Any],
+        results_summary: str,
+        user_profile_summary: str,
+        plan: Any,
+        plan_id: str,
+        job_id: str,
+        claims: dict,
+        semaphore: asyncio.Semaphore,
+    ) -> None:
+        async with semaphore:
+            async with rls_connection(claims) as conn:
+                plans_repo = PlansRepo(conn)
+                await plans_repo.update_job_persona_status(job_id, persona.id, "running")
+                await plans_repo.delete_items_for_persona(plan_id, persona.id)
+            try:
+                items = await self._generate_for_persona(
+                    persona=persona,
+                    columns=columns,
+                    skeleton=skeleton,
+                    results_summary=results_summary,
+                    user_profile_summary=user_profile_summary,
+                    plan=plan,
+                    semaphore=None,
+                )
+                async with rls_connection(claims) as conn:
+                    plans_repo = PlansRepo(conn)
+                    await plans_repo.insert_items_batch(plan_id, items)
+                    await plans_repo.update_job_persona_status(job_id, persona.id, "done")
+                    await plans_repo.update_plan_status(plan_id, "generating")
+            except Exception as exc:
+                logger.error("plan_persona_generation_failed", persona_id=persona.id, error=str(exc))
+                async with rls_connection(claims) as conn:
+                    await PlansRepo(conn).update_job_persona_status(
+                        job_id, persona.id, "failed", last_error=str(exc)[:500]
+                    )
+
     async def _generate_for_persona(
         self,
         *,
@@ -351,62 +395,90 @@ class PlanOrchestrator:
         results_summary: str,
         user_profile_summary: str,
         plan: Any,
-        semaphore: asyncio.Semaphore,
+        semaphore: asyncio.Semaphore | None,
     ) -> list[dict[str, Any]]:
-        async with semaphore:
-            template_safety: str | None = None
-            if persona.base_template_id:
-                async with service_role_connection() as sconn:
-                    template_safety = await PersonaTemplatesRepo(sconn).get_safety_prompt(
-                        persona.base_template_id
-                    )
-            persona_block = build_system_prompt(
-                persona.system_prompt,
-                template_safety_prompt=template_safety,
-                persona_type=persona.type,
-            )
-            system_message = (
-                f"{persona_block}\n\n"
-                f"Wygeneruj plan typu '{plan.period_type}' dla okresu "
-                f"{plan.start_date.isoformat()}..{plan.end_date.isoformat()}. Kolumny do "
-                f"wypełnienia w każdym wierszu (W TEJ KOLEJNOŚCI): {columns}. "
-                f"Wspólny szkielet od koordynatora (priorytet: spójność z innymi "
-                f"personami): {skeleton}. Twarde ograniczenia persony: "
-                f"{persona.persona_constraints or 'brak'}."
-            )
-            user_message = (
-                f"Profil użytkownika: {user_profile_summary}\n"
-                f"Ostatnie wyniki: {results_summary}"
-            )
-            result = await self._llm_client.complete_json(
-                model=self._planner_model,
-                messages=[
-                    {"role": "system", "content": system_message},
-                    {"role": "user", "content": user_message},
-                ],
-                json_schema=_persona_items_schema(),
-                max_tokens=settings.plan_max_output_tokens,
-            )
-            items = []
-            for raw_item in result.get("items", []):
-                item_date = _parse_date(raw_item["item_date"])
-                if item_date is None or not (plan.start_date <= item_date <= plan.end_date):
-                    continue
-                content = rows_to_content(
-                    title=raw_item.get("title", persona.name),
+        if semaphore is not None:
+            async with semaphore:
+                return await self._generate_for_persona_inner(
+                    persona=persona,
                     columns=columns,
-                    rows=raw_item.get("rows", []),
-                    notes=raw_item.get("notes"),
+                    skeleton=skeleton,
+                    results_summary=results_summary,
+                    user_profile_summary=user_profile_summary,
+                    plan=plan,
                 )
-                items.append(
-                    {
-                        "item_date": item_date,
-                        "item_type": persona.type,
-                        "persona_id": persona.id,
-                        "content": content,
-                    }
+        return await self._generate_for_persona_inner(
+            persona=persona,
+            columns=columns,
+            skeleton=skeleton,
+            results_summary=results_summary,
+            user_profile_summary=user_profile_summary,
+            plan=plan,
+        )
+
+    async def _generate_for_persona_inner(
+        self,
+        *,
+        persona: Any,
+        columns: list[str],
+        skeleton: dict[str, Any],
+        results_summary: str,
+        user_profile_summary: str,
+        plan: Any,
+    ) -> list[dict[str, Any]]:
+        template_safety: str | None = None
+        if persona.base_template_id:
+            async with service_role_connection() as sconn:
+                template_safety = await PersonaTemplatesRepo(sconn).get_safety_prompt(
+                    persona.base_template_id
                 )
-            return items
+        persona_block = build_system_prompt(
+            persona.system_prompt,
+            template_safety_prompt=template_safety,
+            persona_type=persona.type,
+        )
+        system_message = (
+            f"{persona_block}\n\n"
+            f"Wygeneruj plan typu '{plan.period_type}' dla okresu "
+            f"{plan.start_date.isoformat()}..{plan.end_date.isoformat()}. Kolumny do "
+            f"wypełnienia w każdym wierszu (W TEJ KOLEJNOŚCI): {columns}. "
+            f"Wspólny szkielet od koordynatora (priorytet: spójność z innymi "
+            f"personami): {skeleton}. Twarde ograniczenia persony: "
+            f"{persona.persona_constraints or 'brak'}."
+        )
+        user_message = (
+            f"Profil użytkownika: {user_profile_summary}\n"
+            f"Ostatnie wyniki: {results_summary}"
+        )
+        result = await self._llm_client.complete_json(
+            model=self._planner_model,
+            messages=[
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message},
+            ],
+            json_schema=_persona_items_schema(),
+            max_tokens=settings.plan_max_output_tokens,
+        )
+        items = []
+        for raw_item in result.get("items", []):
+            item_date = _parse_date(raw_item["item_date"])
+            if item_date is None or not (plan.start_date <= item_date <= plan.end_date):
+                continue
+            content = rows_to_content(
+                title=raw_item.get("title", persona.name),
+                columns=columns,
+                rows=raw_item.get("rows", []),
+                notes=raw_item.get("notes"),
+            )
+            items.append(
+                {
+                    "item_date": item_date,
+                    "item_type": persona.type,
+                    "persona_id": persona.id,
+                    "content": content,
+                }
+            )
+        return items
 
     async def _run_harmonization(
         self,

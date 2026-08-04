@@ -11,6 +11,7 @@ Vite + React + TypeScript + Tailwind + shadcn/ui, hosting Vercel (Hobby — skal
 /chat, /chat/:sessionId → chroniona (auth) — sesje 'persona' (1:1) i 'general' (auto-routing, ADR-13)
 /plans                → chroniona (auth)
 /results              → chroniona (auth)
+/profile              → chroniona (auth) — podgląd/edycja `user_profile` (ADR-11); główna ścieżka uzupełniania nadal przez czat
 /settings             → chroniona (auth) — nick (+ Zapisz nick), motyw, katalog ćwiczeń (ADR-14, ADR-15)
 /admin                → chroniona (auth + is_admin); bootstrap: wyłącznie fmazurkiewicz@gmail.com
 …

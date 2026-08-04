@@ -31,7 +31,7 @@ from app.core.config import settings
 from app.core.db import service_role_connection
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import RequestIDMiddleware, configure_logging
-from app.domain.jobs.runner import resume_pending_jobs_on_startup
+from app.domain.jobs.runner import resume_orphaned_plan_jobs_on_startup, resume_pending_jobs_on_startup
 from app.domain.results.metrics_cache import allowed_metrics_cache
 from app.repositories.allowed_metrics_repo import AllowedMetricsRepo
 from app.repositories.plans_repo import PlansRepo
@@ -59,6 +59,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # streamu SSE (nie chcemy zapytania SQL per tool call).
         await allowed_metrics_cache.load(AllowedMetricsRepo(conn))
 
+    await resume_orphaned_plan_jobs_on_startup()
     await resume_pending_jobs_on_startup()
 
     yield

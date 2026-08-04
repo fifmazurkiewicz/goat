@@ -97,6 +97,7 @@ export function usePlanGenerationPolling() {
   const updateProgress = usePlanGenerationStore((state) => state.updateProgress);
   const queryClient = useQueryClient();
   const lastNotifiedStatus = useRef(status);
+  const lastDoneCount = useRef(0);
 
   useEffect(() => {
     if (!jobId || status !== "generating") return;
@@ -111,6 +112,11 @@ export function usePlanGenerationPolling() {
         const breakdown = job.personas ?? job.breakdown;
         if (breakdown?.length) {
           updateProgress(breakdown);
+          const doneCount = breakdown.filter((p) => p.status === "done" || p.status === "failed").length;
+          if (doneCount > lastDoneCount.current) {
+            lastDoneCount.current = doneCount;
+            void queryClient.invalidateQueries({ queryKey: ["plans"] });
+          }
         }
 
         if (job.status === "pending" || job.status === "running") return;
@@ -127,6 +133,7 @@ export function usePlanGenerationPolling() {
       }
     }
 
+    lastDoneCount.current = 0;
     void pollOnce();
     const interval = setInterval(() => void pollOnce(), POLL_INTERVAL_MS);
 

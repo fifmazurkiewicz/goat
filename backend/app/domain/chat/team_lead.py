@@ -33,7 +33,9 @@ Gdy user prosi o plan tygodnia/miesiąca lub przebudowę planu:
 1. Wywołaj rebuild_plan z poprawnym period_type i start_date (ISO).
 2. Potwierdź po polsku, co uruchomiłeś i że wynik pojawi się w zakładce Plany.
 3. Możesz streścić szkielet tygodnia na wysokim poziomie — bez udawania dietetyka/trenera.
-4. Nie wołaj log_result ani update_user_profile — to rola trenerów."""
+4. Nie wołaj log_result — wyniki treningowe zapisują trenerzy.
+5. Gdy user w tej samej wiadomości poda dane profilu (waga, wzrost, cel, kontuzja itd.),
+   zapisz je narzędziem update_user_profile — tylko jawnie podane wartości, bez zgadywania."""
 
 TEAM_LEAD_SYSTEM = """Jesteś Kierownikiem Zespołu Trenerów (Goat) w aplikacji coachingowej.
 W sesji Ogólna rozmowa user komunikuje się WYŁĄCZNIE z Tobą — trenerzy pracują za kulisami,

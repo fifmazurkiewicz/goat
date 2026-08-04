@@ -237,26 +237,47 @@ class PlansRepo:
         return [_row_to_item(row) for row in result]
 
     async def insert_items(self, plan_id: str, items: list[dict[str, Any]]) -> list[PlanItemRow]:
+        """Pojedyncze INSERT-y — legacy; preferuj `insert_items_batch`."""
+        return await self.insert_items_batch(plan_id, items)
+
+    async def insert_items_batch(self, plan_id: str, items: list[dict[str, Any]]) -> list[PlanItemRow]:
+        """Batch INSERT pozycji planu — jeden round-trip na chunk (zapis per persona/okres)."""
+        if not items:
+            return []
+
         inserted: list[PlanItemRow] = []
-        for item in items:
+        chunk_size = 40
+        for offset in range(0, len(items), chunk_size):
+            chunk = items[offset : offset + chunk_size]
+            value_parts: list[str] = []
+            params: dict[str, Any] = {"plan_id": plan_id}
+            for i, item in enumerate(chunk):
+                value_parts.append(
+                    f"(:plan_id, :date_{i}, :type_{i}, :persona_{i}, CAST(:content_{i} AS jsonb))"
+                )
+                params[f"date_{i}"] = item["item_date"]
+                params[f"type_{i}"] = item["item_type"]
+                params[f"persona_{i}"] = item["persona_id"]
+                params[f"content_{i}"] = json.dumps(item["content"])
             result = await self._conn.execute(
                 text(
                     f"""
                     INSERT INTO plan_items (plan_id, item_date, item_type, persona_id, content)
-                    VALUES (:plan_id, :item_date, :item_type, :persona_id, CAST(:content AS jsonb))
+                    VALUES {", ".join(value_parts)}
                     RETURNING {_ITEM_COLUMNS}
                     """
                 ),
-                {
-                    "plan_id": plan_id,
-                    "item_date": item["item_date"],
-                    "item_type": item["item_type"],
-                    "persona_id": item["persona_id"],
-                    "content": json.dumps(item["content"]),
-                },
+                params,
             )
-            inserted.append(_row_to_item(result.one()))
+            inserted.extend(_row_to_item(row) for row in result)
         return inserted
+
+    async def delete_items_for_persona(self, plan_id: str, persona_id: str) -> None:
+        """Usuwa pozycje danej persony — przed ponowną generacją failed persona w tym samym jobie."""
+        await self._conn.execute(
+            text("DELETE FROM plan_items WHERE plan_id = :plan_id AND persona_id = :persona_id"),
+            {"plan_id": plan_id, "persona_id": persona_id},
+        )
 
     async def update_item_content(self, item_id: str, content: dict[str, Any]) -> None:
         """Targeted patch etapu 3 — harmonizacja (architecture.md §4) koryguje TYLKO
@@ -379,8 +400,12 @@ class PlansRepo:
 
     # ---------- plan_generation_job_personas ----------
 
-    async def create_job_personas(self, job_id: str, persona_ids: list[str]) -> None:
+    async def ensure_job_personas(self, job_id: str, persona_ids: list[str]) -> None:
+        """Idempotentne utworzenie wierszy per persona (resume joba bez duplicate key)."""
+        existing = {p.persona_id for p in await self.list_job_personas(job_id)}
         for persona_id in persona_ids:
+            if persona_id in existing:
+                continue
             await self._conn.execute(
                 text(
                     """
@@ -390,6 +415,9 @@ class PlansRepo:
                 ),
                 {"job_id": job_id, "persona_id": persona_id},
             )
+
+    async def create_job_personas(self, job_id: str, persona_ids: list[str]) -> None:
+        await self.ensure_job_personas(job_id, persona_ids)
 
     async def update_job_persona_status(
         self,

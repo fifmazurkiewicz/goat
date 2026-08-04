@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { DETAIL_LEVEL_EXPLANATIONS, DETAIL_LEVEL_LABELS, PERSONA_TYPE_LABELS } from "@/lib/persona-labels";
+import { PRIMARY_GOAL_LABELS } from "@/lib/user-profile-labels";
 import type { Persona } from "@/types/api";
 
 interface PersonaConfigDialogProps {
@@ -10,14 +11,6 @@ interface PersonaConfigDialogProps {
   onOpenChange: (open: boolean) => void;
   onEdit?: (persona: Persona) => void;
 }
-
-const GOAL_LABELS: Record<string, string> = {
-  lose_weight: "Redukcja wagi",
-  build_muscle: "Budowa masy mięśniowej",
-  improve_endurance: "Poprawa wytrzymałości",
-  general_health: "Ogólne zdrowie",
-  sport_specific: "Cel specyficzny dla dyscypliny",
-};
 
 /** Konfiguracja persony — warstwa usera (styl, profil, detail). Bez safety/constraints. */
 export function PersonaConfigDialog({ persona, onOpenChange, onEdit }: PersonaConfigDialogProps) {
@@ -60,7 +53,7 @@ export function PersonaConfigDialog({ persona, onOpenChange, onEdit }: PersonaCo
               </div>
               <div>
                 <div className="text-[11px] text-muted-foreground">Cel</div>
-                <div>{userProfile?.primary_goal ? GOAL_LABELS[userProfile.primary_goal] : "—"}</div>
+                <div>{userProfile?.primary_goal ? PRIMARY_GOAL_LABELS[userProfile.primary_goal] : "—"}</div>
               </div>
             </div>
           </div>

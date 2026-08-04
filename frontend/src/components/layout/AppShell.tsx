@@ -19,6 +19,7 @@ const NAV_ITEMS = [
   { to: "/chat", label: "Czat" },
   { to: "/plans", label: "Plany" },
   { to: "/results", label: "Wyniki" },
+  { to: "/profile", label: "Profil" },
   { to: "/settings", label: "Ustawienia" },
 ];
 

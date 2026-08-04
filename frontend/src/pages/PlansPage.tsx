@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { CalendarViewSwitcher, type CalendarView } from "@/components/plans/CalendarViewSwitcher";
 import { DayPanel } from "@/components/plans/DayPanel";
 import { GeneratePlanCta } from "@/components/plans/GeneratePlanCta";
+import { PlanGenerationPersonaProgress } from "@/components/plans/PlanGenerationPersonaProgress";
 import { PlanGenerationBanner } from "@/components/plans/PlanGenerationBanner";
 import { usePersonas } from "@/hooks/usePersonas";
 import { usePlanRange } from "@/hooks/usePlans";
@@ -65,6 +66,7 @@ export default function PlansPage() {
 
   const { data, isLoading } = usePlanRange(format(rangeStart, DATE_FORMAT), format(rangeEnd, DATE_FORMAT));
   const generationStatus = usePlanGenerationStore((state) => state.status);
+  const generationBreakdown = usePlanGenerationStore((state) => state.breakdown);
   const { data: personasData } = usePersonas();
   const personas = personasData?.items ?? [];
 
@@ -105,6 +107,16 @@ export default function PlansPage() {
       </div>
 
       <PlanGenerationBanner />
+
+      {(generationStatus === "generating" || generationStatus === "partial_ready") &&
+      generationBreakdown.length > 0 ? (
+        <PlanGenerationPersonaProgress
+          breakdown={generationBreakdown}
+          personas={personas}
+          planItems={items}
+          jobStatus={generationStatus === "partial_ready" ? "partial_ready" : "generating"}
+        />
+      ) : null}
 
       <CalendarViewSwitcher
         view={view}

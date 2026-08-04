@@ -25,8 +25,10 @@ class Settings(BaseSettings):
     local_jwt_secret: SecretStr = SecretStr("local-dev-jwt-secret-change-me")
 
     openrouter_api_key: SecretStr
-    openrouter_chat_model: str = "anthropic/claude-haiku-4.5"
-    openrouter_planner_model: str = "anthropic/claude-sonnet-4.6"
+    # Jeden model domyślnie do czatu i planowania — ustaw Grok (lub inny) w OPENROUTER_CHAT_MODEL.
+    # OPENROUTER_PLANNER_MODEL opcjonalny override; pusty = ten sam co chat.
+    openrouter_chat_model: str = "x-ai/grok-4-fast"
+    openrouter_planner_model: str = ""
     # Fallback providerzy dla chat_model (ai-pipeline.md §1) — awaria jednego providera
     # nie wywala czatu. Przekazywane jako `extra_body={"models": [...]}` do OpenRoutera.
     openrouter_chat_model_fallbacks: str = "openai/gpt-5-mini"
@@ -59,6 +61,12 @@ class Settings(BaseSettings):
     # Klasyfikator warstwy C wołany zawsze przy trafieniu heurystyki, dodatkowo losowo
     # (obrona w głąb) z tym prawdopodobieństwem nawet bez trafienia.
     moderation_random_sample_rate: float = 0.02
+
+    @property
+    def openrouter_plan_model(self) -> str:
+        """Model planera — domyślnie identyczny jak czat (jeden model w całej apce)."""
+        planner = self.openrouter_planner_model.strip()
+        return planner if planner else self.openrouter_chat_model
 
     @property
     def dev_auth_enabled(self) -> bool:
