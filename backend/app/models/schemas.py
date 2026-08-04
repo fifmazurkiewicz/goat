@@ -205,9 +205,10 @@ class UserProfileOut(BaseModel):
 
 
 class DeployInfoOut(BaseModel):
-    """`GET /api/v1/admin/deploy-info` — wersja działającego API (commit z Render/build)."""
+    """`GET /api/v1/admin/deploy-info` — semver aplikacji + metadane commita deployu."""
 
     component: Literal["api"] = "api"
+    app_version: str
     environment: str
     git_sha: str | None = None
     git_sha_full: str | None = None

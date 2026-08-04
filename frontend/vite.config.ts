@@ -1,5 +1,6 @@
-import { execSync } from "node:child_process";
+import fs from "node:fs";
 import path from "node:path";
+import { execSync } from "node:child_process";
 
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
@@ -9,6 +10,17 @@ function tryGit(command: string): string | null {
     return execSync(command, { encoding: "utf-8", cwd: path.resolve(__dirname, "..") }).trim();
   } catch {
     return null;
+  }
+}
+
+function readAppVersion(): string {
+  const fromEnv = process.env.APP_VERSION?.trim();
+  if (fromEnv) return fromEnv;
+  const versionPath = path.resolve(__dirname, "../backend/VERSION");
+  try {
+    return fs.readFileSync(versionPath, "utf-8").trim();
+  } catch {
+    return "0.0.0-dev";
   }
 }
 
@@ -26,6 +38,7 @@ function resolveFrontendDeployInfo() {
     null;
 
   return {
+    app_version: readAppVersion(),
     git_sha: shaFull ? (shaFull.length <= 12 ? shaFull : shaFull.slice(0, 7)) : "dev",
     git_sha_full: shaFull ?? "dev",
     git_branch: branch ?? "local",

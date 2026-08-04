@@ -34,6 +34,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 async def get_deploy_info_endpoint(_auth: AuthContext = Depends(require_admin)) -> DeployInfoOut:
     info = get_deploy_info(environment=settings.environment)
     return DeployInfoOut(
+        app_version=info.app_version,
         environment=info.environment,
         git_sha=info.git_sha,
         git_sha_full=info.git_sha_full,

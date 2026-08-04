@@ -1,14 +1,20 @@
-"""Metadane deployu (commit, branch) — Render/Vercel ustawiają env automatycznie."""
+"""Metadane deployu — semver aplikacji + commit/branch (Render/Vercel env)."""
 
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
+
+_VERSION_FILE = Path(__file__).resolve().parents[2] / "VERSION"
+_SEMVER_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[\w.-]+)?(?:\+[\w.-]+)?$")
 
 
 @dataclass(frozen=True, slots=True)
 class DeployInfo:
+    app_version: str
     environment: str
     git_sha: str | None
     git_sha_full: str | None
@@ -46,6 +52,27 @@ def _short_sha(full: str | None) -> str | None:
     return full if len(full) <= 12 else full[:7]
 
 
+def _read_version_file() -> str | None:
+    try:
+        text = _VERSION_FILE.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return text or None
+
+
+def normalize_app_version(raw: str | None) -> str:
+    """Semver z pliku VERSION / env — fallback gdy brak lub niepoprawny format."""
+    value = (raw or "").strip()
+    if value and _SEMVER_RE.match(value):
+        return value
+    return "0.0.0"
+
+
+def resolve_app_version() -> str:
+    """APP_VERSION (CI) > backend/VERSION > 0.0.0."""
+    return normalize_app_version(_first_env("APP_VERSION") or _read_version_file())
+
+
 def get_deploy_info(*, environment: str) -> DeployInfo:
     git_sha_full = _first_env("APP_GIT_SHA", "RENDER_GIT_COMMIT", "GIT_COMMIT")
     git_branch = _first_env("APP_GIT_BRANCH", "RENDER_GIT_BRANCH", "GIT_BRANCH", "VERCEL_GIT_COMMIT_REF")
@@ -59,6 +86,7 @@ def get_deploy_info(*, environment: str) -> DeployInfo:
     git_repo = _first_env("APP_GIT_REPO") or "fifmazurkiewicz/goat"
 
     return DeployInfo(
+        app_version=resolve_app_version(),
         environment=environment,
         git_sha=_short_sha(git_sha_full),
         git_sha_full=git_sha_full,

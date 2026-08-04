@@ -11,6 +11,7 @@ interface ImportMeta {
 }
 
 declare const __FRONTEND_DEPLOY_INFO__: {
+  app_version: string;
   git_sha: string;
   git_sha_full: string;
   git_branch: string;

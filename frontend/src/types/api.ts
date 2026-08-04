@@ -271,6 +271,7 @@ export type UserProfileUpdate = Partial<Omit<UserProfile, "user_id" | "updated_a
 // admina (nie globalna stała, ADR-12); kwota w USD (nie plan Free/Pro, ADR-16).
 export interface AdminDeployInfo {
   component: "api";
+  app_version: string;
   environment: string;
   git_sha: string | null;
   git_sha_full: string | null;

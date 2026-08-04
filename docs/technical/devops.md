@@ -52,8 +52,19 @@ Pełna checklista w [`local-setup.md`](local-setup.md). Zasada: projekt musi da�
 | `OPENROUTER_CHAT_MODEL` / `OPENROUTER_PLANNER_MODEL` | Render + `.env.example` | env-driven, nie hardkodowane |
 | `CORS_ORIGINS` | Render | `https://goat.fmazurkiewicz.dev` (+ `http://localhost:3000` gdy testujesz API lokalnie) + regex `*.vercel.app` dla preview |
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_BASE_URL` | Vercel + `frontend/.env.local` | Publiczne, bezpieczne w bundlu (chronione przez RLS) |
+| `APP_VERSION` | opcjonalnie Render/Vercel build | Nadpisuje `backend/VERSION` (semver); domyślnie plik w repo |
 
 Zasady: `SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`, `DATABASE_URL`, `SUPABASE_ACCESS_TOKEN` (CLI) — nigdy do repo/frontendu. `.gitignore` obejmuje `.env`, `.env.*` poza `!.env.example`, `frontend/.env.local`.
+
+### Wersjonowanie semver (panel Admin)
+
+| Artefakt | Rola |
+|---|---|
+| `backend/VERSION` | **Jedyne źródło prawdy** — np. `0.2.0` (MAJOR.MINOR.PATCH) |
+| `backend/pyproject.toml` + `frontend/package.json` | Trzymaj zgodne z `VERSION` (informacyjnie) |
+| Admin → Wersja aplikacji | Wyświetla **v{semver}**; commit GitHub jako metadane diagnostyczne |
+
+Przy release: podnieś `backend/VERSION`, zsynchronizuj `pyproject.toml` / `package.json`, commit, deploy FE + BE. Format: `X.Y.Z` lub pre-release `X.Y.Z-beta.1`.
 
 ## 6. Migracje Supabase
 

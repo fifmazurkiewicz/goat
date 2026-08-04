@@ -2,7 +2,7 @@
 
 import os
 
-from app.core.version import get_deploy_info
+from app.core.version import get_deploy_info, normalize_app_version, resolve_app_version
 
 
 def test_get_deploy_info_from_render_env(monkeypatch) -> None:
@@ -12,6 +12,7 @@ def test_get_deploy_info_from_render_env(monkeypatch) -> None:
 
     info = get_deploy_info(environment="production")
 
+    assert info.app_version == "0.2.0"
     assert info.git_sha == "abc123d"
     assert info.git_sha_full == "abc123def456789"
     assert info.git_branch == "main"
@@ -27,3 +28,13 @@ def test_get_deploy_info_app_override(monkeypatch) -> None:
 
     assert info.git_sha == "deadbeef"
     assert info.git_branch == "feature/x"
+
+
+def test_resolve_app_version_from_env(monkeypatch) -> None:
+    monkeypatch.setenv("APP_VERSION", "1.2.3")
+    assert resolve_app_version() == "1.2.3"
+
+
+def test_normalize_app_version_rejects_invalid() -> None:
+    assert normalize_app_version("not-a-version") == "0.0.0"
+    assert normalize_app_version("2.0.0-beta.1") == "2.0.0-beta.1"

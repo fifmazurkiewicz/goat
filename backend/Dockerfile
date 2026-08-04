@@ -14,7 +14,7 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 WORKDIR /app
 
 # Warstwa zależności osobno od kodu — cache Dockera nie inwaliduje się przy zmianie appki.
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock VERSION ./
 RUN uv sync --frozen --no-dev
 
 COPY app ./app

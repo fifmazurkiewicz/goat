@@ -1,5 +1,6 @@
 export interface DeployInfo {
   component: "frontend" | "api";
+  app_version: string;
   environment?: string;
   git_sha: string | null;
   git_sha_full: string | null;
@@ -13,6 +14,7 @@ export function getFrontendDeployInfo(): DeployInfo {
     typeof __FRONTEND_DEPLOY_INFO__ !== "undefined"
       ? __FRONTEND_DEPLOY_INFO__
       : {
+          app_version: "0.0.0-dev",
           git_sha: "dev",
           git_sha_full: "dev",
           git_branch: "local",
@@ -28,7 +30,14 @@ export function gitCommitUrl(info: Pick<DeployInfo, "git_repo" | "git_sha_full">
   return `https://github.com/${info.git_repo}/commit/${sha}`;
 }
 
+/** Semver FE vs API — commit tylko metadane diagnostyczne. */
 export function deployLabelsMatch(a: DeployInfo, b: DeployInfo): boolean {
+  if (!a.app_version || !b.app_version) return true;
+  if (a.app_version.endsWith("-dev") || b.app_version.endsWith("-dev")) return true;
+  return a.app_version === b.app_version;
+}
+
+export function deployCommitsMatch(a: DeployInfo, b: DeployInfo): boolean {
   if (!a.git_sha || !b.git_sha || a.git_sha === "dev" || b.git_sha === "dev") return true;
   return a.git_sha === b.git_sha && (a.git_branch ?? "") === (b.git_branch ?? "");
 }
