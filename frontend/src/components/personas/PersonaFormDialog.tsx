@@ -18,7 +18,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { ResponsiveDialog } from "@/components/common/ResponsiveDialog";
 import { PersonaColumnsEditor } from "@/components/personas/PersonaColumnsEditor";
-import { useCreatePersona, usePersonaTemplates, usePlanTemplates, useUpdatePersona } from "@/hooks/usePersonas";
+import {
+  useCreatePersona,
+  useDeletePersona,
+  usePersonaTemplates,
+  usePlanTemplates,
+  useUpdatePersona,
+} from "@/hooks/usePersonas";
 import { ApiError, getErrorMessage } from "@/lib/api-client";
 import {
   columnsFromTemplateOverrides,
@@ -56,6 +62,7 @@ export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDi
   const { data: planTemplates } = usePlanTemplates();
   const createPersona = useCreatePersona();
   const updatePersona = useUpdatePersona();
+  const deletePersona = useDeletePersona();
 
   const form = useForm<PersonaFormValues>({
     resolver: zodResolver(personaFormSchema),
@@ -178,7 +185,23 @@ export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDi
     toast.error("Popraw błędy w formularzu przed zapisem");
   }
 
-  const isPending = createPersona.isPending || updatePersona.isPending;
+  async function handleDelete() {
+    if (!persona) return;
+    const confirmed = window.confirm(
+      `Usunąć personę „${persona.name}”? Tej operacji nie można cofnąć.`
+    );
+    if (!confirmed) return;
+    try {
+      await deletePersona.mutateAsync(persona.id);
+      toast.success("Usunięto personę");
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Nie udało się usunąć persony."));
+    }
+  }
+
+  const isPending =
+    createPersona.isPending || updatePersona.isPending || deletePersona.isPending;
 
   return (
     <ResponsiveDialog
@@ -192,14 +215,32 @@ export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDi
       }
       className="sm:max-w-2xl"
       footer={
-        <>
-          <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
-            Anuluj
-          </Button>
-          <Button type="submit" form="persona-form" disabled={isPending}>
-            {isPending ? "Zapisywanie…" : isEdit ? "Zapisz zmiany" : "Dodaj personę"}
-          </Button>
-        </>
+        <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+          {isEdit ? (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void handleDelete()}
+              disabled={isPending}
+            >
+              {deletePersona.isPending ? "Usuwanie…" : "Usuń personę"}
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button type="button" variant="secondary" onClick={() => onOpenChange(false)}>
+              Anuluj
+            </Button>
+            <Button type="submit" form="persona-form" disabled={isPending}>
+              {isPending && !deletePersona.isPending
+                ? "Zapisywanie…"
+                : isEdit
+                  ? "Zapisz zmiany"
+                  : "Dodaj personę"}
+            </Button>
+          </div>
+        </div>
       }
     >
       <FormProvider {...form}>
