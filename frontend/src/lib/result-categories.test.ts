@@ -47,7 +47,14 @@ describe("resultCategoryTabsFromPersonas", () => {
       persona({ id: "1", type: "personal_trainer" }),
       persona({ id: "2", type: "motor_coach" }),
     ]);
-    expect(tabs).toEqual([{ key: "strength", label: "Siłownia" }]);
+    expect(tabs).toEqual([{ key: "strength", label: "Trening" }]);
+  });
+
+  it("dokleja kategorie z już zapisanych wyników (spoza person)", () => {
+    const tabs = resultCategoryTabsFromPersonas([persona({ id: "1", type: "motor_coach" })], {
+      categoriesWithData: ["triathlon", "strength"],
+    });
+    expect(tabs.map((t) => t.key)).toEqual(["strength", "triathlon"]);
   });
 
   it("obsługuje custom_result_category", () => {

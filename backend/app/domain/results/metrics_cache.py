@@ -9,11 +9,17 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from typing import Protocol
+from zoneinfo import ZoneInfo
 
 _MAX_UNIT_LENGTH = 20
 _MAX_NOTES_LENGTH = 500
+_APP_TZ = ZoneInfo("Europe/Warsaw")
+
+
+def _today_warsaw() -> date:
+    return datetime.now(_APP_TZ).date()
 
 
 class AllowedMetricsRepositoryProtocol(Protocol):
@@ -66,7 +72,7 @@ class AllowedMetricsCache:
             return MetricValidationResult(
                 False, True, f"Notatka może mieć maks. {_MAX_NOTES_LENGTH} znaków.", unit
             )
-        if logged_date > date.today():
+        if logged_date > _today_warsaw():
             return MetricValidationResult(False, True, "Data nie może być z przyszłości.", unit)
 
         allowed = self.get(category, metric)

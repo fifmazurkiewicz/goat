@@ -22,7 +22,9 @@ def update_user_profile(
 
 Częściowa aktualizacja (tylko podane pola), walidacja zakresów jak w tabeli `user_profile` (`height_cm` 100-250, `weight_kg` 20-400, enumy dla `sex`/`activity_level`/`primary_goal`) — błąd walidacji wraca do modelu jako tool response, nie wyjątek (ten sam wzorzec co `log_result`).
 
-**Intake instruction — dopytywanie na starcie rozmowy.** `ContextBuilder` (architecture.md sekcja 5) sprawdza kompletność `user_profile` (krytyczne pola: `height_cm`, `weight_kg`, `date_of_birth`, `activity_level`, `primary_goal`) przed zbudowaniem system promptu. Jeśli brakuje — dokleja do promptu dynamiczną instrukcję (NIE część preambułu platformy, osobny, generowany segment):
+**Intake instruction — dopytywanie na starcie rozmowy.** `ContextBuilder` (architecture.md sekcja 5) sprawdza kompletność `user_profile` (krytyczne pola: `height_cm`, `weight_kg`, `date_of_birth`, `activity_level`, `primary_goal`) przed zbudowaniem system promptu. Jeśli brakuje — dokleja do promptu dynamiczną instrukcję (NIE część preambułu platformy, osobny, generowany segment).
+
+**Kontekst czasowy:** `ContextBuilder` dokleja też `[KONTEKST CZASOWY]` z dzisiejszą datą ISO i dniem tygodnia w `Europe/Warsaw` — modele nie mają kalendarza z treningu; bez tego „wczoraj” i `log_result.date` są zgadywane.
 
 ```
 [KONTEKST: PROFIL UŻYTKOWNIKA NIEKOMPLETNY]

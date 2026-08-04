@@ -76,7 +76,8 @@ ChatLayout (smart) — drawer open/closed (localStorage), URL sync sessionId
 │  ├─ MessageList (dumb, wirtualizowana przy długiej historii — @tanstack/react-virtual)
 │  │  ├─ MessageBubble (dumb) — w sesji 'general' pokazuje nagłówek persona_label (z eventu
 │  │  │  `persona_turn_start`, ADR-13) nad odpowiedzią; w sesji 'persona' nagłówek pomijany
-│  │  │  (kontekst już wiadomy z ChatHeader). Historia UI filtruje `role=tool` i puste
+│  │  │  (kontekst już wiadomy z ChatHeader). Treść **asystenta** renderowana jako Markdown
+│  │  │  (`react-markdown`, bez raw HTML). Historia UI filtruje `role=tool` i puste
 │  │  │  `assistant` (tool_calls-only) — surowe JSON-y narzędzi zostają w DB dla LLM, nie w bubble.
 │  │  └─ ToolResultChip (dumb) — inline chip z `tool_result` (pola `tool_name`/`summary`/`success`)
 │  │     w czasie rzeczywistym; po odświeżeniu historii chip znika (wynik widać w `/results` / profilu)
@@ -114,7 +115,7 @@ PlansPage (smart) — activeMonth/activeDate z URL search params (linkowalne)
 
 **Nowa funkcja (MVP):** per kategoria, wykres liniowy wartości w czasie (`logged_date` na osi X), filtrowany po `metric` — np. trend wagi ciała, progresja ciężaru w danym ćwiczeniu (bench press 1RM), czasy biegowe. Biblioteka: **`recharts`** przez gotowy `Chart` komponent shadcn/ui (spójny styling z resztą UI, mniej kodu niż surowy recharts). Dane z istniejącego `GET /results?category=&metric=` (indeks `results_user_category_metric_date` w bazie wspiera te zapytania) — bez zmian schematu.
 
-**Taby kategorii nie są stałą listą sportów.** Budowane z aktywnych person usera (`resultCategoryTabsFromPersonas`): np. `personal_trainer`/`motor_coach` → Siłownia, `dietitian` → Dieta, `badminton_coach` → Badminton. Brak persony triathlon/basen = brak tych tabów. Logo/nazwa **Coach** w app shell → `/chat`.
+**Taby kategorii nie są stałą listą sportów.** Budowane z aktywnych person usera (`resultCategoryTabsFromPersonas`) **oraz** kategorii, w których już są wpisy w DB: np. `personal_trainer`/`motor_coach` → **Trening** (`strength`), `dietitian` → Dieta, `badminton_coach` → Badminton. Dzięki temu wynik zapisany przez agenta jako `triathlon`/`custom` nie znika z UI. Logo/nazwa **Coach** w app shell → `/chat`.
 
 ## 7. Formularz edycji persony
 

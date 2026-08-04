@@ -26,7 +26,11 @@ LOG_RESULT_TOOL_SCHEMA: dict[str, Any] = {
             "Zapisuje 1-N faktycznie zaraportowanych przez użytkownika wyników "
             "(trening, dieta, pomiary) w JEDNYM wywołaniu (batch — ADR-6). Wołaj "
             "WYŁĄCZNIE gdy user jawnie raportuje faktyczny wynik, nigdy nie zgaduj/nie "
-            "fabrykuj wartości. Trening z 5 ćwiczeniami = 5 wpisów w jednym wywołaniu."
+            "fabrykuj wartości. Trening z 5 ćwiczeniami = 5 wpisów w jednym wywołaniu. "
+            "Daty względne („wczoraj”) przelicz na ISO YYYY-MM-DD wg [KONTEKST CZASOWY]. "
+            "Bieganie/kondycja/siła: category=strength (np. metric run_distance_km, "
+            "run_time_min). Dieta: diet. Badminton: badminton. Nie wymyślaj category "
+            "poza enumem."
         ),
         "parameters": {
             "type": "object",

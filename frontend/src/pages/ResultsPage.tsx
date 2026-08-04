@@ -13,19 +13,24 @@ import { AddResultDialog } from "@/components/results/AddResultDialog";
 import { ResultsChart } from "@/components/results/ResultsChart";
 import { ResultsTable } from "@/components/results/ResultsTable";
 import { usePersonas } from "@/hooks/usePersonas";
-import { useResults } from "@/hooks/useResults";
+import { useAllResults, useResults } from "@/hooks/useResults";
 import { resultCategoryTabsFromPersonas } from "@/lib/result-categories";
 import type { ResultCategory } from "@/types/api";
 
 /**
- * Taby kategorii z aktywnych person usera, wykres liniowy per metryka (ADR-9)
- * i tabela z edycją inline (docs/technical/frontend.md sekcja 6).
+ * Taby kategorii z aktywnych person usera (+ kategorie z już zapisanych wyników),
+ * wykres liniowy per metryka (ADR-9) i tabela z edycją inline
+ * (docs/technical/frontend.md sekcja 6).
  */
 export default function ResultsPage() {
   const { data: personasData, isLoading: personasLoading } = usePersonas();
+  const { data: allResults } = useAllResults();
   const categoryTabs = useMemo(
-    () => resultCategoryTabsFromPersonas(personasData?.items ?? []),
-    [personasData?.items]
+    () =>
+      resultCategoryTabsFromPersonas(personasData?.items ?? [], {
+        categoriesWithData: (allResults ?? []).map((r) => r.category),
+      }),
+    [personasData?.items, allResults]
   );
 
   const [category, setCategory] = useState<ResultCategory | null>(null);
@@ -67,7 +72,7 @@ export default function ResultsPage() {
           <Link to="/personas" className="underline underline-offset-2 hover:text-foreground">
             Dodaj personę
           </Link>
-          , żeby zobaczyć Siłownię, Dietę, Badminton itd.
+          , żeby zobaczyć Trening, Dietę, Badminton itd.
         </p>
       </div>
     );

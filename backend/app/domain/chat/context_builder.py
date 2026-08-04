@@ -7,12 +7,26 @@ sekcja 0 (profil użytkownika) i sekcja 3 (token budget).
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Protocol
+from zoneinfo import ZoneInfo
 
 from app.domain.chat.preamble import build_system_prompt as build_preamble_composed
 from app.domain.chat.tools import build_profile_intake_instruction
 from app.models.schemas import UserProfileOut
+
+# Aplikacja PL — względne daty („wczoraj”) liczone w strefie usera, nie UTC serwera.
+_APP_TZ = ZoneInfo("Europe/Warsaw")
+
+_WEEKDAY_PL = (
+    "poniedziałek",
+    "wtorek",
+    "środa",
+    "czwartek",
+    "piątek",
+    "sobota",
+    "niedziela",
+)
 
 
 class ChatRepositoryProtocol(Protocol):
@@ -37,14 +51,32 @@ _GOAL_LABELS = {
 }
 
 
+def _today_warsaw() -> date:
+    return datetime.now(_APP_TZ).date()
+
+
 def _age_years(date_of_birth: date | None) -> int | None:
     if date_of_birth is None:
         return None
-    today = date.today()
+    today = _today_warsaw()
     years = today.year - date_of_birth.year
     if (today.month, today.day) < (date_of_birth.month, date_of_birth.day):
         years -= 1
     return years
+
+
+def build_temporal_context_block(*, today: date | None = None) -> str:
+    """Dzisiejsza data (Europe/Warsaw) — model nie zna kalendarza z treningu; bez tego
+    „wczoraj” / ISO `date` w `log_result` jest zgadywane."""
+    day = today or _today_warsaw()
+    weekday = _WEEKDAY_PL[day.weekday()]
+    return (
+        "[KONTEKST CZASOWY]\n"
+        f"Dzisiaj jest {weekday}, {day.isoformat()} (strefa Europe/Warsaw). "
+        "Względne daty usera („wczoraj”, „w poniedziałek”) przeliczaj na ISO YYYY-MM-DD "
+        "względem tej daty. Przy log_result pole date MUSI być konkretną datą ISO, "
+        "nigdy słowem „wczoraj”."
+    )
 
 
 def build_user_profile_block(profile: UserProfileOut | None) -> str | None:
@@ -93,7 +125,8 @@ class ContextBuilder:
         segments = [
             build_preamble_composed(
                 persona_system_prompt, template_safety_prompt=template_safety_prompt
-            )
+            ),
+            build_temporal_context_block(),
         ]
 
         if persona_constraints:

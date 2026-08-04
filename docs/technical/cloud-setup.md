@@ -107,7 +107,9 @@ Jeśli baza ma stare tabele / połowiczny seed — **najpierw wipe**, potem świ
    - `supabase/migrations/0002_exercise_catalog.sql`
 2. SQL Editor → New query → wklej **całą** treść `0001_init.sql` → **Run**.
 3. New query → wklej **całą** treść `0002_exercise_catalog.sql` → **Run**.
-4. Table Editor — powinny być m.in.:
+4. (Istniejące DB bez wipe) New query → `0007_running_metrics_strength.sql` → **Run**
+   (metryki biegania pod `strength` / zakładka Trening; przy świeżym `0001_init` już w seedzie).
+5. Table Editor — powinny być m.in.:
    - `profiles`, `personas`, `persona_templates`, `plan_templates`, `allowed_metrics`
    - `user_profile`, `chat_sessions`, `chat_messages`, `results`
    - `plans`, `plan_items`, `plan_generation_jobs`, `plan_generation_job_personas`

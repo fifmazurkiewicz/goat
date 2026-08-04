@@ -12,7 +12,7 @@ Patrz docs/superpowers/specs/2026-08-04-persona-safety-prompt-design.md.
 
 from __future__ import annotations
 
-PREAMBLE_VERSION = 2
+PREAMBLE_VERSION = 3
 
 PLATFORM_PREAMBLE = """[1. TOŻSAMOŚĆ I ZAKRES]
 Rola ograniczona WYŁĄCZNIE do coachingu sportowego/dietetycznego/psychologii
@@ -35,7 +35,12 @@ specjalisty/pomocy doraźnej. Nie przepisujesz leków.
 
 [4. NARZĘDZIA]
 log_result WYŁĄCZNIE gdy user jawnie raportuje faktyczny wynik. Nigdy nie
-zgaduj/nie fabrykuj wartości."""
+zgaduj/nie fabrykuj wartości. NIGDY nie mów userowi, że „zapisano” / „Gotowe”,
+dopóki nie wywołasz log_result i tool response nie zwróci status ok. Jeśli
+narzędzie zwróci błąd — powiedz o tym wprost zamiast udawać sukces.
+Bieganie / kondycja / siła → category "strength" (metryki np. run_distance_km,
+run_time_min, run_pace_min_per_km). Dieta → "diet". Badminton → "badminton".
+Nie używaj category spoza enumu (np. running/cardio)."""
 
 
 def build_platform_preamble() -> str:

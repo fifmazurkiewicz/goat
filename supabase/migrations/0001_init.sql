@@ -677,7 +677,10 @@ insert into public.allowed_metrics (category, metric_key, unit, value_type, valu
   ('triathlon', 'run_time_min', 'min', 'numeric', 0, 600),
   ('triathlon', 'bike_distance_km', 'km', 'numeric', 0, 300),
   ('badminton', 'training_minutes', 'min', 'numeric', 0, 300),
-  ('badminton', 'match_score', 'points', 'integer', 0, 30);
+  ('badminton', 'match_score', 'points', 'integer', 0, 30),
+  ('strength', 'run_distance_km', 'km', 'numeric', 0, 100),
+  ('strength', 'run_time_min', 'min', 'numeric', 0, 600),
+  ('strength', 'run_pace_min_per_km', 'min/km', 'numeric', 2, 15);
 
 -- Po wipe: auth.users zostają, profiles giną — odtwórz wiersze + bootstrap admina.
 -- Jedyny admin: fmazurkiewicz@gmail.com
