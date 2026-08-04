@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useDeleteResult, useUpdateResult } from "@/hooks/useResults";
-import { ApiError } from "@/lib/api-client";
+import { getErrorMessage } from "@/lib/api-client";
 import type { Result, ResultCategory } from "@/types/api";
 
 interface ResultsTableProps {
@@ -43,7 +43,7 @@ export function ResultsTable({ results, category }: ResultsTableProps) {
       });
       setEditingId(null);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Nie udało się zapisać zmian.");
+      toast.error(getErrorMessage(err, "Nie udało się zapisać zmian."));
     }
   }
 
@@ -51,7 +51,7 @@ export function ResultsTable({ results, category }: ResultsTableProps) {
     try {
       await deleteResult.mutateAsync(id);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Nie udało się usunąć wpisu.");
+      toast.error(getErrorMessage(err, "Nie udało się usunąć wpisu."));
     }
   }
 

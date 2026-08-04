@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { useCreateChatSession } from "@/hooks/useChatSessions";
 import { useSharePersona, useUpdatePersona } from "@/hooks/usePersonas";
-import { ApiError } from "@/lib/api-client";
+import { getErrorMessage } from "@/lib/api-client";
 import { DETAIL_LEVEL_LABELS, PERSONA_TYPE_LABELS, personaAvatarColor, personaInitials } from "@/lib/persona-labels";
 import type { Persona } from "@/types/api";
 
@@ -28,7 +28,7 @@ export function PersonaCard({ persona, onOpenConfig, onEdit }: PersonaCardProps)
     try {
       await updatePersona.mutateAsync({ id: persona.id, input: { active } });
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Nie udało się zmienić statusu persony.");
+      toast.error(getErrorMessage(err, "Nie udało się zmienić statusu persony."));
     }
   }
 
@@ -37,7 +37,7 @@ export function PersonaCard({ persona, onOpenConfig, onEdit }: PersonaCardProps)
       await sharePersona.mutateAsync({ id: persona.id, isShared: true });
       toast.success("Persona udostępniona community");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Nie udało się udostępnić persony.");
+      toast.error(getErrorMessage(err, "Nie udało się udostępnić persony."));
     }
   }
 
@@ -46,7 +46,7 @@ export function PersonaCard({ persona, onOpenConfig, onEdit }: PersonaCardProps)
       const session = await createSession.mutateAsync({ persona_id: persona.id });
       navigate(`/chat/${session.id}`);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Nie udało się utworzyć rozmowy.");
+      toast.error(getErrorMessage(err, "Nie udało się utworzyć rozmowy."));
     }
   }
 

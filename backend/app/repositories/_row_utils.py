@@ -22,9 +22,17 @@ def as_float(value: Any) -> Any:
     return value
 
 
-def normalize_row_mapping(mapping: dict[str, Any], *, uuid_keys: tuple[str, ...] = ()) -> dict[str, Any]:
+def normalize_row_mapping(
+    mapping: dict[str, Any],
+    *,
+    uuid_keys: tuple[str, ...] = (),
+    float_keys: tuple[str, ...] = (),
+) -> dict[str, Any]:
     out = dict(mapping)
     for key in uuid_keys:
         if key in out:
             out[key] = stringify_uuid(out[key])
+    for key in float_keys:
+        if key in out:
+            out[key] = as_float(out[key])
     return out

@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateResult } from "@/hooks/useResults";
-import { ApiError } from "@/lib/api-client";
+import { getErrorMessage } from "@/lib/api-client";
 import type { ResultCategory } from "@/types/api";
 
 const schema = z.object({
@@ -43,7 +43,7 @@ export function AddResultDialog({ category }: AddResultDialogProps) {
       form.reset({ metric: "", value: 0, unit: "", logged_date: format(new Date(), "yyyy-MM-dd"), notes: "" });
       setOpen(false);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Nie udało się dodać wyniku.");
+      toast.error(getErrorMessage(err, "Nie udało się dodać wyniku."));
     }
   }
 

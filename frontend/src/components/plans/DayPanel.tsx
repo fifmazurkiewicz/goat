@@ -10,7 +10,7 @@ import { ActualResultsPanel } from "@/components/plans/ActualResultsPanel";
 import { PlanItemTable } from "@/components/plans/PlanItemTable";
 import { useCreateChatSession } from "@/hooks/useChatSessions";
 import { useIsMobile } from "@/hooks/useMediaQuery";
-import { ApiError } from "@/lib/api-client";
+import { getErrorMessage } from "@/lib/api-client";
 import { PERSONA_TYPE_LABELS } from "@/lib/persona-labels";
 import type { Persona, PlanItem } from "@/types/api";
 
@@ -42,7 +42,7 @@ export function DayPanel({ date, items, personas, onOpenChange }: DayPanelProps)
       onOpenChange(false);
       navigate(`/chat/${session.id}`);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Nie udało się utworzyć rozmowy.");
+      toast.error(getErrorMessage(err, "Nie udało się utworzyć rozmowy."));
     }
   }
 

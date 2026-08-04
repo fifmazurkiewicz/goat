@@ -15,11 +15,17 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.exceptions import ConflictError, NotFoundError
+from app.repositories._row_utils import normalize_row_mapping
 
 _PLAN_COLUMNS = "id, user_id, period_type, start_date, end_date, status, created_at, updated_at"
 _ITEM_COLUMNS = "id, plan_id, item_date, item_type, persona_id, content, schema_version, created_at"
 _JOB_COLUMNS = "id, plan_id, user_id, status, error_message, attempts, created_at, started_at, finished_at"
 _JOB_PERSONA_COLUMNS = "job_id, persona_id, status, retry_count, last_error"
+
+_PLAN_UUID_KEYS = ("id", "user_id")
+_ITEM_UUID_KEYS = ("id", "plan_id", "persona_id")
+_JOB_UUID_KEYS = ("id", "plan_id", "user_id")
+_JOB_PERSONA_UUID_KEYS = ("job_id", "persona_id")
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,11 +74,26 @@ class PlanJobPersonaRow:
     last_error: str | None
 
 
+def _row_to_plan(row: Any) -> PlanRow:
+    mapping = normalize_row_mapping(dict(row._mapping), uuid_keys=_PLAN_UUID_KEYS)
+    return PlanRow(**mapping)
+
+
 def _row_to_item(row: Any) -> PlanItemRow:
-    mapping = dict(row._mapping)
+    mapping = normalize_row_mapping(dict(row._mapping), uuid_keys=_ITEM_UUID_KEYS)
     if isinstance(mapping.get("content"), str):
         mapping["content"] = json.loads(mapping["content"])
     return PlanItemRow(**mapping)
+
+
+def _row_to_job(row: Any) -> PlanJobRow:
+    mapping = normalize_row_mapping(dict(row._mapping), uuid_keys=_JOB_UUID_KEYS)
+    return PlanJobRow(**mapping)
+
+
+def _row_to_job_persona(row: Any) -> PlanJobPersonaRow:
+    mapping = normalize_row_mapping(dict(row._mapping), uuid_keys=_JOB_PERSONA_UUID_KEYS)
+    return PlanJobPersonaRow(**mapping)
 
 
 class PlansRepo:
@@ -99,14 +120,14 @@ class PlansRepo:
                 "end_date": end_date,
             },
         )
-        return PlanRow(**result.one()._mapping)
+        return _row_to_plan(result.one())
 
     async def get_plan(self, plan_id: str) -> PlanRow | None:
         result = await self._conn.execute(
             text(f"SELECT {_PLAN_COLUMNS} FROM plans WHERE id = :id"), {"id": plan_id}
         )
         row = result.one_or_none()
-        return PlanRow(**row._mapping) if row is not None else None
+        return _row_to_plan(row) if row is not None else None
 
     async def get_plan_for_date(self, target_date: date) -> PlanRow | None:
         """`GET /plans/{date}` — plan obejmujący dany dzień."""
@@ -121,7 +142,7 @@ class PlansRepo:
             {"target_date": target_date},
         )
         row = result.one_or_none()
-        return PlanRow(**row._mapping) if row is not None else None
+        return _row_to_plan(row) if row is not None else None
 
     async def list_plans_overlapping(self, *, range_start: date, range_end: date) -> list[PlanRow]:
         """`GET /plans?month=` — wszystkie plany nachodzące na podany zakres dat."""
@@ -135,7 +156,7 @@ class PlansRepo:
             ),
             {"range_start": range_start, "range_end": range_end},
         )
-        return [PlanRow(**row._mapping) for row in result]
+        return [_row_to_plan(row) for row in result]
 
     async def update_plan_status(self, plan_id: str, status: str) -> None:
         await self._conn.execute(
@@ -205,7 +226,7 @@ class PlansRepo:
             raise ConflictError(
                 "Masz już aktywny job generowania planu — poczekaj na zakończenie."
             ) from exc
-        return PlanJobRow(**result.one()._mapping)
+        return _row_to_job(result.one())
 
     async def get_job(self, job_id: str) -> PlanJobRow | None:
         result = await self._conn.execute(
@@ -213,7 +234,7 @@ class PlansRepo:
             {"id": job_id},
         )
         row = result.one_or_none()
-        return PlanJobRow(**row._mapping) if row is not None else None
+        return _row_to_job(row) if row is not None else None
 
     async def update_job_status(
         self, job_id: str, status: str, *, error_message: str | None = None
@@ -314,7 +335,7 @@ class PlansRepo:
             ),
             {"job_id": job_id},
         )
-        return [PlanJobPersonaRow(**row._mapping) for row in result]
+        return [_row_to_job_persona(row) for row in result]
 
     async def get_job_or_raise(self, job_id: str) -> PlanJobRow:
         job = await self.get_job(job_id)

@@ -66,3 +66,58 @@ def test_persona_row_stringifies_uuid_fks() -> None:
     assert persona.id == str(persona_id)
     assert persona.user_id == str(user_id)
     assert persona.base_template_id == str(template_id)
+
+
+def test_chat_session_row_stringifies_uuids() -> None:
+    from app.repositories.chat_repo import _row_to_session
+
+    session_id = uuid4()
+    user_id = uuid4()
+    persona_id = uuid4()
+    row = _MappingRow(
+        {
+            "id": session_id,
+            "user_id": user_id,
+            "persona_id": persona_id,
+            "session_type": "persona",
+            "title": None,
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+        }
+    )
+    session = _row_to_session(row)
+    assert session.id == str(session_id)
+    assert session.user_id == str(user_id)
+    assert session.persona_id == str(persona_id)
+
+
+def test_result_row_stringifies_uuid_and_decimal() -> None:
+    from datetime import date
+
+    from app.repositories.results_repo import _row_to_result
+
+    result_id = uuid4()
+    user_id = uuid4()
+    persona_id = uuid4()
+    row = _MappingRow(
+        {
+            "id": result_id,
+            "user_id": user_id,
+            "category": "gym",
+            "metric": "bench_press_1rm",
+            "value": Decimal("10.5"),
+            "unit": "kg",
+            "logged_date": date(2026, 8, 4),
+            "source": "manual",
+            "source_persona_id": persona_id,
+            "is_custom": True,
+            "notes": None,
+            "created_at": datetime.now(timezone.utc),
+        }
+    )
+    result = _row_to_result(row)
+    assert result.id == str(result_id)
+    assert result.user_id == str(user_id)
+    assert result.source_persona_id == str(persona_id)
+    assert isinstance(result.value, float)
+    assert result.value == 10.5

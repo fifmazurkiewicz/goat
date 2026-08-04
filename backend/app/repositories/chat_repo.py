@@ -26,6 +26,8 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from app.repositories._row_utils import stringify_uuid
+
 
 @dataclass(frozen=True, slots=True)
 class ChatSessionRow:
@@ -50,8 +52,23 @@ class ChatMessageRow:
     created_at: datetime
 
 
+_SESSION_UUID_KEYS = ("id", "user_id", "persona_id")
+_MESSAGE_UUID_KEYS = ("id", "session_id", "persona_id")
+
+
+def _row_to_session(row: Any) -> ChatSessionRow:
+    mapping = dict(row._mapping)
+    for key in _SESSION_UUID_KEYS:
+        if key in mapping:
+            mapping[key] = stringify_uuid(mapping[key])
+    return ChatSessionRow(**mapping)
+
+
 def _row_to_message(row: Any) -> ChatMessageRow:
     mapping = dict(row._mapping)
+    for key in _MESSAGE_UUID_KEYS:
+        if key in mapping:
+            mapping[key] = stringify_uuid(mapping[key])
     if isinstance(mapping.get("tool_calls"), str):
         mapping["tool_calls"] = json.loads(mapping["tool_calls"])
     return ChatMessageRow(**mapping)
@@ -89,7 +106,7 @@ class ChatRepo:
                 "title": title,
             },
         )
-        return ChatSessionRow(**result.one()._mapping)
+        return _row_to_session(result.one())
 
     async def list_sessions(self) -> list[ChatSessionRow]:
         result = await self._conn.execute(
@@ -101,7 +118,7 @@ class ChatRepo:
                 """
             )
         )
-        return [ChatSessionRow(**row._mapping) for row in result]
+        return [_row_to_session(row) for row in result]
 
     async def get_session(self, session_id: str) -> ChatSessionRow | None:
         result = await self._conn.execute(
@@ -114,7 +131,7 @@ class ChatRepo:
             {"id": session_id},
         )
         row = result.one_or_none()
-        return ChatSessionRow(**row._mapping) if row is not None else None
+        return _row_to_session(row) if row is not None else None
 
     async def touch_session(self, session_id: str) -> None:
         await self._conn.execute(
@@ -186,7 +203,7 @@ class ChatRepo:
             {"session_id": session_id},
         )
         row = result.one_or_none()
-        return row.persona_id if row is not None else None
+        return stringify_uuid(row.persona_id) if row is not None else None
 
     async def insert_user_message(
         self,

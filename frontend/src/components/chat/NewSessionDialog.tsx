@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { ResponsiveDialog } from "@/components/common/ResponsiveDialog";
 import { Button } from "@/components/ui/button";
 import { useCreateChatSession } from "@/hooks/useChatSessions";
-import { ApiError } from "@/lib/api-client";
+import { getErrorMessage } from "@/lib/api-client";
 import { PERSONA_TYPE_LABELS } from "@/lib/persona-labels";
 import { cn } from "@/lib/utils";
 import type { Persona } from "@/types/api";
@@ -32,7 +32,7 @@ export function NewSessionDialog({ open, onOpenChange, personas, onCreated }: Ne
       onOpenChange(false);
       setSelected(null);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "Nie udało się utworzyć rozmowy.");
+      toast.error(getErrorMessage(err, "Nie udało się utworzyć rozmowy."));
     }
   }
 

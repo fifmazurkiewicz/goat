@@ -8,16 +8,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.exceptions import NotFoundError
+from app.repositories._row_utils import normalize_row_mapping
 
 _COLUMNS = (
     "id, user_id, category, metric, value, unit, logged_date, source, "
     "source_persona_id, is_custom, notes, created_at"
 )
+
+_UUID_KEYS = ("id", "user_id", "source_persona_id")
+_FLOAT_KEYS = ("value",)
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +39,11 @@ class ResultRow:
     is_custom: bool
     notes: str | None
     created_at: datetime
+
+
+def _row_to_result(row: Any) -> ResultRow:
+    mapping = normalize_row_mapping(dict(row._mapping), uuid_keys=_UUID_KEYS, float_keys=_FLOAT_KEYS)
+    return ResultRow(**mapping)
 
 
 class ResultsRepo:
@@ -71,7 +81,7 @@ class ResultsRepo:
             ),
             params,
         )
-        return [ResultRow(**row._mapping) for row in result]
+        return [_row_to_result(row) for row in result]
 
     async def create(self, user_id: str, values: dict[str, object]) -> ResultRow:
         columns = ["user_id", *values.keys()]
@@ -86,7 +96,7 @@ class ResultsRepo:
             ),
             {"user_id": user_id, **values},
         )
-        return ResultRow(**result.one()._mapping)
+        return _row_to_result(result.one())
 
     async def create_many(self, user_id: str, entries: list[dict[str, object]]) -> list[ResultRow]:
         return [await self.create(user_id, entry) for entry in entries]
@@ -111,7 +121,7 @@ class ResultsRepo:
         row = result.one_or_none()
         if row is None:
             raise NotFoundError(f"Wynik {result_id!r} nie istnieje lub nie należy do usera.")
-        return ResultRow(**row._mapping)
+        return _row_to_result(row)
 
     async def get_own(self, result_id: str, user_id: str) -> ResultRow | None:
         result = await self._conn.execute(
@@ -119,7 +129,7 @@ class ResultsRepo:
             {"id": result_id, "user_id": user_id},
         )
         row = result.one_or_none()
-        return ResultRow(**row._mapping) if row is not None else None
+        return _row_to_result(row) if row is not None else None
 
     async def delete(self, result_id: str, user_id: str) -> None:
         result = await self._conn.execute(
@@ -142,4 +152,4 @@ class ResultsRepo:
             ),
             {**params, "limit": limit},
         )
-        return [ResultRow(**row._mapping) for row in result]
+        return [_row_to_result(row) for row in result]
