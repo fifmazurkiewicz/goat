@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAccount, useUpdateAccount } from "@/hooks/useAccount";
+import { getErrorMessage } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useThemeStore } from "@/store/useThemeStore";
@@ -44,8 +45,8 @@ export function AccountSettingsCard() {
     try {
       await updateAccount.mutateAsync({ nick: nick.trim() || null });
       toast.success("Zapisano nick");
-    } catch {
-      toast.error("Nie udało się zapisać nicka");
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Nie udało się zapisać nicka"));
     }
   }
 

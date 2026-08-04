@@ -162,7 +162,7 @@ class PlansRepo:
                 text(
                     f"""
                     INSERT INTO plan_items (plan_id, item_date, item_type, persona_id, content)
-                    VALUES (:plan_id, :item_date, :item_type, :persona_id, :content)
+                    VALUES (:plan_id, :item_date, :item_type, :persona_id, CAST(:content AS jsonb))
                     RETURNING {_ITEM_COLUMNS}
                     """
                 ),
@@ -181,7 +181,7 @@ class PlansRepo:
         """Targeted patch etapu 3 — harmonizacja (architecture.md §4) koryguje TYLKO
         konkretne `plan_items`, nie pełna regeneracja."""
         await self._conn.execute(
-            text("UPDATE plan_items SET content = :content WHERE id = :id"),
+            text("UPDATE plan_items SET content = CAST(:content AS jsonb) WHERE id = :id"),
             {"id": item_id, "content": json.dumps(content)},
         )
 

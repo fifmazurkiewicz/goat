@@ -255,6 +255,8 @@ Oczekiwane: HTTP 200 i JSON ze statusem OK (Free tier: pierwsze odpalenie może 
 5. **Deploy**.
 6. Po sukcesie otwórz `https://<nazwa>.vercel.app` — strona powinna się załadować (login może jeszcze nie wracać na właściwy redirect, dopóki nie dodasz tego URL do Supabase Redirect URLs i Google origins).
 
+W repo jest `frontend/vercel.json` (`rewrites` → `/index.html`) — potrzebne przy React Router, żeby **odświeżenie** podścieżki (`/settings`, `/chat`, …) nie dawało 404 Vercel.
+
 ### 8b. Tymczasowy redirect pod preview Vercel (opcjonalnie)
 
 Jeśli testujesz zanim będzie `goat.fmazurkiewicz.dev`:
@@ -382,3 +384,4 @@ curl https://api-goat.fmazurkiewicz.dev/api/health
 | Czat „wisi”, SSE pada | Cloudflare Proxy na `api-goat` musi być **DNS only** |
 | Login OK, ale brak profilu / FK | Migracja 0001 nie przeszła albo trigger na `auth.users` — sprawdź Table Editor |
 | Frontend woła złe API | Po zmianie `VITE_*` trzeba **Redeploy** na Vercel |
+| Odświeżenie `/settings` (itd.) → `404: NOT_FOUND` | Brak `frontend/vercel.json` SPA rewrite → `/index.html`; po dodaniu Redeploy |

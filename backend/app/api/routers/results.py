@@ -21,7 +21,8 @@ from app.repositories.results_repo import ResultsRepo
 router = APIRouter(prefix="/results", tags=["results"])
 
 
-@router.get("/", response_model=list[ResultOut])
+@router.get("", response_model=list[ResultOut])
+@router.get("/", response_model=list[ResultOut], include_in_schema=False)
 async def list_results(
     category: ResultCategory | None = Query(default=None),
     date_from: date | None = Query(default=None),
@@ -34,7 +35,8 @@ async def list_results(
     return [ResultOut.model_validate(row) for row in rows]
 
 
-@router.post("/", response_model=ResultOut, status_code=201)
+@router.post("", response_model=ResultOut, status_code=201)
+@router.post("/", response_model=ResultOut, status_code=201, include_in_schema=False)
 async def create_result(
     payload: ResultCreate, auth: AuthContext = Depends(get_current_user)
 ) -> ResultOut:

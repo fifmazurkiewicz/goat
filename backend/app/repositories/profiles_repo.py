@@ -90,8 +90,29 @@ class ProfilesRepo:
             raise NotFoundError(f"Profil dla user_id={user_id!r} nie istnieje.")
         return ProfileRow(**row._mapping)
 
+    async def ensure(self, user_id: str) -> ProfileRow:
+        """Tworzy brakujący wiersz `profiles` (np. po wipe DB gdy auth.users zostali).
+
+        Wywoływać w kontekście `service_role` — RLS na `profiles` nie ma policy INSERT
+        dla `authenticated` (tworzy je trigger `handle_new_user` przy rejestracji).
+        """
+        await self._conn.execute(
+            text(
+                """
+                INSERT INTO profiles (id)
+                VALUES (:user_id)
+                ON CONFLICT (id) DO NOTHING
+                """
+            ),
+            {"user_id": user_id},
+        )
+        profile = await self.get(user_id)
+        if profile is None:
+            raise NotFoundError(f"Profil dla user_id={user_id!r} nie istnieje.")
+        return profile
+
     async def update_nick(self, user_id: str, nick: str | None) -> ProfileRow:
-        """`PATCH /account` (ADR-15) — w kontekście RLS własnego usera."""
+        """`PATCH /account` (ADR-15) — w kontekście RLS własnego usera lub service_role."""
         result = await self._conn.execute(
             text(
                 f"""

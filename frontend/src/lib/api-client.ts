@@ -22,10 +22,20 @@ export class ApiError extends Error {
 export async function toApiError(response: Response): Promise<ApiError> {
   try {
     const body = (await response.json()) as ApiErrorBody;
-    return new ApiError(body.error.code, body.error.message, response.status);
+    if (body?.error?.code && body?.error?.message) {
+      return new ApiError(body.error.code, body.error.message, response.status);
+    }
   } catch {
-    return new ApiError("unknown_error", response.statusText || "Nieznany błąd", response.status);
+    // fall through
   }
+  return new ApiError("unknown_error", response.statusText || "Nieznany błąd", response.status);
+}
+
+/** Czytelny komunikat do toastów — działa też gdy `instanceof ApiError` zawodzi. */
+export function getErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) return err.message;
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
 }
 
 function getAccessToken(): string | undefined {

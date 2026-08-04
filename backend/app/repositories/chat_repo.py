@@ -226,7 +226,7 @@ class ChatRepo:
             text(
                 f"""
                 INSERT INTO chat_messages (session_id, role, content, tool_calls, persona_id)
-                VALUES (:session_id, 'assistant', :content, :tool_calls, :persona_id)
+                VALUES (:session_id, 'assistant', :content, CAST(:tool_calls AS jsonb), :persona_id)
                 RETURNING {_MESSAGE_COLUMNS}
                 """
             ),
@@ -246,7 +246,7 @@ class ChatRepo:
             text(
                 f"""
                 INSERT INTO chat_messages (session_id, role, content, tool_calls, persona_id)
-                VALUES (:session_id, 'tool', :content, :tool_calls, :persona_id)
+                VALUES (:session_id, 'tool', :content, CAST(:tool_calls AS jsonb), :persona_id)
                 RETURNING {_MESSAGE_COLUMNS}
                 """
             ),

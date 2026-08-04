@@ -18,7 +18,8 @@ from app.repositories.user_profile_repo import UserProfileRepo
 router = APIRouter(prefix="/profile", tags=["profile"])
 
 
-@router.get("/", response_model=UserProfileOut | None)
+@router.get("", response_model=UserProfileOut | None)
+@router.get("/", response_model=UserProfileOut | None, include_in_schema=False)
 async def get_profile(auth: AuthContext = Depends(get_current_user)) -> UserProfileOut | None:
     async with rls_connection(auth.claims) as conn:
         row = await UserProfileRepo(conn).get(auth.user_id)
@@ -27,7 +28,8 @@ async def get_profile(auth: AuthContext = Depends(get_current_user)) -> UserProf
     return UserProfileOut.model_validate(row) if row is not None else None
 
 
-@router.patch("/", response_model=UserProfileOut)
+@router.patch("", response_model=UserProfileOut)
+@router.patch("/", response_model=UserProfileOut, include_in_schema=False)
 async def update_profile(
     payload: UserProfileUpdate, auth: AuthContext = Depends(get_current_user)
 ) -> UserProfileOut:

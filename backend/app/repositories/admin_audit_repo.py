@@ -49,7 +49,7 @@ class AdminAuditRepo:
             text(
                 f"""
                 INSERT INTO admin_audit_log (admin_user_id, action, target_user_id, details)
-                VALUES (:admin_user_id, :action, :target_user_id, :details)
+                VALUES (:admin_user_id, :action, :target_user_id, CAST(:details AS jsonb))
                 """
             ),
             {

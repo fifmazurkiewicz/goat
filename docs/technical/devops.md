@@ -34,6 +34,8 @@ Realny problem: proxy zrywa idle SSE connections. Rozwiązanie: heartbeat co 15s
 
 SPA (Vite), żadnych Vercel Serverless Functions — wywołania API bezpośrednio z przeglądarki do Render.
 
+**SPA fallback:** `frontend/vercel.json` z `rewrites` → `/index.html` (React Router `createBrowserRouter`). Bez tego odświeżenie `/settings`, `/personas` itd. kończy się `404: NOT_FOUND` na CDN Vercel.
+
 ## 4. Uruchomienie lokalne — WYMAGANE (backend i frontend)
 
 Pełna checklista w [`local-setup.md`](local-setup.md). Zasada: projekt musi dać się uruchomić lokalnie bez Dockera i bez deployu — produkcja nie jest jedynym sposobem pracy.

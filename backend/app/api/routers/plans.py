@@ -120,7 +120,8 @@ async def get_plan_for_date(
         return await _plan_out_with_items(conn, plan)
 
 
-@router.get("/", response_model=list[PlanOut])
+@router.get("", response_model=list[PlanOut])
+@router.get("/", response_model=list[PlanOut], include_in_schema=False)
 async def list_plans(
     month: date = Query(..., description="Dowolna data w interesującym miesiącu (YYYY-MM-DD)."),
     auth: AuthContext = Depends(get_current_user),

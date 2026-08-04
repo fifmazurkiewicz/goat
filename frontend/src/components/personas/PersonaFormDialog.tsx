@@ -19,7 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ResponsiveDialog } from "@/components/common/ResponsiveDialog";
 import { PersonaColumnsEditor } from "@/components/personas/PersonaColumnsEditor";
 import { useCreatePersona, usePersonaTemplates, usePlanTemplates, useUpdatePersona } from "@/hooks/usePersonas";
-import { ApiError } from "@/lib/api-client";
+import { ApiError, getErrorMessage } from "@/lib/api-client";
 import {
   columnsFromTemplateOverrides,
   templateOverridesFromColumns,
@@ -170,9 +170,7 @@ export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDi
       }
       onOpenChange(false);
     } catch (err) {
-      const message =
-        err instanceof ApiError ? err.message : "Nie udało się zapisać persony. Spróbuj ponownie.";
-      toast.error(message);
+      toast.error(getErrorMessage(err, "Nie udało się zapisać persony. Spróbuj ponownie."));
     }
   }
 

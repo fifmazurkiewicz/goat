@@ -182,7 +182,16 @@ class PersonasRepo:
 
     async def create(self, user_id: str, values: dict[str, Any]) -> PersonaRow:
         columns = ["user_id", *values.keys()]
-        placeholders = [":user_id", *(f":{key}" for key in values.keys())]
+        # asyncpg + surowy `text()` nie wnioskuje jsonb z parametru — bez CAST
+        # Postgres odrzuca text→jsonb (`template_overrides is of type jsonb but
+        # expression is of type text`), co kończy się 500 przy create/update persony.
+        placeholders = [
+            ":user_id",
+            *(
+                f"CAST(:{key} AS jsonb)" if key == "template_overrides" else f":{key}"
+                for key in values.keys()
+            ),
+        ]
         params: dict[str, Any] = {"user_id": user_id, **values}
         if "template_overrides" in params and params["template_overrides"] is not None:
             params["template_overrides"] = json.dumps(params["template_overrides"])
@@ -208,7 +217,15 @@ class PersonasRepo:
         params: dict[str, Any] = {"id": persona_id, "user_id": user_id, **values}
         if "template_overrides" in params and params["template_overrides"] is not None:
             params["template_overrides"] = json.dumps(params["template_overrides"])
-        set_clause = ", ".join(f"{key} = :{key}" for key in values.keys())
+        set_parts = [
+            (
+                f"{key} = CAST(:{key} AS jsonb)"
+                if key == "template_overrides"
+                else f"{key} = :{key}"
+            )
+            for key in values.keys()
+        ]
+        set_clause = ", ".join(set_parts)
         result = await self._conn.execute(
             text(
                 f"""

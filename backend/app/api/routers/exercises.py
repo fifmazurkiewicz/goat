@@ -16,7 +16,8 @@ from app.repositories.exercises_repo import ExercisesRepo
 router = APIRouter(prefix="/exercises", tags=["exercises"])
 
 
-@router.get("/", response_model=list[ExerciseOut])
+@router.get("", response_model=list[ExerciseOut])
+@router.get("/", response_model=list[ExerciseOut], include_in_schema=False)
 async def list_exercises(
     persona_type: PersonaType | None = Query(default=None),
     category: str | None = Query(default=None),

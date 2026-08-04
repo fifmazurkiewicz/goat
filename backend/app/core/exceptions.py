@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import structlog
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 logger = structlog.get_logger(__name__)
@@ -84,6 +85,17 @@ class ExternalServiceError(AppError):
     code = "external_service_error"
 
 
+def _format_validation_error(exc: RequestValidationError) -> str:
+    """Krótki komunikat z pierwszego błędu Pydantic — czytelny w toastach FE."""
+    errors = exc.errors()
+    if not errors:
+        return "Nieprawidłowe dane wejściowe."
+    first = errors[0]
+    loc = ".".join(str(part) for part in first.get("loc", ()) if part != "body")
+    msg = str(first.get("msg", "nieprawidłowa wartość"))
+    return f"{loc}: {msg}" if loc else msg
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """Rejestruje globalne handlery w `main.py` — routery pozostają bez try/except."""
 
@@ -93,6 +105,17 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=exc.http_status,
             content={"error": {"code": exc.code, "message": exc.message}},
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def handle_validation_error(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        message = _format_validation_error(exc)
+        logger.warning("validation_error", message=message, path=request.url.path)
+        return JSONResponse(
+            status_code=422,
+            content={"error": {"code": "validation_error", "message": message}},
         )
 
     @app.exception_handler(Exception)
