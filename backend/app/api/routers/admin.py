@@ -9,13 +9,16 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
+from app.core.config import settings
 from app.core.db import service_role_connection
 from app.core.security import AuthContext, require_admin
 from app.core.supabase_admin import get_supabase_admin_client
+from app.core.version import get_deploy_info
 from app.domain.usage.service import current_period_start
 from app.models.schemas import (
     AdminUserOut,
     AuditLogEntryOut,
+    DeployInfoOut,
     PasswordResetOut,
     PersonaLimitUpdate,
     UsageBudgetUpdate,
@@ -25,6 +28,19 @@ from app.repositories.profiles_repo import ProfilesRepo
 from app.repositories.usage_limits_repo import UsageLimitsRepo
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+@router.get("/deploy-info", response_model=DeployInfoOut)
+async def get_deploy_info_endpoint(_auth: AuthContext = Depends(require_admin)) -> DeployInfoOut:
+    info = get_deploy_info(environment=settings.environment)
+    return DeployInfoOut(
+        environment=info.environment,
+        git_sha=info.git_sha,
+        git_sha_full=info.git_sha_full,
+        git_branch=info.git_branch,
+        build_time=info.build_time,
+        git_repo=info.git_repo,
+    )
 
 
 @router.get("/audit-log", response_model=list[AuditLogEntryOut])

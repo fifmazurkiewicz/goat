@@ -7,6 +7,7 @@ from typing import Any
 
 import structlog
 from fastapi import BackgroundTasks
+from sqlalchemy.exc import ProgrammingError
 
 from app.core.config import settings
 from app.core.db import rls_connection, service_role_connection
@@ -147,12 +148,20 @@ async def enqueue_chat_title_async(
 
 
 async def resume_pending_jobs_on_startup() -> None:
-    async with service_role_connection() as conn:
-        repo = BackgroundJobsRepo(conn)
-        reaped = await repo.reap_stale_running(older_than_minutes=settings.plan_reaper_stale_minutes)
-        if reaped:
-            logger.warning("background_jobs_reaped", job_ids=reaped, count=len(reaped))
-        pending = await repo.list_resumable(limit=10)
+    try:
+        async with service_role_connection() as conn:
+            repo = BackgroundJobsRepo(conn)
+            reaped = await repo.reap_stale_running(older_than_minutes=settings.plan_reaper_stale_minutes)
+            if reaped:
+                logger.warning("background_jobs_reaped", job_ids=reaped, count=len(reaped))
+            pending = await repo.list_resumable(limit=10)
+    except ProgrammingError as exc:
+        logger.warning(
+            "background_jobs_startup_skipped",
+            error=str(exc),
+            hint="Uruchom migrację supabase/migrations/0008_background_jobs.sql",
+        )
+        return
 
     for job in pending:
         if job.status == "running":

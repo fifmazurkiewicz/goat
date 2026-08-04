@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getErrorMessage } from "@/lib/api-client";
-import { isDevLoginEnabled, loadDevAuth, signInWithDevCredentials } from "@/lib/dev-auth";
+import { isDevLoginEnabled, signInWithDevCredentials } from "@/lib/dev-auth";
 import { signInWithGoogle } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 

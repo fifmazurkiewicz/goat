@@ -1,3 +1,4 @@
+import { DeployVersionPanel } from "@/components/admin/DeployVersionPanel";
 import { AdminUsersTable } from "@/components/admin/AdminUsersTable";
 import { AuditLogPanel } from "@/components/admin/AuditLogPanel";
 import { ModerationEventsPanel } from "@/components/admin/ModerationEventsPanel";
@@ -17,6 +18,8 @@ export default function AdminPage() {
       <p className="mt-2 max-w-[70ch] text-muted-foreground">
         Przegląd kont, budżetów, limitów person, zdarzeń moderacji i logu audytowego akcji administracyjnych.
       </p>
+
+      <DeployVersionPanel />
 
       <Tabs defaultValue="users" className="mt-6">
         <TabsList>

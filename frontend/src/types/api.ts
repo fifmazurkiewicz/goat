@@ -270,6 +270,16 @@ export type UserProfileUpdate = Partial<Omit<UserProfile, "user_id" | "updated_a
 
 // Widok admina na konto usera — limit aktywnych person jest PER KONTO, edytowalny przez
 // admina (nie globalna stała, ADR-12); kwota w USD (nie plan Free/Pro, ADR-16).
+export interface AdminDeployInfo {
+  component: "api";
+  environment: string;
+  git_sha: string | null;
+  git_sha_full: string | null;
+  git_branch: string | null;
+  build_time: string | null;
+  git_repo: string;
+}
+
 export interface AdminUser {
   id: string;
   email: string;

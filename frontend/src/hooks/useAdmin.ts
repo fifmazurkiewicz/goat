@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api-client";
-import type { AdminAuditLogEntry, AdminUser, ModerationEvent } from "@/types/api";
+import type { AdminAuditLogEntry, AdminDeployInfo, AdminUser, ModerationEvent } from "@/types/api";
 
 const ADMIN_USERS_KEY = ["admin", "users"] as const;
 
@@ -60,5 +60,13 @@ export function useAdminAuditLog() {
   return useQuery({
     queryKey: ["admin", "audit-log"],
     queryFn: () => apiFetch<AdminAuditLogEntry[]>("/api/v1/admin/audit-log"),
+  });
+}
+
+export function useAdminDeployInfo() {
+  return useQuery({
+    queryKey: ["admin", "deploy-info"],
+    queryFn: () => apiFetch<AdminDeployInfo>("/api/v1/admin/deploy-info"),
+    staleTime: 60_000,
   });
 }

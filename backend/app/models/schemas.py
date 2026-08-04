@@ -206,6 +206,18 @@ class UserProfileOut(BaseModel):
 # ============ Admin — limit person per konto (ADR-12) ============
 
 
+class DeployInfoOut(BaseModel):
+    """`GET /api/v1/admin/deploy-info` — wersja działającego API (commit z Render/build)."""
+
+    component: Literal["api"] = "api"
+    environment: str
+    git_sha: str | None = None
+    git_sha_full: str | None = None
+    git_branch: str | None = None
+    build_time: str | None = None
+    git_repo: str = "fifmazurkiewicz/goat"
+
+
 class PersonaLimitUpdate(BaseModel):
     """Ciało `PATCH /api/v1/admin/users/{user_id}/persona-limit`.
 

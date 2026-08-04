@@ -9,3 +9,10 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+declare const __FRONTEND_DEPLOY_INFO__: {
+  git_sha: string;
+  git_sha_full: string;
+  git_branch: string;
+  git_repo: string;
+};
