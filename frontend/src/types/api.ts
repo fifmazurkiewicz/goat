@@ -29,7 +29,6 @@ export interface Persona {
   name: string;
   system_prompt: string;
   base_template_id: string | null;
-  chat_model: string;
   plan_template_id: string | null;
   template_overrides: TemplateOverrides | null;
   detail_level: DetailLevel;

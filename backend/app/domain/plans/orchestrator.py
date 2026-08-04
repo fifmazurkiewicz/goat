@@ -361,7 +361,9 @@ class PlanOrchestrator:
                         persona.base_template_id
                     )
             persona_block = build_system_prompt(
-                persona.system_prompt, template_safety_prompt=template_safety
+                persona.system_prompt,
+                template_safety_prompt=template_safety,
+                persona_type=persona.type,
             )
             system_message = (
                 f"{persona_block}\n\n"

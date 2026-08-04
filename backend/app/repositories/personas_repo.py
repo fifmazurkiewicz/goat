@@ -23,7 +23,7 @@ from app.core.exceptions import NotFoundError
 from app.repositories._row_utils import stringify_uuid
 
 _SELECT_COLUMNS = """
-    id, user_id, type, name, system_prompt, base_template_id, chat_model,
+    id, user_id, type, name, system_prompt, base_template_id,
     plan_template_id, template_overrides, detail_level, custom_result_category,
     persona_constraints, slug, is_shared, moderation_status,
     moderation_checked_prompt_hash, preamble_version, cloned_from_persona_id,
@@ -49,7 +49,6 @@ class PersonaRow:
     name: str
     system_prompt: str
     base_template_id: str | None
-    chat_model: str
     plan_template_id: str | None
     template_overrides: dict[str, Any] | None
     detail_level: str

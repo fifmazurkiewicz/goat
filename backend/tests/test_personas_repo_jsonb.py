@@ -32,7 +32,6 @@ def _fake_row(**overrides: Any) -> MagicMock:
         "name": "Dietetyk",
         "system_prompt": "prompt",
         "base_template_id": None,
-        "chat_model": "anthropic/claude-haiku-4.5",
         "plan_template_id": None,
         "template_overrides": {"columns": ["Kolumna 1"]},
         "detail_level": "simple",

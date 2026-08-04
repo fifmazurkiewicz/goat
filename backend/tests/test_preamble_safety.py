@@ -21,6 +21,15 @@ def test_build_system_prompt_orders_safety_before_behavior() -> None:
     assert "Styl: konkretny." in out
 
 
+def test_build_system_prompt_orders_scope_before_behavior() -> None:
+    out = build_system_prompt(
+        "Styl: konkretny.",
+        template_safety_prompt="Nie przepisujesz leków.",
+        persona_type="dietitian",
+    )
+    assert out.index("[ZAKRES ROLI") < out.index("[ZACHOWANIE PERSONY]")
+
+
 def test_build_system_prompt_without_safety() -> None:
     out = build_system_prompt("Tylko zachowanie.")
     assert "ZABEZPIECZENIA GOTOWCA" not in out

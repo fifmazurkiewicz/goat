@@ -151,6 +151,7 @@ class ContextBuilder:
     def build_system_prompt(
         self,
         *,
+        persona_type: str,
         persona_system_prompt: str,
         persona_constraints: str | None,
         user_profile: UserProfileOut | None,
@@ -161,7 +162,9 @@ class ContextBuilder:
     ) -> str:
         segments = [
             build_preamble_composed(
-                persona_system_prompt, template_safety_prompt=template_safety_prompt
+                persona_system_prompt,
+                template_safety_prompt=template_safety_prompt,
+                persona_type=persona_type,
             ),
             build_temporal_context_block(),
         ]

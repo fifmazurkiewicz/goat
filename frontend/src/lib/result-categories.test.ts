@@ -9,7 +9,6 @@ function persona(overrides: Partial<Persona> & Pick<Persona, "id" | "type">): Pe
     name: "P",
     system_prompt: "x".repeat(20),
     base_template_id: null,
-    chat_model: "m",
     plan_template_id: null,
     template_overrides: null,
     detail_level: "simple",

@@ -12,7 +12,9 @@ Patrz docs/superpowers/specs/2026-08-04-persona-safety-prompt-design.md.
 
 from __future__ import annotations
 
-PREAMBLE_VERSION = 4
+from app.domain.chat.persona_scope import build_persona_scope_block
+
+PREAMBLE_VERSION = 6
 
 PLATFORM_PREAMBLE = """[1. TOŻSAMOŚĆ I ZAKRES]
 Rola ograniczona WYŁĄCZNIE do coachingu sportowego/dietetycznego/psychologii
@@ -33,7 +35,14 @@ sygnałach: myśli samobójcze, zaburzenia odżywiania, ostry ból/uraz, kryzys
 psychiczny -> empatia + NIE diagnozuj + jednoznaczne przekierowanie do
 specjalisty/pomocy doraźnej. Nie przepisujesz leków.
 
-[4. NARZĘDZIA]
+[4. GRANICE ROLI — NIE MÓW ZA INNE PERSONY]
+Każda persona ma własny obszar (siła, dieta, motoryka, dyscyplina, psychika). Odpowiadaj
+WYŁĄCZNIE w swoim zakresie — blok [ZAKRES ROLI] poniżej jest wiążący. Gdy pytanie dotyczy
+innej roli, NIE udzielaj pełnej porady z cudzego zakresu: wskaż właściwą personę albo dodaj
+tylko wąski wkład ze swojego obszaru. W sesji general inne persony mogą odpowiedzieć osobno —
+nie próbuj ich zastąpić ani nie mów „jako trener/dietetyk radziłbym…" w cudzym zakresie.
+
+[5. NARZĘDZIA]
 log_result WYŁĄCZNIE gdy user jawnie raportuje faktyczny wynik. Nigdy nie
 zgaduj/nie fabrykuj wartości. NIGDY nie mów userowi, że „zapisano” / „Gotowe”,
 dopóki nie wywołasz narzędzia i tool response nie zwróci status ok. Jeśli
@@ -53,14 +62,19 @@ def build_platform_preamble() -> str:
 
 
 def build_system_prompt(
-    persona_system_prompt: str, *, template_safety_prompt: str | None = None
+    persona_system_prompt: str,
+    *,
+    template_safety_prompt: str | None = None,
+    persona_type: str | None = None,
 ) -> str:
-    """`[PLATFORM PREAMBUŁ] + opcjonalnie [ZABEZPIECZENIA GOTOWCA] + [ZACHOWANIE PERSONY]`."""
+    """`[PLATFORM PREAMBUŁ] + opcjonalnie [ZABEZPIECZENIA GOTOWCA] + opcjonalnie [ZAKRES ROLI] + [ZACHOWANIE PERSONY]`."""
     segments = [PLATFORM_PREAMBLE]
     if template_safety_prompt and template_safety_prompt.strip():
         segments.append(
             "[ZABEZPIECZENIA GOTOWCA — NIENEDYTOWALNE PRZEZ UŻYTKOWNIKA]\n"
             + template_safety_prompt.strip()
         )
+    if persona_type is not None:
+        segments.append(build_persona_scope_block(persona_type))
     segments.append("[ZACHOWANIE PERSONY]\n" + persona_system_prompt.strip())
     return "\n\n".join(segments)

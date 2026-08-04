@@ -14,6 +14,7 @@ class _NoopChatRepo:
 def test_context_builder_orders_segments_with_safety_and_constraints() -> None:
     builder = ContextBuilder(_NoopChatRepo(), history_window_messages=10)
     out = builder.build_system_prompt(
+        persona_type="dietitian",
         persona_system_prompt="Styl: konkretny.",
         persona_constraints="Unikaj pełnych przysiadów.",
         user_profile=UserProfileOut(user_id="u1", height_cm=180, weight_kg=80),
@@ -21,18 +22,21 @@ def test_context_builder_orders_segments_with_safety_and_constraints() -> None:
     )
     assert "ZABEZPIECZENIA GOTOWCA" in out
     assert "Nie przepisujesz leków." in out
+    assert "[ZAKRES ROLI" in out
     assert "[ZACHOWANIE PERSONY]" in out
     assert "Styl: konkretny." in out
     assert "[TWARDE OGRANICZENIA PERSONY]" in out
     assert "Unikaj pełnych przysiadów." in out
     assert "[PROFIL UŻYTKOWNIKA]" in out
-    assert out.index("ZABEZPIECZENIA GOTOWCA") < out.index("[ZACHOWANIE PERSONY]")
+    assert out.index("ZABEZPIECZENIA GOTOWCA") < out.index("[ZAKRES ROLI")
+    assert out.index("[ZAKRES ROLI") < out.index("[ZACHOWANIE PERSONY]")
     assert out.index("[ZACHOWANIE PERSONY]") < out.index("[TWARDE OGRANICZENIA PERSONY]")
 
 
 def test_context_builder_omits_empty_optional_blocks() -> None:
     builder = ContextBuilder(_NoopChatRepo(), history_window_messages=10)
     out = builder.build_system_prompt(
+        persona_type="personal_trainer",
         persona_system_prompt="Zachowanie.",
         persona_constraints=None,
         user_profile=None,
@@ -41,4 +45,5 @@ def test_context_builder_omits_empty_optional_blocks() -> None:
     assert "ZABEZPIECZENIA GOTOWCA" not in out
     assert "[TWARDE OGRANICZENIA PERSONY]" not in out
     assert "[PROFIL UŻYTKOWNIKA]" not in out
+    assert "[ZAKRES ROLI" in out
     assert "[ZACHOWANIE PERSONY]" in out

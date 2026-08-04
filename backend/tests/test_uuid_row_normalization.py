@@ -45,7 +45,6 @@ def test_persona_row_stringifies_uuid_fks() -> None:
             "name": "Dietetyk",
             "system_prompt": "prompt",
             "base_template_id": template_id,
-            "chat_model": "anthropic/claude-haiku-4.5",
             "plan_template_id": None,
             "template_overrides": {"columns": ["Kolumna 1"]},
             "detail_level": "simple",

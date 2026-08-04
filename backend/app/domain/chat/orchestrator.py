@@ -274,6 +274,7 @@ class ChatOrchestrator:
                 plan_items = await plans_repo.list_items_for_plan(plan_row.id)
             recent_results = await ResultsRepo(conn).list_recent_for_user(limit=12)
             system_prompt = context_builder.build_system_prompt(
+                persona_type=persona.type,
                 persona_system_prompt=persona.system_prompt,
                 persona_constraints=persona.persona_constraints,
                 user_profile=user_profile,
@@ -297,13 +298,14 @@ class ChatOrchestrator:
             for m in settings.openrouter_chat_model_fallbacks.split(",")
             if m.strip()
         ]
+        chat_model = settings.openrouter_chat_model
 
         await _emit_persona_status(queue, persona=persona, phase="thinking")
         emitted_writing_status = False
 
         for round_index in range(settings.chat_max_tool_rounds):
             period_start = await self._reserve_round_budget(
-                user_id=user_id, model=persona.chat_model, prompt=messages
+                user_id=user_id, model=chat_model, prompt=messages
             )
 
             content_buffer: list[str] = []
@@ -313,7 +315,7 @@ class ChatOrchestrator:
             emitted_tool_call_start = False
 
             async for chunk in self._llm_client.stream_chat(
-                model=persona.chat_model,
+                model=chat_model,
                 messages=messages,
                 tools=tools,
                 max_tokens=settings.chat_max_output_tokens,
@@ -351,7 +353,7 @@ class ChatOrchestrator:
 
             actual_cost = await self._reconcile_round_cost(
                 user_id=user_id,
-                model=persona.chat_model,
+                model=chat_model,
                 period_start=period_start,
                 usage_chunk=usage_chunk,
             )

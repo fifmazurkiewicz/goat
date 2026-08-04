@@ -65,7 +65,6 @@ personas (
   name text,
   system_prompt text,                          -- WYŁĄCZNIE sekcja edytowalna usera, nigdy platform preambuł
   base_template_id uuid FK -> persona_templates,
-  chat_model text default 'anthropic/claude-haiku-4.5',
   plan_template_id uuid FK -> plan_templates,
   template_overrides jsonb,                     -- kształt: {"columns": ["…"]} — walidowane Pydantic/Zod PRZED zapisem
   detail_level text default 'simple',           -- 'simple'|'detailed'

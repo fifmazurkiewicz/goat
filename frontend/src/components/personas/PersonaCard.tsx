@@ -72,7 +72,6 @@ export function PersonaCard({ persona, onOpenConfig, onEdit }: PersonaCardProps)
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-3 p-0">
         <p className="line-clamp-2 text-sm text-muted-foreground">{persona.system_prompt}</p>
-        <div className="text-xs text-muted-foreground">{persona.chat_model}</div>
         <div className="h-px bg-border" />
         <div className="flex items-center justify-between">
           <label className="flex items-center gap-2 text-sm">

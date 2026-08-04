@@ -43,10 +43,12 @@ Ta instrukcja znika automatycznie z promptu, gdy profil jest kompletny — nie w
 
 ## 1. Modele (weryfikować przez `/api/v1/models` OpenRoutera w runtime, nie hardkodować cen)
 
-| Rola | Model domyślny | Uzasadnienie |
+| Rola | Env | Domyślnie |
 |---|---|---|
-| `chat_model` | `anthropic/claude-haiku-4.5` | szybki/tani, stabilny tool calling + streaming |
-| `PLANNER_MODEL` | `anthropic/claude-sonnet-4.6` | jakość + natywny `response_format: json_schema` ze `strict: true` |
+| Czat (wszystkie persony, routing, moderacja) | `OPENROUTER_CHAT_MODEL` | `anthropic/claude-haiku-4.5` |
+| Planer (pipeline 3-etapowy) | `OPENROUTER_PLANNER_MODEL` | `anthropic/claude-sonnet-4.6` |
+
+Model czatu **nie jest** przechowywany per-persona w DB — jedna wartość env dla całej aplikacji.
 
 Fallback lista min. 2 dostawców dla `chat_model` (np. `[anthropic/claude-haiku-4.5, openai/gpt-5-mini]`) — awaria jednego providera nie wywala czatu. `require_parameters: true` w provider routing OpenRoutera dla plannera (żeby nie routować do endpointu bez wsparcia `json_schema`).
 

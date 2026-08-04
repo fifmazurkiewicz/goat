@@ -13,7 +13,6 @@ function makePersona(overrides: Partial<Persona>): Persona {
     name: "Kasia Wilk",
     system_prompt: "prompt",
     base_template_id: null,
-    chat_model: "anthropic/claude-haiku-4.5",
     plan_template_id: null,
     template_overrides: null,
     detail_level: "simple",

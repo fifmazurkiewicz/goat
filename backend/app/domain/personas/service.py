@@ -122,8 +122,10 @@ class PersonaService:
         aktywna domyślnie (`active=true`), więc limit jest sprawdzany na KAŻDYM create."""
         await self.assert_can_activate_persona(user_id)
 
-        # `persona_constraints` nigdy z klienta (ai-pipeline.md — pole systemowe).
-        safe_payload = {k: v for k, v in payload.items() if k != "persona_constraints"}
+        # `persona_constraints` / `chat_model` nigdy z klienta (systemowe / env).
+        safe_payload = {
+            k: v for k, v in payload.items() if k not in ("persona_constraints", "chat_model")
+        }
 
         persona_type = safe_payload["type"]
         name = safe_payload["name"]
@@ -164,7 +166,7 @@ class PersonaService:
 
         # End-user nie może nadpisać ograniczeń medycznych/systemowych.
         values: dict[str, Any] = {
-            k: v for k, v in updates.items() if k != "persona_constraints"
+            k: v for k, v in updates.items() if k not in ("persona_constraints", "chat_model")
         }
 
         if "name" in updates and updates["name"] != existing.name:
@@ -233,7 +235,6 @@ class PersonaService:
             "name": source.name,
             "system_prompt": source.system_prompt,
             "base_template_id": source.base_template_id,
-            "chat_model": source.chat_model,
             "plan_template_id": source.plan_template_id,
             "template_overrides": source.template_overrides,
             "detail_level": source.detail_level,

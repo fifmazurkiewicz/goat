@@ -47,7 +47,6 @@ def test_persona_out_excludes_persona_constraints_even_if_present_on_source() ->
         type = "personal_trainer"
         name = "Tren"
         system_prompt = "prompt wystarczająco długi"
-        chat_model = "anthropic/claude-haiku-4.5"
         detail_level = "simple"
         custom_result_category = None
         is_shared = False

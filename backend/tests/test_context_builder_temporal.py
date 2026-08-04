@@ -18,13 +18,16 @@ def test_temporal_context_includes_iso_date_and_warsaw() -> None:
 def test_system_prompt_starts_with_preamble_then_temporal() -> None:
     builder = ContextBuilder(_FakeRepo(), history_window_messages=10)
     prompt = builder.build_system_prompt(
+        persona_type="motor_coach",
         persona_system_prompt="Bądź konkretny.",
         persona_constraints=None,
         user_profile=None,
     )
     assert "[KONTEKST CZASOWY]" in prompt
     assert "Europe/Warsaw" in prompt
-    assert prompt.index("[1. TOŻSAMOŚĆ") < prompt.index("[KONTEKST CZASOWY]")
+    assert "[ZAKRES ROLI" in prompt
+    assert prompt.index("[1. TOŻSAMOŚĆ") < prompt.index("[ZAKRES ROLI")
+    assert prompt.index("[ZAKRES ROLI") < prompt.index("[KONTEKST CZASOWY]")
 
 
 class _FakeRepo:

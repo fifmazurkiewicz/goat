@@ -48,7 +48,6 @@ class PersonaBase(BaseModel):
     # WYŁĄCZNIE sekcja edytowalna usera — platform preambuł jest doklejany server-side,
     # nigdy zapisywany tutaj (security.md sekcja 1, warstwa A).
     system_prompt: str = Field(min_length=1, max_length=4000)
-    chat_model: str = "anthropic/claude-haiku-4.5"
     detail_level: DetailLevel = "simple"
     custom_result_category: str | None = None
     is_shared: bool = False
@@ -80,7 +79,6 @@ class PersonaUpdate(BaseModel):
 
     name: str | None = Field(default=None, min_length=1, max_length=100)
     system_prompt: str | None = Field(default=None, min_length=1, max_length=4000)
-    chat_model: str | None = None
     detail_level: DetailLevel | None = None
     custom_result_category: str | None = None
     is_shared: bool | None = None

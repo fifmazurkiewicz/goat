@@ -14,6 +14,8 @@ from typing import Literal, Protocol
 
 import structlog
 
+from app.domain.chat.persona_scope import ROUTING_CLASSIFIER_RULES, routing_persona_line
+
 logger = structlog.get_logger(__name__)
 
 CHAT_MAX_PERSONAS_PER_TURN = 3
@@ -158,14 +160,18 @@ class ChatRoutingService:
 
         max_n = min(len(ids), CHAT_MAX_PERSONAS_PER_TURN)
         descriptions = "\n".join(
-            f"- id={persona.id} | typ={persona.type} | {_first_sentence(persona.system_prompt)}"
+            routing_persona_line(
+                persona_id=persona.id,
+                persona_type=persona.type,
+                first_sentence=_first_sentence(persona.system_prompt),
+            )
             for persona in active_personas
         )
         system_message = (
             "Wybierz od 1 do "
             f"{max_n} person (po polu id), które powinny ODPOWIEDZIEĆ SEKWENCYJNIE na "
-            "wiadomość użytkownika. Wybierz WIĘCEJ NIŻ JEDNĄ tylko gdy pytanie realnie "
-            "dotyka kilku ról (np. trening + dieta). Kolejność listy = kolejność odpowiedzi. "
+            "wiadomość użytkownika. Kolejność listy = kolejność odpowiedzi.\n\n"
+            f"{ROUTING_CLASSIFIER_RULES}\n\n"
             "Dostępne persony:\n"
             + descriptions
         )

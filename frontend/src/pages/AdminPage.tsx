@@ -1,8 +1,13 @@
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { DeployVersionPanel } from "@/components/admin/DeployVersionPanel";
 import { AdminUsersTable } from "@/components/admin/AdminUsersTable";
 import { AuditLogPanel } from "@/components/admin/AuditLogPanel";
 import { ModerationEventsPanel } from "@/components/admin/ModerationEventsPanel";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAdminUsers } from "@/hooks/useAdmin";
 
 /**
@@ -16,31 +21,50 @@ export default function AdminPage() {
     <div className="container py-10">
       <h1 className="text-3xl font-semibold tracking-tight">Panel admina</h1>
       <p className="mt-2 max-w-[70ch] text-muted-foreground">
-        Przegląd kont, budżetów, limitów person, zdarzeń moderacji i logu audytowego akcji administracyjnych.
+        Konta, budżety i limity person. Diagnostyka platformy (moderacja, log audytowy) jest opcjonalna —
+        przydatna głównie przy incydentach bezpieczeństwa lub wielu użytkownikach.
       </p>
 
       <DeployVersionPanel />
 
-      <Tabs defaultValue="users" className="mt-6">
-        <TabsList>
-          <TabsTrigger value="users">Użytkownicy</TabsTrigger>
-          <TabsTrigger value="moderation">Moderacja</TabsTrigger>
-          <TabsTrigger value="audit">Log audytowy</TabsTrigger>
-        </TabsList>
-        <TabsContent value="users" className="mt-4">
+      <section className="mt-6">
+        <h2 className="text-lg font-medium">Użytkownicy</h2>
+        <div className="mt-4">
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Ładowanie…</p>
           ) : (
             <AdminUsersTable users={users ?? []} />
           )}
-        </TabsContent>
-        <TabsContent value="moderation" className="mt-4">
-          <ModerationEventsPanel />
-        </TabsContent>
-        <TabsContent value="audit" className="mt-4">
-          <AuditLogPanel />
-        </TabsContent>
-      </Tabs>
+        </div>
+      </section>
+
+      <Accordion type="single" collapsible className="mt-8 w-full max-w-4xl">
+        <AccordionItem value="diagnostics">
+          <AccordionTrigger className="text-sm text-muted-foreground">
+            Diagnostyka platformy (moderacja, log audytowy)
+          </AccordionTrigger>
+          <AccordionContent className="space-y-8 pt-2">
+            <section>
+              <h3 className="text-base font-medium">Moderacja</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Próby jailbreaku i naruszenia zasad person — log techniczny, nie dotyczy zwykłego czatu.
+              </p>
+              <div className="mt-4">
+                <ModerationEventsPanel />
+              </div>
+            </section>
+            <section>
+              <h3 className="text-base font-medium">Log audytowy</h3>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Historia akcji admina (reset hasła, zmiana limitów/budżetu).
+              </p>
+              <div className="mt-4">
+                <AuditLogPanel />
+              </div>
+            </section>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
     </div>
   );
 }
