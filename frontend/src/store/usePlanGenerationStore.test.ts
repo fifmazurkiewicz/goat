@@ -34,7 +34,7 @@ describe("usePlanGenerationStore", () => {
     expect(localStorage.getItem("coach.planGeneration.jobId")).toBeNull();
   });
 
-  it("setStatus('partial_ready') zapisuje breakdown person", () => {
+  it("setStatus('partial_ready') zapisuje breakdown person i czyści localStorage", () => {
     usePlanGenerationStore.getState().startJob("job-1");
     usePlanGenerationStore.getState().setStatus("partial_ready", [
       { persona_id: "p1", status: "done", retry_count: 0, last_error: null },
@@ -45,6 +45,7 @@ describe("usePlanGenerationStore", () => {
     expect(state.status).toBe("partial_ready");
     expect(state.breakdown).toHaveLength(2);
     expect(state.breakdown[1].status).toBe("failed");
+    expect(localStorage.getItem("coach.planGeneration.jobId")).toBeNull();
   });
 
   it("setStatus('error') czyści persystencję jobId", () => {

@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
 
 PersonaType = Literal[
     "personal_trainer",
@@ -499,6 +499,26 @@ class PlanOut(BaseModel):
     updated_at: datetime
 
 
+class PlanSummaryOut(BaseModel):
+    """Metadane planu bez `items` — kontrakt `GET /plans?start_date=&end_date=`."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    user_id: str
+    period_type: PlanPeriodType
+    start_date: date
+    end_date: date
+    status: PlanStatus
+    created_at: datetime
+    updated_at: datetime
+
+
+class PlanRangeOut(BaseModel):
+    plan: PlanSummaryOut | None = None
+    items: list[PlanItemOut] = Field(default_factory=list)
+
+
 class PlanGenerationJobPersonaOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -520,3 +540,9 @@ class PlanGenerationJobOut(BaseModel):
     created_at: datetime
     started_at: datetime | None = None
     finished_at: datetime | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def job_id(self) -> str:
+        """Alias dla frontendu (kontrakt historyczny używał `job_id` zamiast `id`)."""
+        return self.id

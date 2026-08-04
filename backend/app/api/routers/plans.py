@@ -11,9 +11,10 @@ import calendar
 from datetime import date, timedelta
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from app.core.db import rls_connection
+from app.core.db import rls_connection, service_role_connection
 from app.core.security import AuthContext, get_current_user
 from app.domain.jobs.runner import enqueue_plan_generation_async
 from app.models.schemas import (
@@ -22,6 +23,8 @@ from app.models.schemas import (
     PlanGenerationJobPersonaOut,
     PlanItemOut,
     PlanOut,
+    PlanRangeOut,
+    PlanSummaryOut,
 )
 from app.repositories.plans_repo import PlanJobRow, PlanRow, PlansRepo
 
@@ -49,6 +52,19 @@ def _job_row_to_out(job: PlanJobRow, personas: list[PlanGenerationJobPersonaOut]
         created_at=job.created_at,
         started_at=job.started_at,
         finished_at=job.finished_at,
+    )
+
+
+def _plan_summary(plan: PlanRow) -> PlanSummaryOut:
+    return PlanSummaryOut(
+        id=plan.id,
+        user_id=plan.user_id,
+        period_type=plan.period_type,
+        start_date=plan.start_date,
+        end_date=plan.end_date,
+        status=plan.status,
+        created_at=plan.created_at,
+        updated_at=plan.updated_at,
     )
 
 
@@ -98,6 +114,53 @@ async def generate_plan(
     return _job_row_to_out(job, [])
 
 
+async def _cancel_plan_background_tasks(plan_job_id: str) -> None:
+    """Oznacz powiązany wiersz `background_jobs` (migracja 0008) jako anulowany."""
+    from sqlalchemy import text
+
+    try:
+        async with service_role_connection() as conn:
+            await conn.execute(
+                text(
+                    """
+                    UPDATE background_jobs
+                    SET status = 'error',
+                        error_message = 'Anulowano przez użytkownika.',
+                        finished_at = now()
+                    WHERE job_type = 'plan_generate'
+                      AND payload->>'plan_job_id' = :plan_job_id
+                      AND status IN ('pending', 'running')
+                    """
+                ),
+                {"plan_job_id": plan_job_id},
+            )
+    except ProgrammingError:
+        pass
+
+
+@router.get("/jobs/active", response_model=PlanGenerationJobOut | None)
+async def get_active_plan_job(auth: AuthContext = Depends(get_current_user)) -> PlanGenerationJobOut | None:
+    """Aktywny job generowania planu usera (`pending`/`running`) — do sync UI po odświeżeniu."""
+    async with rls_connection(auth.claims) as conn:
+        plans_repo = PlansRepo(conn)
+        job = await plans_repo.get_active_job_for_user(auth.user_id)
+        if job is None:
+            return None
+        personas = await plans_repo.list_job_personas(job.id)
+    return _job_row_to_out(job, [PlanGenerationJobPersonaOut.model_validate(p) for p in personas])
+
+
+@router.post("/jobs/{job_id}/cancel", response_model=PlanGenerationJobOut)
+async def cancel_plan_job(job_id: str, auth: AuthContext = Depends(get_current_user)) -> PlanGenerationJobOut:
+    """Anuluje aktywny job — zwalnia slot `one_active_job_per_user`, plan → `error`."""
+    async with rls_connection(auth.claims) as conn:
+        job = await PlansRepo(conn).cancel_job(job_id)
+    await _cancel_plan_background_tasks(job_id)
+    async with rls_connection(auth.claims) as conn:
+        personas = await PlansRepo(conn).list_job_personas(job_id)
+    return _job_row_to_out(job, [PlanGenerationJobPersonaOut.model_validate(p) for p in personas])
+
+
 @router.get("/jobs/{job_id}", response_model=PlanGenerationJobOut)
 async def get_plan_job(job_id: str, auth: AuthContext = Depends(get_current_user)) -> PlanGenerationJobOut:
     async with rls_connection(auth.claims) as conn:
@@ -118,18 +181,27 @@ async def get_plan_for_date(
         return await _plan_out_with_items(conn, plan)
 
 
-@router.get("", response_model=list[PlanOut])
-@router.get("/", response_model=list[PlanOut], include_in_schema=False)
-async def list_plans(
-    month: date = Query(..., description="Dowolna data w interesującym miesiącu (YYYY-MM-DD)."),
+@router.get("", response_model=PlanRangeOut)
+@router.get("/", response_model=PlanRangeOut, include_in_schema=False)
+async def get_plan_range(
+    start_date: date = Query(..., description="Początek widocznego zakresu kalendarza (YYYY-MM-DD)."),
+    end_date: date = Query(..., description="Koniec widocznego zakresu kalendarza (YYYY-MM-DD)."),
     auth: AuthContext = Depends(get_current_user),
-) -> list[PlanOut]:
-    """`GET /plans?month=YYYY-MM-DD` — wszystkie plany nachodzące na kalendarzowy miesiąc
-    zawierający podaną datę."""
-    range_start = month.replace(day=1)
-    last_day = calendar.monthrange(month.year, month.month)[1]
-    range_end = month.replace(day=last_day)
+) -> PlanRangeOut:
+    """`GET /plans?start_date=&end_date=` — metadane planu + pozycje w zakresie widoku."""
+    if end_date < start_date:
+        start_date, end_date = end_date, start_date
 
     async with rls_connection(auth.claims) as conn:
-        plans = await PlansRepo(conn).list_plans_overlapping(range_start=range_start, range_end=range_end)
-        return [await _plan_out_with_items(conn, plan) for plan in plans]
+        plans_repo = PlansRepo(conn)
+        plan = await plans_repo.pick_plan_for_range(range_start=start_date, range_end=end_date)
+        if plan is None:
+            return PlanRangeOut(plan=None, items=[])
+
+        all_items = await plans_repo.list_items_for_plan(plan.id)
+        filtered = [
+            PlanItemOut.model_validate(item)
+            for item in all_items
+            if start_date <= item.item_date <= end_date
+        ]
+        return PlanRangeOut(plan=_plan_summary(plan), items=filtered)

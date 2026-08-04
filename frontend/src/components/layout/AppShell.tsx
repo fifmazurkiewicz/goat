@@ -5,7 +5,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAccount } from "@/hooks/useAccount";
-import { usePlanGenerationPolling } from "@/hooks/usePlans";
+import { usePlanGenerationPolling, usePlanGenerationSync } from "@/hooks/usePlans";
 import { useChatTurnRunner } from "@/hooks/useChatTurnRunner";
 import { useUsage } from "@/hooks/useUsage";
 import { ChatTurnBanner } from "@/components/chat/ChatTurnBanner";
@@ -50,6 +50,7 @@ export function AppShell() {
   }, [isAuthenticated, account, setIsAdmin]);
 
   useUsage();
+  usePlanGenerationSync();
   usePlanGenerationPolling();
   useChatTurnRunner();
 

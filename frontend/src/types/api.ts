@@ -207,7 +207,9 @@ export interface GeneratePlanInput {
 
 export interface GeneratePlanResponse {
   plan_id: string;
-  job_id: string;
+  /** Backend zwraca `id`; alias `job_id` dostępny w odpowiedzi OpenAPI. */
+  id: string;
+  job_id?: string;
 }
 
 export interface PlanGenerationJob {
@@ -219,6 +221,8 @@ export interface PlanGenerationJob {
   created_at: string;
   started_at: string | null;
   finished_at: string | null;
+  /** Backend: `personas`; alias `breakdown` utrzymywany dla kompatybilności w store. */
+  personas?: PlanGenerationJobPersonaBreakdown[];
   breakdown?: PlanGenerationJobPersonaBreakdown[];
 }
 

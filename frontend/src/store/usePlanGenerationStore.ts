@@ -15,6 +15,7 @@ interface PlanGenerationState {
   breakdown: PlanGenerationJobPersonaBreakdown[];
   startJob: (jobId: string) => void;
   setStatus: (status: PlanGenerationStatus, breakdown?: PlanGenerationJobPersonaBreakdown[]) => void;
+  updateProgress: (breakdown: PlanGenerationJobPersonaBreakdown[]) => void;
   reset: () => void;
 }
 
@@ -57,11 +58,12 @@ export const usePlanGenerationStore = create<PlanGenerationState>((set) => ({
     set({ status: "generating", jobId, startedAt: new Date().toISOString(), breakdown: [] });
   },
   setStatus: (status, breakdown) => {
-    if (status === "ready" || status === "error" || status === "idle") {
+    if (status === "ready" || status === "partial_ready" || status === "error" || status === "idle") {
       persistJobId(null);
     }
     set((state) => ({ status, breakdown: breakdown ?? state.breakdown }));
   },
+  updateProgress: (breakdown) => set({ breakdown }),
   reset: () => {
     persistJobId(null);
     set({ status: "idle", jobId: null, startedAt: null, breakdown: [] });

@@ -2,7 +2,8 @@ import { useEffect, useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { apiFetch } from "@/lib/api-client";
+import { apiFetch, ApiError } from "@/lib/api-client";
+import { useAuthStore } from "@/store/useAuthStore";
 import { usePlanGenerationStore } from "@/store/usePlanGenerationStore";
 import type { GeneratePlanInput, GeneratePlanResponse, PlanGenerationJob, PlanRangeResponse } from "@/types/api";
 
@@ -27,13 +28,61 @@ export function useGeneratePlan() {
     mutationFn: (input: GeneratePlanInput) =>
       apiFetch<GeneratePlanResponse>("/api/v1/plans/generate", { method: "POST", body: input }),
     onSuccess: (data) => {
-      startJob(data.job_id);
+      const jobId = data.job_id ?? data.id;
+      startJob(jobId);
       void queryClient.invalidateQueries({ queryKey: ["plans"] });
     },
   });
 }
 
 const POLL_INTERVAL_MS = 4000;
+
+function applyActiveJob(job: PlanGenerationJob) {
+  const startJob = usePlanGenerationStore.getState().startJob;
+  const updateProgress = usePlanGenerationStore.getState().updateProgress;
+  startJob(job.id);
+  const breakdown = job.personas ?? job.breakdown;
+  if (breakdown?.length) {
+    updateProgress(breakdown);
+  }
+}
+
+/** Pobiera aktywny job z backendu (gdy localStorage/store nie wiedzą o trwającym generowaniu). */
+export async function syncActivePlanJob(): Promise<PlanGenerationJob | null> {
+  const job = await apiFetch<PlanGenerationJob | null>("/api/v1/plans/jobs/active");
+  if (job && (job.status === "pending" || job.status === "running")) {
+    applyActiveJob(job);
+    return job;
+  }
+  return null;
+}
+
+export function useCancelPlanJob() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (jobId: string) =>
+      apiFetch<PlanGenerationJob>(`/api/v1/plans/jobs/${jobId}/cancel`, { method: "POST" }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["plans"] });
+    },
+  });
+}
+
+/**
+ * Przy starcie appki synchronizuje aktywny job z backendu — naprawia sytuację
+ * „Masz już aktywny job” bez widocznego banera (utracony localStorage).
+ */
+export function usePlanGenerationSync() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated());
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    void syncActivePlanJob().catch(() => {
+      // Brak aktywnego joba — normalny stan idle.
+    });
+  }, [isAuthenticated]);
+}
 
 /**
  * Polling `GET /plans/jobs/{id}` — MOUNTOWANY W APP SHELL, nie w /plans
@@ -45,6 +94,7 @@ export function usePlanGenerationPolling() {
   const jobId = usePlanGenerationStore((state) => state.jobId);
   const status = usePlanGenerationStore((state) => state.status);
   const setStatus = usePlanGenerationStore((state) => state.setStatus);
+  const updateProgress = usePlanGenerationStore((state) => state.updateProgress);
   const queryClient = useQueryClient();
   const lastNotifiedStatus = useRef(status);
 
@@ -52,28 +102,39 @@ export function usePlanGenerationPolling() {
     if (!jobId || status !== "generating") return;
 
     let cancelled = false;
-    const interval = setInterval(async () => {
+
+    async function pollOnce() {
       try {
         const job = await apiFetch<PlanGenerationJob>(`/api/v1/plans/jobs/${jobId}`);
         if (cancelled) return;
+
+        const breakdown = job.personas ?? job.breakdown;
+        if (breakdown?.length) {
+          updateProgress(breakdown);
+        }
 
         if (job.status === "pending" || job.status === "running") return;
 
         const nextStatus =
           job.status === "success" ? "ready" : job.status === "partial_success" ? "partial_ready" : "error";
-        setStatus(nextStatus, job.breakdown);
+        setStatus(nextStatus, breakdown);
         void queryClient.invalidateQueries({ queryKey: ["plans"] });
-      } catch {
-        // Błąd sieci przy pollingu — spróbujemy ponownie przy kolejnym ticku, bez
-        // przerywania stanu "generating" (odróżnij od faktycznego statusu jobu).
+      } catch (err) {
+        if (cancelled) return;
+        if (err instanceof ApiError && err.status === 404) {
+          setStatus("error");
+        }
       }
-    }, POLL_INTERVAL_MS);
+    }
+
+    void pollOnce();
+    const interval = setInterval(() => void pollOnce(), POLL_INTERVAL_MS);
 
     return () => {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [jobId, status, setStatus, queryClient]);
+  }, [jobId, status, setStatus, updateProgress, queryClient]);
 
   useEffect(() => {
     if (lastNotifiedStatus.current === status) return;

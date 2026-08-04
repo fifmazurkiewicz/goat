@@ -96,6 +96,22 @@ def _row_to_job_persona(row: Any) -> PlanJobPersonaRow:
     return PlanJobPersonaRow(**mapping)
 
 
+_PLAN_STATUS_RANK = {"ready": 0, "partial_ready": 1, "generating": 2, "error": 3}
+
+
+def pick_best_plan_for_range(plans: list[PlanRow]) -> PlanRow | None:
+    """Wybiera plan do wyświetlenia w kalendarzu — najnowszy w zakresie (regeneracja widoczna od razu)."""
+    if not plans:
+        return None
+
+    def sort_key(plan: PlanRow) -> tuple[float, int]:
+        # Najpierw najnowszy created_at (np. świeży `generating` po regenerate),
+        # potem preferuj gotowe przy remisie czasu.
+        return (-plan.created_at.timestamp(), _PLAN_STATUS_RANK.get(plan.status, 9))
+
+    return min(plans, key=sort_key)
+
+
 class PlansRepo:
     def __init__(self, conn: AsyncConnection) -> None:
         self._conn = conn
@@ -184,7 +200,7 @@ class PlansRepo:
         return _row_to_plan(row) if row is not None else None
 
     async def list_plans_overlapping(self, *, range_start: date, range_end: date) -> list[PlanRow]:
-        """`GET /plans?month=` — wszystkie plany nachodzące na podany zakres dat."""
+        """`GET /plans?start_date=&end_date=` — wszystkie plany nachodzące na podany zakres dat."""
         result = await self._conn.execute(
             text(
                 f"""
@@ -196,6 +212,11 @@ class PlansRepo:
             {"range_start": range_start, "range_end": range_end},
         )
         return [_row_to_plan(row) for row in result]
+
+    async def pick_plan_for_range(self, *, range_start: date, range_end: date) -> PlanRow | None:
+        """Najlepszy plan dla widocznego zakresu kalendarza — preferuj gotowe, potem najnowszy."""
+        plans = await self.list_plans_overlapping(range_start=range_start, range_end=range_end)
+        return pick_best_plan_for_range(plans)
 
     async def update_plan_status(self, plan_id: str, status: str) -> None:
         await self._conn.execute(
@@ -275,6 +296,35 @@ class PlansRepo:
         row = result.one_or_none()
         return _row_to_job(row) if row is not None else None
 
+    async def get_active_job_for_user(self, user_id: str) -> PlanJobRow | None:
+        """Aktywny job (`pending`/`running`) — max 1 na usera (partial unique index)."""
+        result = await self._conn.execute(
+            text(
+                f"""
+                SELECT {_JOB_COLUMNS} FROM plan_generation_jobs
+                WHERE user_id = :user_id AND status IN ('pending', 'running')
+                ORDER BY created_at DESC
+                LIMIT 1
+                """
+            ),
+            {"user_id": user_id},
+        )
+        row = result.one_or_none()
+        return _row_to_job(row) if row is not None else None
+
+    async def cancel_job(self, job_id: str) -> PlanJobRow:
+        """Anuluje aktywny job i oznacza powiązany plan jako `error`."""
+        job = await self.get_job(job_id)
+        if job is None:
+            raise NotFoundError(f"Job {job_id!r} nie istnieje.")
+        if job.status not in ("pending", "running"):
+            raise ConflictError("Ten job generowania planu nie jest już aktywny.")
+        await self.update_job_status(
+            job_id, "error", error_message="Anulowano przez użytkownika."
+        )
+        await self.update_plan_status(job.plan_id, "error")
+        return await self.get_job_or_raise(job_id)
+
     async def update_job_status(
         self, job_id: str, status: str, *, error_message: str | None = None
     ) -> None:
@@ -307,7 +357,7 @@ class PlansRepo:
     async def reap_stale_jobs(self, *, older_than_minutes: int) -> list[str]:
         """Reaper przy starcie appki (ADR-1): joby zawieszone (`pending`/`running`)
         starsze niż `older_than_minutes` -> `error`. Wymaga `service_role` (działa na
-        WSZYSTKICH userach, nie jednym w kontekście RLS)."""
+        WSZYSTKICH userach, nie jednym w kontekście RLS). Aktualizuje też `plans.status`."""
         result = await self._conn.execute(
             text(
                 """
@@ -317,12 +367,15 @@ class PlansRepo:
                     finished_at = now()
                 WHERE status IN ('pending', 'running')
                   AND created_at < now() - make_interval(mins => :minutes)
-                RETURNING id
+                RETURNING id, plan_id
                 """
             ),
             {"minutes": older_than_minutes},
         )
-        return [row.id for row in result]
+        rows = list(result)
+        for row in rows:
+            await self.update_plan_status(str(row.plan_id), "error")
+        return [str(row.id) for row in rows]
 
     # ---------- plan_generation_job_personas ----------
 

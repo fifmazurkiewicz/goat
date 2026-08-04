@@ -2,7 +2,7 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useGeneratePlan } from "@/hooks/usePlans";
+import { useGeneratePlan, syncActivePlanJob } from "@/hooks/usePlans";
 import { ApiError } from "@/lib/api-client";
 import { usePlanGenerationStore } from "@/store/usePlanGenerationStore";
 
@@ -20,6 +20,13 @@ export function GeneratePlanCta({ startDate }: GeneratePlanCtaProps) {
       await generatePlan.mutateAsync({ period_type: periodType, start_date: startDate });
       toast.info("Rozpoczęto generowanie planu — to może potrwać do kilku minut.");
     } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        const active = await syncActivePlanJob();
+        if (active) {
+          toast.info("Trwa generowanie planu — status i postęp są widoczne powyżej.");
+          return;
+        }
+      }
       toast.error(err instanceof ApiError ? err.message : "Nie udało się rozpocząć generowania planu.");
     }
   }

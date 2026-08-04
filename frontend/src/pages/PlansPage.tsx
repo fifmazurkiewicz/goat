@@ -22,6 +22,7 @@ import { PlanGenerationBanner } from "@/components/plans/PlanGenerationBanner";
 import { usePersonas } from "@/hooks/usePersonas";
 import { usePlanRange } from "@/hooks/usePlans";
 import { useIsMobile } from "@/hooks/useMediaQuery";
+import { usePlanGenerationStore } from "@/store/usePlanGenerationStore";
 
 const DATE_FORMAT = "yyyy-MM-dd";
 
@@ -63,6 +64,7 @@ export default function PlansPage() {
   const rangeEnd = view === "week" ? endOfWeek(selectedDate, { weekStartsOn: 1 }) : endOfMonth(selectedDate);
 
   const { data, isLoading } = usePlanRange(format(rangeStart, DATE_FORMAT), format(rangeEnd, DATE_FORMAT));
+  const generationStatus = usePlanGenerationStore((state) => state.status);
   const { data: personasData } = usePersonas();
   const personas = personasData?.items ?? [];
 
@@ -117,7 +119,7 @@ export default function PlansPage() {
         onNext={handleNext}
       />
 
-      {!isLoading && !data?.plan ? (
+      {!isLoading && generationStatus !== "generating" && (!data?.plan || data.plan.status === "error" || data.plan.status === "partial_ready") ? (
         <div className="mt-6">
           <GeneratePlanCta startDate={format(rangeStart, DATE_FORMAT)} />
         </div>
