@@ -1,21 +1,22 @@
 import { format, isSameDay } from "date-fns";
 import { pl } from "date-fns/locale";
 
+import { DayPlanDetail } from "@/components/plans/DayPlanDetail";
 import { cn } from "@/lib/utils";
-import type { PlanItem } from "@/types/api";
+import type { Persona, PlanItem } from "@/types/api";
 
 interface WeekAgendaViewProps {
   days: Date[];
   items: PlanItem[];
   selectedDate: Date;
   onSelectDate: (date: Date) => void;
+  personas: Persona[];
 }
 
 /**
- * DEFAULT <768px — custom (date-fns), NIE grid (docs/technical/frontend.md sekcja 5).
- * Lista agendowa (nie siatka) — czytelniejsza na wąskim ekranie niż 7-kolumnowy grid.
+ * Widok tygodnia — lista dni z rozwijanym szczegółem planu pod wybranym dniem (inline).
  */
-export function WeekAgendaView({ days, items, selectedDate, onSelectDate }: WeekAgendaViewProps) {
+export function WeekAgendaView({ days, items, selectedDate, onSelectDate, personas }: WeekAgendaViewProps) {
   return (
     <div className="flex flex-col gap-2">
       {days.map((day) => {
@@ -23,31 +24,43 @@ export function WeekAgendaView({ days, items, selectedDate, onSelectDate }: Week
         const isSelected = isSameDay(day, selectedDate);
 
         return (
-          <button
+          <div
             key={day.toISOString()}
-            type="button"
-            onClick={() => onSelectDate(day)}
             className={cn(
-              "rounded-md border p-3 text-left transition-colors",
-              isSelected ? "border-primary bg-accent" : "hover:bg-accent/50"
+              "rounded-md border transition-colors",
+              isSelected ? "border-primary bg-accent/30" : "hover:bg-accent/20"
             )}
           >
-            <div className="flex items-baseline justify-between">
-              <span className="text-sm font-medium capitalize">{format(day, "EEEE, d MMMM", { locale: pl })}</span>
-              {isSameDay(day, new Date()) ? <span className="text-xs text-primary">Dziś</span> : null}
-            </div>
-            {dayItems.length === 0 ? (
-              <p className="mt-1 text-xs text-muted-foreground">Brak zaplanowanych pozycji</p>
-            ) : (
-              <ul className="mt-1 space-y-0.5">
-                {dayItems.map((item) => (
-                  <li key={item.id} className="text-xs text-muted-foreground">
-                    <span className="text-accent-foreground/80">{item.item_type}</span> · {item.content.title}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </button>
+            <button
+              type="button"
+              onClick={() => onSelectDate(day)}
+              className="w-full p-3 text-left"
+            >
+              <div className="flex items-baseline justify-between">
+                <span className="text-sm font-medium capitalize">
+                  {format(day, "EEEE, d MMMM", { locale: pl })}
+                </span>
+                {isSameDay(day, new Date()) ? <span className="text-xs text-primary">Dziś</span> : null}
+              </div>
+              {dayItems.length === 0 ? (
+                <p className="mt-1 text-xs text-muted-foreground">Brak zaplanowanych pozycji</p>
+              ) : (
+                <ul className="mt-1 space-y-0.5">
+                  {dayItems.map((item) => (
+                    <li key={item.id} className="text-xs text-muted-foreground">
+                      <span className="text-accent-foreground/80">{item.item_type}</span> · {item.content.title}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </button>
+
+            {isSelected ? (
+              <div className="border-t px-3 pb-4 pt-2">
+                <DayPlanDetail date={day} items={dayItems} personas={personas} showHeader={false} />
+              </div>
+            ) : null}
+          </div>
         );
       })}
     </div>

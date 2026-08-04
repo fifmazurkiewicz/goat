@@ -16,7 +16,6 @@ import { pl } from "date-fns/locale";
 
 import { Badge } from "@/components/ui/badge";
 import { CalendarViewSwitcher, type CalendarView } from "@/components/plans/CalendarViewSwitcher";
-import { DayPanel } from "@/components/plans/DayPanel";
 import { GeneratePlanCta } from "@/components/plans/GeneratePlanCta";
 import { PlanGenerationPersonaProgress } from "@/components/plans/PlanGenerationPersonaProgress";
 import { PlanGenerationBanner } from "@/components/plans/PlanGenerationBanner";
@@ -45,15 +44,12 @@ export default function PlansPage() {
     return parsed && isValid(parsed) ? parsed : new Date();
   }, [searchParams]);
 
-  const [isDayPanelOpen, setIsDayPanelOpen] = useState(false);
-
   function setSelectedDate(date: Date) {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set("date", format(date, DATE_FORMAT));
       return next;
     });
-    setIsDayPanelOpen(true);
   }
 
   const weekDays = useMemo(
@@ -71,7 +67,6 @@ export default function PlansPage() {
   const personas = personasData?.items ?? [];
 
   const items = data?.items ?? [];
-  const selectedDayItems = items.filter((item) => item.item_date === format(selectedDate, DATE_FORMAT));
 
   function handlePrev() {
     setSelectedDate(view === "week" ? addWeeks(selectedDate, -1) : addMonths(selectedDate, -1));
@@ -127,6 +122,7 @@ export default function PlansPage() {
         month={selectedDate}
         onMonthChange={setSelectedDate}
         items={items}
+        personas={personas}
         onPrev={handlePrev}
         onNext={handleNext}
       />
@@ -136,13 +132,6 @@ export default function PlansPage() {
           <GeneratePlanCta startDate={format(rangeStart, DATE_FORMAT)} />
         </div>
       ) : null}
-
-      <DayPanel
-        date={isDayPanelOpen ? selectedDate : null}
-        items={selectedDayItems}
-        personas={personas}
-        onOpenChange={setIsDayPanelOpen}
-      />
     </div>
   );
 }

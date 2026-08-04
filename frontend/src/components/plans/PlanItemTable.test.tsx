@@ -46,6 +46,18 @@ describe("PlanItemTable", () => {
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 
+  it("renderuje wiersze zapisane jako obiekty (format backendu)", () => {
+    const content: PlanItemContent = {
+      title: "Trening",
+      columns: ["Ćwiczenie", "Serie", "Powtórzenia"],
+      rows: [{ Ćwiczenie: "Przysiad", Serie: "4", Powtórzenia: "8" }],
+      notes: null,
+    };
+    render(<PlanItemTable content={content} variant="table" />);
+    expect(screen.getByText("Przysiad")).toBeInTheDocument();
+    expect(screen.getByText("4")).toBeInTheDocument();
+  });
+
   it("obsługuje wiersz dłuższy niż lista kolumn bez wyrzucania błędu (nadmiarowe komórki ignorowane)", () => {
     const content: PlanItemContent = {
       title: "Trening",

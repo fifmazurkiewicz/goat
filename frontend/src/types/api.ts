@@ -161,10 +161,13 @@ export interface Plan {
   updated_at: string;
 }
 
+import type { PlanItemRow } from "@/lib/plan-item-content";
+
 export interface PlanItemContent {
   title: string;
   columns: string[];
-  rows: (string | number)[][];
+  /** Tablice pozycyjne LUB obiekty `{ [kolumna]: wartość }` z backendu. */
+  rows: PlanItemRow[];
   notes: string | null;
 }
 

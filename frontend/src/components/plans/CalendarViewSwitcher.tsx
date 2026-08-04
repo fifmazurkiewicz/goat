@@ -1,11 +1,13 @@
+import { isSameDay } from "date-fns";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { DayPlanDetail } from "@/components/plans/DayPlanDetail";
 import { MonthGridView } from "@/components/plans/MonthGridView";
 import { WeekAgendaView } from "@/components/plans/WeekAgendaView";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { cn } from "@/lib/utils";
-import type { PlanItem } from "@/types/api";
+import type { Persona, PlanItem } from "@/types/api";
 
 export type CalendarView = "week" | "month";
 
@@ -18,6 +20,7 @@ interface CalendarViewSwitcherProps {
   month: Date;
   onMonthChange: (month: Date) => void;
   items: PlanItem[];
+  personas: Persona[];
   onPrev: () => void;
   onNext: () => void;
 }
@@ -35,6 +38,7 @@ export function CalendarViewSwitcher({
   month,
   onMonthChange,
   items,
+  personas,
   onPrev,
   onNext,
 }: CalendarViewSwitcherProps) {
@@ -73,15 +77,30 @@ export function CalendarViewSwitcher({
       </div>
 
       {view === "week" ? (
-        <WeekAgendaView days={weekDays} items={items} selectedDate={selectedDate} onSelectDate={onSelectDate} />
-      ) : (
-        <MonthGridView
-          month={month}
+        <WeekAgendaView
+          days={weekDays}
+          items={items}
           selectedDate={selectedDate}
           onSelectDate={onSelectDate}
-          onMonthChange={onMonthChange}
-          items={items}
+          personas={personas}
         />
+      ) : (
+        <>
+          <MonthGridView
+            month={month}
+            selectedDate={selectedDate}
+            onSelectDate={onSelectDate}
+            onMonthChange={onMonthChange}
+            items={items}
+          />
+          <div className="mt-4 rounded-lg border bg-card p-4">
+            <DayPlanDetail
+              date={selectedDate}
+              items={items.filter((item) => isSameDay(new Date(item.item_date), selectedDate))}
+              personas={personas}
+            />
+          </div>
+        </>
       )}
     </div>
   );
