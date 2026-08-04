@@ -83,7 +83,8 @@ export function useUpdateResult(category: ResultCategory) {
     mutationFn: ({ id, input }: { id: string; input: ResultUpdateInput }) =>
       apiFetch<Result>(`/api/v1/results/${id}`, { method: "PATCH", body: input }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["results"] });
+      void queryClient.invalidateQueries({ queryKey: resultsKey(category) });
+      void queryClient.invalidateQueries({ queryKey: ALL_RESULTS_KEY });
     },
   });
 }
@@ -93,7 +94,8 @@ export function useDeleteResult(category: ResultCategory) {
   return useMutation({
     mutationFn: (id: string) => apiFetch<void>(`/api/v1/results/${id}`, { method: "DELETE" }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["results"] });
+      void queryClient.invalidateQueries({ queryKey: resultsKey(category) });
+      void queryClient.invalidateQueries({ queryKey: ALL_RESULTS_KEY });
     },
   });
 }
