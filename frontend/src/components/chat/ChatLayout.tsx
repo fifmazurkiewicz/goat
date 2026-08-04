@@ -7,7 +7,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { NewSessionDialog } from "@/components/chat/NewSessionDialog";
 import { PersonaSessionDrawer } from "@/components/chat/PersonaSessionDrawer";
-import { useChatSessions } from "@/hooks/useChatSessions";
+import { useChatSessions, useDeleteChatSession, useUpdateChatSession } from "@/hooks/useChatSessions";
 import { useLocalStorageState } from "@/hooks/useLocalStorageState";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { usePersonas } from "@/hooks/usePersonas";
@@ -29,6 +29,8 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
   const [isNewSessionOpen, setIsNewSessionOpen] = useState(false);
 
   const { data: sessions } = useChatSessions();
+  const updateSession = useUpdateChatSession();
+  const deleteSession = useDeleteChatSession();
   const { data: personasData } = usePersonas();
   const personas = personasData?.items ?? [];
   const activeSession = sessions?.find((s) => s.id === sessionId);
@@ -38,6 +40,14 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
     setIsMobileDrawerOpen(false);
   }
 
+  function handleDeleteSession(id: string) {
+    deleteSession.mutate(id, {
+      onSuccess: () => {
+        if (sessionId === id) navigate("/chat");
+      },
+    });
+  }
+
   const drawer = (
     <PersonaSessionDrawer
       sessions={sessions ?? []}
@@ -45,6 +55,8 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
       activeSessionId={sessionId}
       onSelectSession={handleSelectSession}
       onNewSession={() => setIsNewSessionOpen(true)}
+      onRenameSession={(id, title) => updateSession.mutate({ sessionId: id, title })}
+      onDeleteSession={handleDeleteSession}
     />
   );
 

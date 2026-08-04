@@ -4,6 +4,7 @@ import { Navigate, RouterProvider, createBrowserRouter } from "react-router-dom"
 import { AdminRoute, ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
 import { Toaster } from "@/components/ui/sonner";
+import { isDevLoginEnabled, loadDevAuth } from "@/lib/dev-auth";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
 
@@ -53,10 +54,20 @@ const router = createBrowserRouter([
 
 export default function App() {
   const setSession = useAuthStore((state) => state.setSession);
+  const setDevAuth = useAuthStore((state) => state.setDevAuth);
   const setInitialized = useAuthStore((state) => state.setInitialized);
 
   useEffect(() => {
     let active = true;
+
+    if (isDevLoginEnabled) {
+      const saved = loadDevAuth();
+      if (saved) setDevAuth(saved);
+      setInitialized();
+      return () => {
+        active = false;
+      };
+    }
 
     void supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
@@ -73,7 +84,7 @@ export default function App() {
       active = false;
       subscription.subscription.unsubscribe();
     };
-  }, [setSession, setInitialized]);
+  }, [setSession, setDevAuth, setInitialized]);
 
   return (
     <>

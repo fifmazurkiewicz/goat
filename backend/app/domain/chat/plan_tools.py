@@ -6,7 +6,6 @@ Błędy walidacji → dict z `error`, nigdy wyjątek do LLM loop.
 
 from __future__ import annotations
 
-import asyncio
 import calendar
 from datetime import date, timedelta
 from typing import Any
@@ -14,8 +13,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.exceptions import ConflictError
-from app.domain.plans.orchestrator import PlanOrchestrator
-from app.llm.openrouter_client import get_openrouter_client
+from app.domain.jobs.runner import enqueue_plan_generation_async, enqueue_plan_harmonize_async
 from app.models.schemas import PlanItemContent
 from app.repositories.plans_repo import PlansRepo
 
@@ -81,14 +79,25 @@ class ChatPlanToolsService:
         user_id: str,
         persona_id: str,
         entries: list[dict[str, Any]],
+        allowed_persona_ids: list[str] | None = None,
     ) -> dict[str, Any]:
         plan = await self._repo.get_latest_editable_plan_for_user(user_id)
         if plan is None:
+            generating = await self._repo.get_latest_plan_for_user(user_id)
+            if generating is not None and generating.status == "generating":
+                return {
+                    "error": "Plan jest w trakcie generowania — poczekaj na zakończenie "
+                    "lub użyj rebuild_plan po zakończeniu joba."
+                }
             return {
-                "error": "Brak planu do edycji. Najpierw rebuild_plan lub wygeneruj plan w zakładce Plany."
+                "error": "Brak planu do edycji. Najpierw rebuild_plan (tydzień/miesiąc) "
+                "lub wygeneruj plan w zakładce Plany."
             }
 
+        allowed = set(allowed_persona_ids or [persona_id])
+
         outcomes: list[dict[str, Any]] = []
+        touched_dates: list[str] = []
         for index, entry in enumerate(entries):
             try:
                 item_date = date.fromisoformat(str(entry["item_date"]))
@@ -103,6 +112,17 @@ class ChatPlanToolsService:
                         "status": "error",
                         "error": f"Data {item_date} poza zakresem planu "
                         f"({plan.start_date}–{plan.end_date}).",
+                    }
+                )
+                continue
+
+            target_persona_id = str(entry.get("persona_id") or persona_id)
+            if target_persona_id not in allowed:
+                outcomes.append(
+                    {
+                        "index": index,
+                        "status": "error",
+                        "error": "Nie można zapisać pozycji dla tej persony.",
                     }
                 )
                 continue
@@ -128,17 +148,18 @@ class ChatPlanToolsService:
                         {"index": index, "status": "error", "error": "Nie znaleziono pozycji planu."}
                     )
                     continue
-                if existing.persona_id != persona_id:
+                if existing.persona_id != target_persona_id:
                     outcomes.append(
                         {
                             "index": index,
                             "status": "error",
-                            "error": "Możesz edytować tylko własne pozycje persony.",
+                            "error": "Nie można przenieść pozycji na inną personę.",
                         }
                     )
                     continue
                 await self._repo.update_item_content(existing.id, content)
                 outcomes.append({"index": index, "status": "ok", "item_id": existing.id})
+                touched_dates.append(item_date.isoformat())
             else:
                 inserted = await self._repo.insert_items(
                     plan.id,
@@ -146,7 +167,7 @@ class ChatPlanToolsService:
                         {
                             "item_date": item_date,
                             "item_type": str(entry.get("item_type") or "training"),
-                            "persona_id": persona_id,
+                            "persona_id": target_persona_id,
                             "content": content,
                         }
                     ],
@@ -154,13 +175,29 @@ class ChatPlanToolsService:
                 outcomes.append(
                     {"index": index, "status": "ok", "item_id": inserted[0].id if inserted else None}
                 )
+                touched_dates.append(item_date.isoformat())
 
         ok = sum(1 for o in outcomes if o["status"] == "ok")
-        return {
+        harmonize_job: str | None = None
+        if ok > 0 and touched_dates:
+            unique_dates = sorted(set(touched_dates))
+            harmonize_job = await enqueue_plan_harmonize_async(
+                plan_id=plan.id,
+                user_id=user_id,
+                claims=self._claims,
+                dates=unique_dates,
+            )
+        else:
+            harmonize_job = None
+
+        result = {
             "status": "ok" if ok == len(outcomes) else ("partial" if ok else "error"),
             "upserted": ok,
             "results": outcomes,
         }
+        if harmonize_job:
+            result["harmonize_job_id"] = harmonize_job
+        return result
 
     async def rebuild_plan(
         self,
@@ -185,18 +222,17 @@ class ChatPlanToolsService:
         except Exception as exc:  # noqa: BLE001
             return {"error": f"Nie udało się utworzyć joba planu: {exc}"}
 
-        orchestrator = PlanOrchestrator(get_openrouter_client())
-        asyncio.create_task(
-            orchestrator.generate_plan(
-                plan_id=plan.id,
-                job_id=job.id,
-                user_id=user_id,
-                claims=self._claims,
-            )
+        bg_job_id = await enqueue_plan_generation_async(
+            plan_id=plan.id,
+            plan_job_id=job.id,
+            user_id=user_id,
+            claims=self._claims,
+            background_tasks=None,
         )
         return {
             "status": "ok",
             "job_id": job.id,
             "plan_id": plan.id,
+            "background_job_id": bg_job_id,
             "message": "Generowanie planu uruchomione — wynik w zakładce Plany.",
         }

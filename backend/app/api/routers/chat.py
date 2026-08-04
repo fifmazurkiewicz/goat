@@ -19,7 +19,15 @@ from app.core.db import rls_connection
 from app.core.exceptions import NotFoundError
 from app.core.security import AuthContext, get_current_user
 from app.domain.chat.orchestrator import run_chat_turn
-from app.models.schemas import ChatMessageOut, ChatSendMessage, ChatSessionCreate, ChatSessionOut
+from app.domain.chat.turn_registry import is_turn_in_progress, mark_turn_finished, mark_turn_started
+from app.models.schemas import (
+    ChatMessageOut,
+    ChatSendMessage,
+    ChatSessionCreate,
+    ChatSessionOut,
+    ChatSessionTurnStatus,
+    ChatSessionUpdate,
+)
 from app.repositories.chat_repo import ChatRepo
 from app.repositories.personas_repo import PersonasRepo
 
@@ -73,6 +81,47 @@ async def list_chat_messages(
     return [ChatMessageOut.model_validate(row) for row in rows]
 
 
+@router.patch("/sessions/{session_id}", response_model=ChatSessionOut)
+async def update_chat_session(
+    session_id: str,
+    payload: ChatSessionUpdate,
+    auth: AuthContext = Depends(get_current_user),
+) -> ChatSessionOut:
+    async with rls_connection(auth.claims) as conn:
+        chat_repo = ChatRepo(conn)
+        session = await chat_repo.get_session(session_id)
+        if session is None or session.user_id != auth.user_id:
+            raise NotFoundError(f"Sesja czatu {session_id!r} nie istnieje.")
+        row = await chat_repo.update_session_title(session_id, payload.title.strip())
+    if row is None:
+        raise NotFoundError(f"Sesja czatu {session_id!r} nie istnieje.")
+    return ChatSessionOut.model_validate(row)
+
+
+@router.delete("/sessions/{session_id}", status_code=204)
+async def delete_chat_session(
+    session_id: str, auth: AuthContext = Depends(get_current_user)
+) -> None:
+    async with rls_connection(auth.claims) as conn:
+        chat_repo = ChatRepo(conn)
+        session = await chat_repo.get_session(session_id)
+        if session is None or session.user_id != auth.user_id:
+            raise NotFoundError(f"Sesja czatu {session_id!r} nie istnieje.")
+        await chat_repo.delete_session(session_id)
+
+
+@router.get("/sessions/{session_id}/turn-status", response_model=ChatSessionTurnStatus)
+async def chat_turn_status(
+    session_id: str, auth: AuthContext = Depends(get_current_user)
+) -> ChatSessionTurnStatus:
+    async with rls_connection(auth.claims) as conn:
+        session = await ChatRepo(conn).get_session(session_id)
+        if session is None or session.user_id != auth.user_id:
+            raise NotFoundError(f"Sesja czatu {session_id!r} nie istnieje.")
+        in_progress = session.turn_in_progress or is_turn_in_progress(session_id)
+    return ChatSessionTurnStatus(in_progress=in_progress)
+
+
 @router.post("/sessions/{session_id}/message")
 async def send_chat_message(
     session_id: str,
@@ -84,16 +133,22 @@ async def send_chat_message(
     trzymane przez cały czas streamu (`run_chat_turn`/`ChatOrchestrator` otwierają
     krótkie, per-rundowe transakcje) — ten endpoint nie bierze `Depends` na DB."""
     queue: asyncio.Queue[dict] = asyncio.Queue()
-    orchestrator_task = asyncio.create_task(
-        run_chat_turn(
-            user_id=auth.user_id,
-            claims=auth.claims,
-            session_id=session_id,
-            user_message=payload.content,
-            queue=queue,
-            retry=payload.retry,
-        )
-    )
+
+    async def _run_and_cleanup() -> None:
+        try:
+            await run_chat_turn(
+                user_id=auth.user_id,
+                claims=auth.claims,
+                session_id=session_id,
+                user_message=payload.content,
+                queue=queue,
+                retry=payload.retry,
+            )
+        finally:
+            mark_turn_finished(session_id)
+
+    orchestrator_task = asyncio.create_task(_run_and_cleanup())
+    mark_turn_started(session_id, orchestrator_task)
 
     async def event_generator():
         try:
@@ -101,7 +156,7 @@ async def send_chat_message(
             deadline = loop.time() + settings.chat_hard_timeout_s
             while True:
                 if await request.is_disconnected():
-                    orchestrator_task.cancel()
+                    # Tura kontynuuje w tle — user może wrócić i odświeżyć historię.
                     break
                 remaining = deadline - loop.time()
                 if remaining <= 0:
@@ -116,7 +171,6 @@ async def send_chat_message(
                 if event["event"] in ("done", "error"):
                     break
         finally:
-            if not orchestrator_task.done():
-                orchestrator_task.cancel()
+            pass
 
     return EventSourceResponse(event_generator(), ping=15)

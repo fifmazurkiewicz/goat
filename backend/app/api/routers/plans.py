@@ -15,8 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.db import rls_connection
 from app.core.security import AuthContext, get_current_user
-from app.domain.plans.orchestrator import PlanOrchestrator
-from app.llm.openrouter_client import get_openrouter_client
+from app.domain.jobs.runner import enqueue_plan_generation_async
 from app.models.schemas import (
     PlanGenerateRequest,
     PlanGenerationJobOut,
@@ -89,13 +88,12 @@ async def generate_plan(
         )
         job = await plans_repo.create_job(plan_id=plan.id, user_id=auth.user_id)
 
-    orchestrator = PlanOrchestrator(get_openrouter_client())
-    background_tasks.add_task(
-        orchestrator.generate_plan,
+    await enqueue_plan_generation_async(
         plan_id=plan.id,
-        job_id=job.id,
+        plan_job_id=job.id,
         user_id=auth.user_id,
         claims=auth.claims,
+        background_tasks=background_tasks,
     )
     return _job_row_to_out(job, [])
 

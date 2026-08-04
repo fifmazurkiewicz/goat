@@ -36,6 +36,7 @@ class ChatSessionRow:
     persona_id: str | None
     session_type: str
     title: str | None
+    turn_in_progress: bool
     created_at: datetime
     updated_at: datetime
 
@@ -61,6 +62,8 @@ def _row_to_session(row: Any) -> ChatSessionRow:
     for key in _SESSION_UUID_KEYS:
         if key in mapping:
             mapping[key] = stringify_uuid(mapping[key])
+    if "turn_in_progress" not in mapping:
+        mapping["turn_in_progress"] = False
     return ChatSessionRow(**mapping)
 
 
@@ -96,7 +99,7 @@ class ChatRepo:
                 """
                 INSERT INTO chat_sessions (user_id, persona_id, session_type, title)
                 VALUES (:user_id, :persona_id, :session_type, :title)
-                RETURNING id, user_id, persona_id, session_type, title, created_at, updated_at
+                RETURNING id, user_id, persona_id, session_type, title, turn_in_progress, created_at, updated_at
                 """
             ),
             {
@@ -112,7 +115,7 @@ class ChatRepo:
         result = await self._conn.execute(
             text(
                 """
-                SELECT id, user_id, persona_id, session_type, title, created_at, updated_at
+                SELECT id, user_id, persona_id, session_type, title, turn_in_progress, created_at, updated_at
                 FROM chat_sessions
                 ORDER BY updated_at DESC
                 """
@@ -124,7 +127,7 @@ class ChatRepo:
         result = await self._conn.execute(
             text(
                 """
-                SELECT id, user_id, persona_id, session_type, title, created_at, updated_at
+                SELECT id, user_id, persona_id, session_type, title, turn_in_progress, created_at, updated_at
                 FROM chat_sessions WHERE id = :id
                 """
             ),
@@ -138,6 +141,48 @@ class ChatRepo:
             text("UPDATE chat_sessions SET updated_at = now() WHERE id = :id"),
             {"id": session_id},
         )
+
+    async def update_session_title(self, session_id: str, title: str) -> ChatSessionRow | None:
+        result = await self._conn.execute(
+            text(
+                """
+                UPDATE chat_sessions SET title = :title, updated_at = now()
+                WHERE id = :id
+                RETURNING id, user_id, persona_id, session_type, title, turn_in_progress, created_at, updated_at
+                """
+            ),
+            {"id": session_id, "title": title},
+        )
+        row = result.one_or_none()
+        return _row_to_session(row) if row is not None else None
+
+    async def set_title_if_empty(self, session_id: str, title: str) -> None:
+        """Auto-tytuł z pierwszej wiadomości usera — nie nadpisuje ręcznej edycji."""
+        await self._conn.execute(
+            text(
+                """
+                UPDATE chat_sessions
+                SET title = :title, updated_at = now()
+                WHERE id = :id AND (title IS NULL OR trim(title) = '')
+                """
+            ),
+            {"id": session_id, "title": title[:200]},
+        )
+
+    async def set_turn_in_progress(self, session_id: str, in_progress: bool) -> None:
+        await self._conn.execute(
+            text(
+                "UPDATE chat_sessions SET turn_in_progress = :flag, updated_at = now() WHERE id = :id"
+            ),
+            {"id": session_id, "flag": in_progress},
+        )
+
+    async def delete_session(self, session_id: str) -> bool:
+        result = await self._conn.execute(
+            text("DELETE FROM chat_sessions WHERE id = :id RETURNING id"),
+            {"id": session_id},
+        )
+        return result.one_or_none() is not None
 
     # ---------- messages ----------
 

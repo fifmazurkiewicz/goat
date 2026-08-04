@@ -145,6 +145,21 @@ class PlansRepo:
         row = result.one_or_none()
         return _row_to_plan(row) if row is not None else None
 
+    async def get_latest_plan_for_user(self, user_id: str) -> PlanRow | None:
+        result = await self._conn.execute(
+            text(
+                f"""
+                SELECT {_PLAN_COLUMNS} FROM plans
+                WHERE user_id = :user_id
+                ORDER BY created_at DESC
+                LIMIT 1
+                """
+            ),
+            {"user_id": user_id},
+        )
+        row = result.one_or_none()
+        return _row_to_plan(row) if row is not None else None
+
     async def get_item(self, item_id: str) -> PlanItemRow | None:
         result = await self._conn.execute(
             text(f"SELECT {_ITEM_COLUMNS} FROM plan_items WHERE id = :id"),

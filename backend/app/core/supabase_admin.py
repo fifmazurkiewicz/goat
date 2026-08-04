@@ -21,6 +21,9 @@ logger = structlog.get_logger(__name__)
 
 class SupabaseAdminClient:
     def __init__(self) -> None:
+        if not settings.supabase_url or settings.supabase_service_role_key is None:
+            self._client = None
+            return
         key = settings.supabase_service_role_key.get_secret_value()
         self._client = httpx.AsyncClient(
             base_url=f"{settings.supabase_url}/auth/v1/admin",
@@ -37,6 +40,8 @@ class SupabaseAdminClient:
         całego `/admin/users` przez przejściową awarię Auth API.
         """
         emails: dict[str, str] = {}
+        if self._client is None:
+            return emails
         page = 1
         try:
             while True:
@@ -72,6 +77,10 @@ class SupabaseAdminClient:
         w dev) — losowe hasło działa deterministycznie niezależnie od konfiguracji maila.
         """
         temp_password = secrets.token_urlsafe(12)
+        if self._client is None:
+            raise ExternalServiceError(
+                "Supabase Admin API niedostępne w trybie lokalnym (brak SUPABASE_URL)."
+            )
         response = await self._client.put(
             f"/users/{user_id}", json={"password": temp_password}
         )
@@ -82,7 +91,8 @@ class SupabaseAdminClient:
         return temp_password
 
     async def aclose(self) -> None:
-        await self._client.aclose()
+        if self._client is not None:
+            await self._client.aclose()
 
 
 @lru_cache

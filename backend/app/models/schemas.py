@@ -259,6 +259,21 @@ class AuditLogEntryOut(BaseModel):
     created_at: datetime
 
 
+# ============ Auth (local dev) ============
+
+
+class DevLoginRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=1, max_length=256)
+
+
+class DevLoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user_id: str
+    email: str
+
+
 # ============ Konto — nick (ADR-15, oddzielne od /profile — biometria) ============
 
 
@@ -373,7 +388,7 @@ class LogResultArgs(BaseModel):
 
 ChatSessionType = Literal["persona", "general"]
 ChatRole = Literal["user", "assistant", "tool"]
-InvokedVia = Literal["auto_routed", "slash_command"]
+InvokedVia = Literal["auto_routed", "slash_command", "multi_slash"]
 
 
 class ChatSessionCreate(BaseModel):
@@ -384,6 +399,14 @@ class ChatSessionCreate(BaseModel):
     title: str | None = Field(default=None, max_length=200)
 
 
+class ChatSessionUpdate(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+
+
+class ChatSessionTurnStatus(BaseModel):
+    in_progress: bool
+
+
 class ChatSessionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -392,6 +415,7 @@ class ChatSessionOut(BaseModel):
     persona_id: str | None = None
     session_type: ChatSessionType
     title: str | None = None
+    turn_in_progress: bool = False
     created_at: datetime
     updated_at: datetime
 

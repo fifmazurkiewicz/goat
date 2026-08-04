@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { personaAvatarColor, personaInitials } from "@/lib/persona-labels";
+import { sessionDisplayTitle } from "@/lib/chat-session";
 import type { ChatSession, Persona } from "@/types/api";
 
 interface ChatHeaderProps {
@@ -31,12 +32,16 @@ export function ChatHeader({ session, persona, onOpenDrawer }: ChatHeaderProps) 
             </Avatar>
             <div>
               <div className="font-semibold leading-tight">{persona.name}</div>
-              <div className="text-xs text-muted-foreground">{session.title ?? "Rozmowa 1:1"}</div>
+              <div className="text-xs text-muted-foreground">
+                {sessionDisplayTitle(session, "Rozmowa 1:1")}
+              </div>
             </div>
           </>
         ) : (
           <div>
-            <div className="font-semibold leading-tight">{session.title ?? "Ogólna rozmowa"}</div>
+            <div className="font-semibold leading-tight">
+              {sessionDisplayTitle(session, "Ogólna rozmowa")}
+            </div>
             <div className="text-xs text-muted-foreground">Odpowiada właściwy trener wg tematu pytania</div>
           </div>
         )}

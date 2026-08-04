@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { toolChipLabel } from "@/lib/chat-status";
 import { cn } from "@/lib/utils";
 import type { ChatStreamToolResultEvent } from "@/types/chat-stream";
 
@@ -11,7 +12,7 @@ export function ToolResultChip({ tool_name, summary, success }: ChatStreamToolRe
         !success && "border-destructive/50 text-destructive"
       )}
     >
-      <Badge variant={success ? "default" : "destructive"}>{tool_name}</Badge>
+      <Badge variant={success ? "default" : "destructive"}>{toolChipLabel(tool_name)}</Badge>
       <span>{summary}</span>
     </div>
   );

@@ -42,11 +42,49 @@ export interface ChatStreamPersonaTurnStartEvent {
   persona_label: string;
 }
 
+export interface ChatStreamTeamStatusEvent {
+  type: "team_status";
+  message: string;
+}
+
+export type PersonaStatusPhase = "thinking" | "writing" | "tool" | "wrapping_up" | "done";
+
+export interface ChatStreamPersonaStatusEvent {
+  type: "persona_status";
+  persona_id: string;
+  persona_label: string;
+  phase: PersonaStatusPhase;
+  message: string;
+  tool_name?: string;
+}
+
+export interface ChatStreamTeamPhaseEvent {
+  type: "team_phase";
+  phase: "planning" | "delegating" | "synthesizing";
+  message: string;
+}
+
+export interface ChatStreamPersonaTurnEndEvent {
+  type: "persona_turn_end";
+  persona_id: string;
+  persona_label: string;
+}
+
+export interface ChatStreamTurnCompleteEvent {
+  type: "turn_complete";
+  persona_count?: number;
+}
+
 export type ChatStreamEvent =
   | ChatStreamTokenEvent
   | ChatStreamToolCallStartEvent
   | ChatStreamToolResultEvent
   | ChatStreamPersonaTurnStartEvent
+  | ChatStreamPersonaStatusEvent
+  | ChatStreamTeamPhaseEvent
+  | ChatStreamPersonaTurnEndEvent
+  | ChatStreamTeamStatusEvent
+  | ChatStreamTurnCompleteEvent
   | ChatStreamDoneEvent
   | ChatStreamErrorEvent;
 

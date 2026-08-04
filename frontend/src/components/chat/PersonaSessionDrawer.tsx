@@ -12,6 +12,8 @@ interface PersonaSessionDrawerProps {
   activeSessionId: string | undefined;
   onSelectSession: (sessionId: string) => void;
   onNewSession: () => void;
+  onRenameSession: (sessionId: string, title: string) => void;
+  onDeleteSession: (sessionId: string) => void;
 }
 
 interface SessionGroup {
@@ -27,6 +29,8 @@ export function PersonaSessionDrawer({
   activeSessionId,
   onSelectSession,
   onNewSession,
+  onRenameSession,
+  onDeleteSession,
 }: PersonaSessionDrawerProps) {
   const groups = useMemo<SessionGroup[]>(() => {
     const uniqueSessions = Array.from(new Map(sessions.map((s) => [s.id, s])).values());
@@ -62,6 +66,8 @@ export function PersonaSessionDrawer({
                   session={session}
                   isActive={session.id === activeSessionId}
                   onSelect={() => onSelectSession(session.id)}
+                  onRename={onRenameSession}
+                  onDelete={onDeleteSession}
                 />
               ))}
             </div>

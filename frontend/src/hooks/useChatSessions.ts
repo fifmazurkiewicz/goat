@@ -23,8 +23,7 @@ export function useChatMessages(sessionId: string | undefined) {
 
 export interface CreateChatSessionInput {
   persona_id: string | null;
-  /** Kontekst z /plans — "Porozmawiaj z trenerem" kopiuje treść plan_item jako pierwszą wiadomość. */
-  initial_message?: string;
+  title?: string;
 }
 
 export function useCreateChatSession() {
@@ -32,6 +31,31 @@ export function useCreateChatSession() {
   return useMutation({
     mutationFn: (input: CreateChatSessionInput) =>
       apiFetch<ChatSession>("/api/v1/chat/sessions", { method: "POST", body: input }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: SESSIONS_KEY });
+    },
+  });
+}
+
+export function useUpdateChatSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ sessionId, title }: { sessionId: string; title: string }) =>
+      apiFetch<ChatSession>(`/api/v1/chat/sessions/${sessionId}`, {
+        method: "PATCH",
+        body: { title },
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: SESSIONS_KEY });
+    },
+  });
+}
+
+export function useDeleteChatSession() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (sessionId: string) =>
+      apiFetch<void>(`/api/v1/chat/sessions/${sessionId}`, { method: "DELETE" }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: SESSIONS_KEY });
     },

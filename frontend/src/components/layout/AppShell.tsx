@@ -6,7 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useAccount } from "@/hooks/useAccount";
 import { usePlanGenerationPolling } from "@/hooks/usePlans";
+import { useChatTurnRunner } from "@/hooks/useChatTurnRunner";
 import { useUsage } from "@/hooks/useUsage";
+import { ChatTurnBanner } from "@/components/chat/ChatTurnBanner";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useThemeStore } from "@/store/useThemeStore";
@@ -27,7 +29,7 @@ const NAV_ITEMS = [
  * poziomie shellu i zasila `useUsageLimitsStore`. `GET /account` ustawia `isAdmin`.
  */
 export function AppShell() {
-  const session = useAuthStore((state) => state.session);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated());
   const isAdmin = useAuthStore((state) => state.isAdmin);
   const setIsAdmin = useAuthStore((state) => state.setIsAdmin);
   const theme = useThemeStore((state) => state.theme);
@@ -38,17 +40,18 @@ export function AppShell() {
   const { data: account } = useAccount();
 
   useEffect(() => {
-    if (!session) {
+    if (!isAuthenticated) {
       setIsAdmin(false);
       return;
     }
     if (account) {
       setIsAdmin(account.is_admin);
     }
-  }, [session, account, setIsAdmin]);
+  }, [isAuthenticated, account, setIsAdmin]);
 
   useUsage();
   usePlanGenerationPolling();
+  useChatTurnRunner();
 
   return (
     <div className="flex h-svh flex-col overflow-hidden bg-background">
@@ -107,6 +110,7 @@ export function AppShell() {
           </div>
         </div>
       </header>
+      <ChatTurnBanner />
       <main className="min-h-0 flex-1 overflow-y-auto">
         <Outlet />
       </main>

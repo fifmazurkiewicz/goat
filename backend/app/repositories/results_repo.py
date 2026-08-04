@@ -83,6 +83,16 @@ class ResultsRepo:
         )
         return [_row_to_result(row) for row in result]
 
+    async def list_recent_for_user(self, *, limit: int = 12) -> list[ResultRow]:
+        result = await self._conn.execute(
+            text(
+                f"SELECT {_COLUMNS} FROM results "
+                "ORDER BY logged_date DESC, created_at DESC LIMIT :limit"
+            ),
+            {"limit": limit},
+        )
+        return [_row_to_result(row) for row in result]
+
     async def create(self, user_id: str, values: dict[str, object]) -> ResultRow:
         columns = ["user_id", *values.keys()]
         placeholders = [":user_id", *(f":{key}" for key in values.keys())]

@@ -37,10 +37,12 @@ export function DayPanel({ date, items, personas, onOpenChange }: DayPanelProps)
         .join("\n")}${item.content.notes ? `\n\n${item.content.notes}` : ""}`;
       const session = await createSession.mutateAsync({
         persona_id: item.persona_id,
-        initial_message: `Porozmawiajmy o tym planie:\n${summary}`,
+        title: item.content.title?.trim() || undefined,
       });
       onOpenChange(false);
-      navigate(`/chat/${session.id}`);
+      navigate(`/chat/${session.id}`, {
+        state: { autoSend: `Porozmawiajmy o tym planie:\n${summary}` },
+      });
     } catch (err) {
       toast.error(getErrorMessage(err, "Nie udało się utworzyć rozmowy."));
     }

@@ -105,13 +105,14 @@ export interface ChatSession {
   persona_id: string | null;
   session_type: ChatSessionType;
   title: string | null;
+  turn_in_progress?: boolean;
   created_at: string;
   updated_at: string;
 }
 
 // ADR-13: atrybucja per wiadomość — w sesji 'general' różne wiadomości assistant/tool
 // mogą pochodzić od różnych person.
-export type InvokedVia = "auto_routed" | "slash_command" | null;
+export type InvokedVia = "auto_routed" | "slash_command" | "multi_slash" | null;
 
 export interface ChatMessage {
   id: string;

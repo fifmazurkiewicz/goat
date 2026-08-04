@@ -107,6 +107,40 @@ def build_user_profile_block(profile: UserProfileOut | None) -> str | None:
     return "[PROFIL UŻYTKOWNIKA]\n" + ", ".join(parts)
 
 
+def build_recent_results_block(results: list[Any]) -> str | None:
+    """Skrót ostatnich wyników — persona ma pamięć o tym co user raportował."""
+    if not results:
+        return None
+    lines: list[str] = []
+    for row in results[:12]:
+        logged = getattr(row, "logged_date", None)
+        date_str = logged.isoformat() if logged is not None else "?"
+        category = getattr(row, "category", "")
+        metric = getattr(row, "metric", "")
+        value = getattr(row, "value", "")
+        unit = getattr(row, "unit", "") or ""
+        lines.append(f"- {date_str} | {category}/{metric}: {value}{unit}")
+    return "[OSTATNIE WYNIKI UŻYTKOWNIKA]\n" + "\n".join(lines)
+
+
+def build_plan_summary_block(plan: Any | None, items: list[Any]) -> str | None:
+    """Aktywny plan w kalendarzu — skrót pozycji na najbliższe dni."""
+    if plan is None:
+        return "[PLAN TRENINGOWY]\nBrak aktywnego planu w kalendarzu."
+    header = (
+        f"Plan {plan.period_type} {plan.start_date.isoformat()}–{plan.end_date.isoformat()} "
+        f"(status: {plan.status})"
+    )
+    if not items:
+        return f"[PLAN TRENINGOWY]\n{header}\nBrak pozycji — możesz zaproponować rebuild_plan."
+    lines = [header, "Najbliższe pozycje:"]
+    for item in items[:14]:
+        content = item.content if isinstance(getattr(item, "content", None), dict) else {}
+        title = content.get("title") or item.item_type
+        lines.append(f"- {item.item_date.isoformat()}: {title}")
+    return "[PLAN TRENINGOWY]\n" + "\n".join(lines)
+
+
 class ContextBuilder:
     """Nie zna FastAPI/HTTP — testowalna z fake `ChatRepositoryProtocol`."""
 
@@ -121,6 +155,9 @@ class ContextBuilder:
         persona_constraints: str | None,
         user_profile: UserProfileOut | None,
         template_safety_prompt: str | None = None,
+        recent_results: list[Any] | None = None,
+        plan_row: Any | None = None,
+        plan_items: list[Any] | None = None,
     ) -> str:
         segments = [
             build_preamble_composed(
@@ -135,6 +172,14 @@ class ContextBuilder:
         profile_block = build_user_profile_block(user_profile)
         if profile_block:
             segments.append(profile_block)
+
+        results_block = build_recent_results_block(recent_results or [])
+        if results_block:
+            segments.append(results_block)
+
+        plan_block = build_plan_summary_block(plan_row, plan_items or [])
+        if plan_block:
+            segments.append(plan_block)
 
         intake_instruction = build_profile_intake_instruction(user_profile)
         if intake_instruction:

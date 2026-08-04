@@ -47,11 +47,12 @@ Gdybyś startował od zera tylko lokalnie (bez deployu):
 2. Supabase → **SQL** → **New query**.
 3. Wklej **całą** treść `0001_init.sql` → **Run** (musi przejść bez błędu).
 4. Nowa query → wklej **całą** treść `0002_exercise_catalog.sql` → **Run**.
-5. **Table Editor** — powinny być m.in.:
+5. Kolejne migracje (jeśli jeszcze nie były na projekcie): `0007_running_metrics_strength.sql`, `0008_background_jobs.sql` — każda w osobnej query, **Run**.
+6. **Table Editor** — powinny być m.in.:
    - `profiles`, `personas`, `persona_templates`, `plan_templates`, `allowed_metrics`
    - `chat_sessions`, `chat_messages`, `results`, `plans`, `plan_items`
-   - `usage_limits`, `exercises`
-6. Sprawdź seed: `persona_templates` i `exercises` mają wiersze.
+   - `usage_limits`, `exercises`, `background_jobs`
+7. Sprawdź seed: `persona_templates` i `exercises` mają wiersze.
 
 ### A4. Skopiuj connection string i klucze
 
@@ -94,6 +95,9 @@ https://<ref>.supabase.co/auth/v1/.well-known/jwks.json
 
 ## C. Pliki env (lokalnie, nie commitować)
 
+Lokalnie: **Postgres na localhost** + **login email/hasło** (bez Supabase OAuth).  
+Render/Vercel: **OAuth Google** + Supabase JWKS (bez dev login).
+
 ### C1. Backend
 
 ```powershell
@@ -106,10 +110,12 @@ Edytuj `backend/.env`:
 ```env
 ENVIRONMENT=local
 
-DATABASE_URL=postgresql+asyncpg://postgres.<ref>:<HASLO>@aws-0-eu-central-1.pooler.supabase.com:6543/postgres
-SUPABASE_URL=https://<ref>.supabase.co
-SUPABASE_JWKS_URL=https://<ref>.supabase.co/auth/v1/.well-known/jwks.json
-SUPABASE_SERVICE_ROLE_KEY=<service_role z panelu>
+DATABASE_URL=postgresql+asyncpg://postgres:<HASLO>@localhost:5432/goat
+
+DEV_AUTH_EMAIL=<twoj-email>
+DEV_AUTH_PASSWORD=<twoje-haslo>
+DEV_AUTH_USER_ID=00000000-0000-4000-8000-000000000001
+LOCAL_JWT_SECRET=<losowy-ciag>
 
 OPENROUTER_API_KEY=<klucz z OpenRouter>
 OPENROUTER_CHAT_MODEL=anthropic/claude-haiku-4.5
@@ -117,6 +123,8 @@ OPENROUTER_PLANNER_MODEL=anthropic/claude-sonnet-4.6
 
 CORS_ORIGINS=http://localhost:3000
 ```
+
+`SUPABASE_*` **nie są wymagane lokalnie** — zostaw zakomentowane / puste.
 
 ### C2. Frontend
 
@@ -128,10 +136,11 @@ copy .env.example .env.local
 Edytuj `frontend/.env.local`:
 
 ```env
-VITE_SUPABASE_URL=https://<ref>.supabase.co
-VITE_SUPABASE_ANON_KEY=<anon key z panelu>
+VITE_ENABLE_DEV_LOGIN=true
 VITE_API_BASE_URL=http://localhost:8000
 ```
+
+`VITE_SUPABASE_*` **nie są wymagane lokalnie** przy `VITE_ENABLE_DEV_LOGIN=true`.
 
 Nigdy nie commituj `.env` / `.env.local` i nie wklejaj sekretów do czatu.
 
@@ -163,12 +172,11 @@ API: `http://localhost:8000`
 ## E. Smoke test
 
 1. `curl http://localhost:8000/api/health` → `200` / `{"status":"ok"}` (lub równoważne).
-2. Przeglądarka → `http://localhost:3000` → **Zaloguj przez Google**.
-3. Po logowaniu w Supabase → Authentication → Users powinien być Twój user; w Table Editor → `profiles` wiersz z tym samym `id`.
-4. Utwórz personę z szablonu.
-5. Wyślij wiadomość w czacie → streaming tokenów (SSE).
-6. (Opcjonalnie) wygeneruj plan tygodniowy → status joba `success` / `partial_success`.
-7. Sprawdź `/results` i `/settings`.
+2. Przeglądarka → `http://localhost:3000` → **Zaloguj się** (email/hasło z `DEV_AUTH_*`).
+3. Utwórz personę z szablonu.
+4. Wyślij wiadomość w czacie → streaming tokenów (SSE).
+5. (Opcjonalnie) wygeneruj plan tygodniowy → status joba `success` / `partial_success`.
+6. Sprawdź `/results` i `/settings`.
 
 ---
 
@@ -193,11 +201,11 @@ Szczegóły nie są potrzebne przy pierwszym setupie — wróć tu dopiero gdy �
 | 1 | Projekt Supabase **`goat`** Active (zwykle już z cloud-setup) | |
 | 2 | Google OAuth w GCP + Supabase Providers | |
 | 3 | Site URL / Redirect `localhost:3000` | |
-| 4 | SQL: `0001_init` + `0002_exercise_catalog` | |
+| 4 | SQL: `0001_init` + `0002_exercise_catalog` (+ `0007`, `0008` jeśli brak) | |
 | 5 | Table Editor: tabele + seed | |
 | 6 | OpenRouter API key | |
-| 7 | `backend/.env` uzupełniony (pooler + keys) | |
-| 8 | `frontend/.env.local` uzupełniony | |
+| 7 | `backend/.env`: localhost + `DEV_AUTH_*` (bez Supabase) | |
+| 8 | `frontend/.env.local`: `VITE_ENABLE_DEV_LOGIN=true` | |
 | 9 | `uv run uvicorn` na :8000 | |
 | 10 | `npm run dev` na :3000 | |
-| 11 | Health + login Google + persona + czat | |
+| 11 | Health + login email/hasło + persona + czat | |

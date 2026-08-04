@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routers import (
     account,
     admin,
+    auth,
     chat,
     exercises,
     health,
@@ -30,6 +31,7 @@ from app.core.config import settings
 from app.core.db import service_role_connection
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import RequestIDMiddleware, configure_logging
+from app.domain.jobs.runner import resume_pending_jobs_on_startup
 from app.domain.results.metrics_cache import allowed_metrics_cache
 from app.repositories.allowed_metrics_repo import AllowedMetricsRepo
 from app.repositories.plans_repo import PlansRepo
@@ -56,6 +58,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # `allowed_metrics` — cache in-memory, hot-path przy `log_result` w trakcie
         # streamu SSE (nie chcemy zapytania SQL per tool call).
         await allowed_metrics_cache.load(AllowedMetricsRepo(conn))
+
+    await resume_pending_jobs_on_startup()
 
     yield
     logger.info("shutting_down")
@@ -86,6 +90,7 @@ register_exception_handlers(app)
 # (Render Health Check, devops.md sekcja 1).
 app.include_router(health.router)
 
+app.include_router(auth.router, prefix="/api/v1")
 app.include_router(personas.router, prefix="/api/v1")
 app.include_router(templates.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")

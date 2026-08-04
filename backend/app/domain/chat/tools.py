@@ -171,6 +171,10 @@ UPSERT_PLAN_ITEMS_TOOL_SCHEMA: dict[str, Any] = {
                             "columns": {"type": "array", "items": {"type": "string"}},
                             "rows": {"type": "array", "items": {"type": "object"}},
                             "notes": {"type": "string"},
+                            "persona_id": {
+                                "type": "string",
+                                "description": "Opcjonalne — zapis pozycji dla innej aktywnej persony (koordynacja zespołu).",
+                            },
                         },
                         "required": ["item_date", "item_type", "title", "columns", "rows"],
                         "additionalProperties": False,

@@ -106,6 +106,36 @@ Walidacja przez `allowed_metrics` (cache in-memory, ładowana na starcie appki �
 
 `MAX_INPUT_TOKENS` per `chat_model` jako twardy target (np. 6-10k, niezależnie od tego że model wspiera 128k+ — kwestia kosztu/latencji, nie limitu modelu). Bez rolling summary w MVP (patrz [`architecture.md`](architecture.md#5-kontekst-czatu--zarządzanie-tokenami)).
 
+**Od 2026-08-04 (ADR-17):** każda persona dostaje deterministyczne bloki `[PLAN TRENINGOWY]` i `[OSTATNIE WYNIKI UŻYTKOWNIKA]` w system prompt (`ContextBuilder`). Sesja `general` jest koordynowana przez systemowego **Kierownika Zespołu** (`team_lead.py`) — wybiera trenerów, przygotowuje brief, przekazuje rekomendacje poprzednich w tej turze. User widzi tylko odpowiedzi trenerów; UI: „Ogólna rozmowa”.
+
+### SSE — statusy per trener (faza 2)
+
+Oprócz `persona_turn_start` / `token` / `tool_*` backend emituje:
+
+| Event | Kiedy |
+|-------|--------|
+| `team_phase` | Kierownik: `planning` / `delegating` |
+| `team_status` | Tekstowy status kierownika |
+| `persona_status` | Fazy trenera: `thinking`, `writing`, `tool`, `wrapping_up`, `done` |
+| `persona_turn_end` | Koniec tury jednej persony |
+| `turn_complete` | Cały zespół zakończył |
+
+FE pokazuje **jedną linię statusu** (podmiana), znika przy pierwszych tokenach odpowiedzi.
+
+### Tytuł rozmowy (LLM)
+
+Pierwsza wiadomość usera → job `chat_title` w `background_jobs` (`CHAT_LLM_TITLE_ENABLED=true`). LLM zwraca krótki tytuł po polsku; fallback: obcięcie wiadomości gdy flaga wyłączona.
+
+### Kolejka zadań w Postgres (`background_jobs`, migracja 0008)
+
+| `job_type` | Trigger | Opis |
+|------------|---------|------|
+| `plan_generate` | `POST /plans/generate`, `rebuild_plan` | Pełny pipeline 3 etapów |
+| `plan_harmonize` | Po udanym `upsert_plan_items` | Lekka harmonizacja dotkniętych dni (`PLAN_AUTO_HARMONIZE_ON_UPSERT`) |
+| `chat_title` | Pierwsza wiadomość w sesji | Auto-tytuł |
+
+Enqueue: `domain/jobs/runner.py` — `enqueue_plan_generation_async` (HTTP `BackgroundTasks` lub `asyncio.create_task`), harmonizacja/tytuł zawsze `create_task`. Przy starcie API: `resume_pending_jobs_on_startup()` + reaper zawieszonych jobów.
+
 ## 4. Generowanie planu — 3 etapy, priorytet: synchronizacja
 
 Pełny opis pipeline'u w [`architecture.md`](architecture.md#4-generowanie-planu--pipeline-decyzja-priorytet-to-synchronizacja-między-personami). Kluczowe dla warstwy AI:

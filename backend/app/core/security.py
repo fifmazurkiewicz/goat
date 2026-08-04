@@ -19,6 +19,7 @@ from jwt import PyJWKClient
 
 from app.core.config import settings
 from app.core.db import service_role_connection
+from app.core.dev_auth import decode_local_access_token
 from app.core.exceptions import ForbiddenError, UnauthorizedError
 from app.repositories.profiles_repo import ProfilesRepo
 
@@ -31,6 +32,8 @@ _ALGORITHMS = ["RS256", "ES256"]
 def get_jwks_client() -> PyJWKClient:
     """Lazy-initialized, cache'owany klient JWKS (jeden na proces, `lru_cache` zamiast
     inicjalizacji na module-load — unika sieciowego I/O przy imporcie modułu/w testach)."""
+    if not settings.supabase_jwks_url:
+        raise RuntimeError("SUPABASE_JWKS_URL nie jest skonfigurowany.")
     return PyJWKClient(settings.supabase_jwks_url, cache_keys=True, lifespan=300)
 
 
@@ -49,12 +52,7 @@ def _extract_bearer_token(authorization: str) -> str:
     return parts[1].strip()
 
 
-async def get_current_user(authorization: str = Header(...)) -> AuthContext:
-    """Dependency FastAPI: parsuje `Authorization: Bearer <token>`, weryfikuje JWT przez
-    JWKS Supabase i zwraca `AuthContext`. Rzuca `UnauthorizedError` (401) przy braku,
-    nieprawidłowym lub wygasłym tokenie."""
-    token = _extract_bearer_token(authorization)
-
+def _verify_supabase_token(token: str) -> AuthContext:
     try:
         signing_key = get_jwks_client().get_signing_key_from_jwt(token)
         claims: dict[str, Any] = jwt.decode(
@@ -71,7 +69,31 @@ async def get_current_user(authorization: str = Header(...)) -> AuthContext:
     if not user_id:
         raise UnauthorizedError("Token nie zawiera wymaganego claimu 'sub'.")
 
-    return AuthContext(user_id=user_id, claims=claims)
+    return AuthContext(user_id=str(user_id), claims=claims)
+
+
+def _verify_local_token(token: str) -> AuthContext:
+    try:
+        claims = decode_local_access_token(token)
+    except jwt.PyJWTError as exc:
+        logger.warning("local_jwt_verification_failed", error=str(exc))
+        raise UnauthorizedError("Nieprawidłowy lub wygasły token.") from exc
+
+    user_id = claims.get("sub")
+    if not user_id:
+        raise UnauthorizedError("Token nie zawiera wymaganego claimu 'sub'.")
+
+    return AuthContext(user_id=str(user_id), claims=claims)
+
+
+async def get_current_user(authorization: str = Header(...)) -> AuthContext:
+    """Dependency FastAPI: parsuje `Authorization: Bearer <token>`, weryfikuje JWT
+    (lokalny HS256 przy `ENVIRONMENT=local`, Supabase JWKS w produkcji)."""
+    token = _extract_bearer_token(authorization)
+
+    if settings.dev_auth_enabled:
+        return _verify_local_token(token)
+    return _verify_supabase_token(token)
 
 
 async def require_admin(auth: AuthContext = Depends(get_current_user)) -> AuthContext:

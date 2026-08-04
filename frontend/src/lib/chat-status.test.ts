@@ -5,13 +5,13 @@ import {
   personaThinkingStatus,
   personaToolStatus,
   resolveToolName,
-  ROUTING_STATUS,
+  TEAM_STATUS_DEFAULT,
   PREPARING_STATUS,
 } from "@/lib/chat-status";
 
 describe("chat-status", () => {
-  it("initialStreamStatus: general → routing, persona → preparing", () => {
-    expect(initialStreamStatus("general")).toBe(ROUTING_STATUS);
+  it("initialStreamStatus: general → team lead, persona → preparing", () => {
+    expect(initialStreamStatus("general")).toBe(TEAM_STATUS_DEFAULT);
     expect(initialStreamStatus("persona")).toBe(PREPARING_STATUS);
   });
 

@@ -1,4 +1,5 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -22,11 +23,27 @@ interface ChatWindowProps {
  * docs/technical/frontend.md sekcja 4.
  */
 export function ChatWindow({ session, personas, onOpenDrawer }: ChatWindowProps) {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const autoSendDoneRef = useRef(false);
   const { data: messages, isLoading } = useChatMessages(session.id);
   const { sendMessage, retry, clearError, isStreaming, streaming, error } = useChatStream(session.id, {
     sessionType: session.session_type,
   });
   const isNearLimit = useUsageLimitsStore((state) => state.isNearLimit);
+
+  useEffect(() => {
+    autoSendDoneRef.current = false;
+  }, [session.id]);
+
+  useEffect(() => {
+    const state = location.state as { autoSend?: string } | null;
+    const autoSend = state?.autoSend?.trim();
+    if (!autoSend || autoSendDoneRef.current || isStreaming || isLoading) return;
+    autoSendDoneRef.current = true;
+    sendMessage(autoSend);
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.pathname, location.state, isStreaming, isLoading, sendMessage, navigate]);
 
   const activePersona = session.persona_id ? personas.find((p) => p.id === session.persona_id) ?? null : null;
 

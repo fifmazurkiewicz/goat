@@ -22,6 +22,8 @@ os.environ.setdefault(
 )
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
 os.environ.setdefault("OPENROUTER_API_KEY", "test-openrouter-key")
+os.environ.setdefault("DEV_AUTH_EMAIL", "dev@example.com")
+os.environ.setdefault("DEV_AUTH_PASSWORD", "dev-password")
 
 import pytest
 from httpx import ASGITransport, AsyncClient

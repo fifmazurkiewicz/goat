@@ -12,11 +12,24 @@ export const TOOL_ACTION_LABELS: Record<string, string> = {
 };
 
 export const ROUTING_STATUS = "Dobieram trenera…";
+export const TEAM_STATUS_DEFAULT = "Uzgodniam z zespołem trenerów…";
 export const PREPARING_STATUS = "Przygotowuję odpowiedź…";
 export const DEFAULT_TOOL_ACTION = "wykonuje akcję";
 
 export function toolActionLabel(toolName: string): string {
   return TOOL_ACTION_LABELS[toolName] ?? DEFAULT_TOOL_ACTION;
+}
+
+/** Etykieta chipa tool_result — po polsku, bez surowego identyfikatora. */
+export function toolChipLabel(toolName: string): string {
+  const labels: Record<string, string> = {
+    log_result: "Wynik",
+    update_user_profile: "Profil",
+    get_plan: "Plan",
+    upsert_plan_items: "Plany",
+    rebuild_plan: "Przebudowa planu",
+  };
+  return labels[toolName] ?? "Akcja";
 }
 
 /** "{Persona} analizuje…" — po `persona_turn_start`, przed tokenami/toolami. */
@@ -37,7 +50,13 @@ export function personaToolStatus(
 
 /** Status startowy przed pierwszym eventem SSE. */
 export function initialStreamStatus(sessionType: "general" | "persona" | string): string {
-  return sessionType === "general" ? ROUTING_STATUS : PREPARING_STATUS;
+  return sessionType === "general" ? TEAM_STATUS_DEFAULT : PREPARING_STATUS;
+}
+
+/** Kierownik zespołu — przed odpowiedziami trenerów. */
+export function teamStatusLabel(message: string | null | undefined): string {
+  const text = message?.trim();
+  return text || TEAM_STATUS_DEFAULT;
 }
 
 /** Normalizacja `tool_call_start` — BE emituje `name`, kontrakt FE `tool_name`. */

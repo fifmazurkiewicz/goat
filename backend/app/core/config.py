@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import SecretStr
+from pydantic import SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,9 +14,15 @@ class Settings(BaseSettings):
     environment: str = "local"
 
     database_url: str
-    supabase_url: str
-    supabase_jwks_url: str
-    supabase_service_role_key: SecretStr
+    supabase_url: str | None = None
+    supabase_jwks_url: str | None = None
+    supabase_service_role_key: SecretStr | None = None
+
+    # Lokalny login email/hasło — aktywny wyłącznie przy ENVIRONMENT=local.
+    dev_auth_email: str | None = None
+    dev_auth_password: SecretStr | None = None
+    dev_auth_user_id: str = "00000000-0000-4000-8000-000000000001"
+    local_jwt_secret: SecretStr = SecretStr("local-dev-jwt-secret-change-me")
 
     openrouter_api_key: SecretStr
     openrouter_chat_model: str = "anthropic/claude-haiku-4.5"
@@ -35,11 +41,13 @@ class Settings(BaseSettings):
     chat_history_window_messages: int = 20
     chat_max_message_length: int = 4000
     chat_max_output_tokens: int = 1500
+    chat_llm_title_enabled: bool = True
 
     # --- Generowanie planu (architecture.md §4, ADR-1/2) ---
     plan_reaper_stale_minutes: int = 5
     plan_persona_concurrency_limit: int = 3
     plan_max_output_tokens: int = 4000
+    plan_auto_harmonize_on_upsert: bool = True
 
     # --- Cennik modeli OpenRouter (ai-pipeline.md §1b, ADR-16) ---
     model_pricing_refresh_seconds: int = 3600
@@ -53,9 +61,36 @@ class Settings(BaseSettings):
     moderation_random_sample_rate: float = 0.02
 
     @property
+    def dev_auth_enabled(self) -> bool:
+        return self.environment == "local"
+
+    @property
     def cors_origins_list(self) -> list[str]:
         """Rozbija `CORS_ORIGINS` ("a,b,c") na listę dla CORSMiddleware.allow_origins."""
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @model_validator(mode="after")
+    def _validate_auth_config(self) -> "Settings":
+        if self.dev_auth_enabled:
+            if not self.dev_auth_email or self.dev_auth_password is None:
+                raise ValueError(
+                    "DEV_AUTH_EMAIL i DEV_AUTH_PASSWORD są wymagane przy ENVIRONMENT=local."
+                )
+        else:
+            missing = [
+                name
+                for name, value in (
+                    ("SUPABASE_URL", self.supabase_url),
+                    ("SUPABASE_JWKS_URL", self.supabase_jwks_url),
+                    ("SUPABASE_SERVICE_ROLE_KEY", self.supabase_service_role_key),
+                )
+                if not value
+            ]
+            if missing:
+                raise ValueError(
+                    f"Brak wymaganych zmiennych Supabase w produkcji: {', '.join(missing)}"
+                )
+        return self
 
 
 @lru_cache

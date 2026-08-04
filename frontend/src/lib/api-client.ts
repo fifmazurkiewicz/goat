@@ -39,7 +39,7 @@ export function getErrorMessage(err: unknown, fallback: string): string {
 }
 
 function getAccessToken(): string | undefined {
-  return useAuthStore.getState().session?.access_token;
+  return useAuthStore.getState().getAccessToken();
 }
 
 export interface ApiRequestOptions extends Omit<RequestInit, "body"> {

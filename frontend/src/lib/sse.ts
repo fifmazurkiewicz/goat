@@ -80,7 +80,7 @@ export async function* streamChatMessage({
   body,
   signal,
 }: StreamChatMessageOptions): AsyncGenerator<ChatStreamEvent> {
-  const token = useAuthStore.getState().session?.access_token;
+  const token = useAuthStore.getState().getAccessToken();
 
   const res = await fetch(`${API_BASE_URL}/api/v1/chat/sessions/${sessionId}/message`, {
     method: "POST",

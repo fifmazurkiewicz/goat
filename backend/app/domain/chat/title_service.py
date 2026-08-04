@@ -1,0 +1,74 @@
+"""Auto-tytuł rozmowy generowany przez LLM (krótki, po polsku)."""
+
+from __future__ import annotations
+
+from typing import Any, Protocol
+
+import structlog
+
+from app.core.config import settings
+from app.core.db import rls_connection
+from app.repositories.chat_repo import ChatRepo
+
+logger = structlog.get_logger(__name__)
+
+_TITLE_SCHEMA = {
+    "name": "chat_session_title",
+    "strict": True,
+    "schema": {
+        "type": "object",
+        "properties": {"title": {"type": "string"}},
+        "required": ["title"],
+        "additionalProperties": False,
+    },
+}
+
+
+class TitleLLMProtocol(Protocol):
+    async def complete_json(
+        self, *, model: str, messages: list[dict], json_schema: dict, max_tokens: int = 80
+    ) -> dict: ...
+
+
+class ChatTitleService:
+    def __init__(self, llm_client: TitleLLMProtocol) -> None:
+        self._llm_client = llm_client
+
+    async def generate_and_set_title(
+        self, *, session_id: str, user_message: str, claims: dict[str, Any]
+    ) -> None:
+        title = await self._generate_title(user_message)
+        if not title:
+            return
+        async with rls_connection(claims) as conn:
+            session = await ChatRepo(conn).get_session(session_id)
+            if session is None:
+                return
+            if session.title and session.title.strip():
+                return
+            await ChatRepo(conn).update_session_title(session_id, title)
+
+    async def _generate_title(self, user_message: str) -> str | None:
+        preview = " ".join(user_message.split())[:400]
+        system = (
+            "Wygeneruj KRÓTKI tytuł rozmowy coachingowej (max 60 znaków, po polsku, bez "
+            "cudzysłowów). Tytuł ma oddawać temat pierwszej wiadomości usera — konkretny, "
+            "nie ogólny ('Rozmowa', 'Pytanie')."
+        )
+        try:
+            result = await self._llm_client.complete_json(
+                model=settings.openrouter_chat_model,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": preview},
+                ],
+                json_schema=_TITLE_SCHEMA,
+                max_tokens=80,
+            )
+            raw = str(result.get("title") or "").strip()
+            if not raw:
+                return None
+            return raw[:200]
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("chat_title_generation_failed", error=str(exc))
+            return None

@@ -464,6 +464,49 @@ class PlanOrchestrator:
                 )
                 await plans_repo.update_item_content(item.id, content)
 
+    async def run_harmonize_for_dates(
+        self,
+        *,
+        plan_id: str,
+        user_id: str,
+        claims: dict[str, Any],
+        dates: list[str],
+    ) -> None:
+        """Lekka harmonizacja po `upsert_plan_items` — tylko dotknięte dni."""
+        if not dates:
+            return
+        date_set = set(dates)
+        async with rls_connection(claims) as conn:
+            plans_repo = PlansRepo(conn)
+            plan = await plans_repo.get_plan(plan_id)
+            if plan is None:
+                return
+            items = await plans_repo.list_items_for_plan(plan_id)
+            active_personas = await PersonasRepo(conn).list_active_for_user(user_id)
+
+        item_lookup: dict[tuple[str, str], PlanItemRow] = {}
+        persona_ids_seen: set[str] = set()
+        for item in items:
+            iso = item.item_date.isoformat()
+            if iso not in date_set:
+                continue
+            item_lookup[(item.persona_id, iso)] = item
+            persona_ids_seen.add(item.persona_id)
+
+        succeeded_personas = [p for p in active_personas if p.id in persona_ids_seen]
+        if not item_lookup or not succeeded_personas:
+            return
+
+        try:
+            await self._run_harmonization(
+                succeeded_personas=succeeded_personas,
+                item_lookup=item_lookup,
+                plan=plan,
+                claims=claims,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("plan_lite_harmonization_failed", error=str(exc))
+
 
 def _parse_date(value: str) -> date | None:
     try:

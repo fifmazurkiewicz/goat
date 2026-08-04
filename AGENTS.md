@@ -1,7 +1,7 @@
 ## Learned User Preferences
 
 - Instrukcje setupu, migracji i deployu mają być konkretne, krok po kroku, z listami klucz→wartość w tabelkach — nie ogólne opisy.
-- Aktualnie priorytet: setup **chmury** (Supabase + Render + Vercel + Cloudflare); local loop / lokalny Postgres to ścieżka na później.
+- Deploy/prod: chmura (Supabase + Render + Vercel + Cloudflare); lokalnie: backend + frontend + Postgres na localhost (baza `goat`); auth lokalnie email/hasło (dev), na Render/produkcji tylko OAuth.
 - Przy większych tematach (architektura, plan, audyt) preferuje równoległy przegląd przez zespół ekspertów (subagenci) i zwięzłą syntezę decyzji.
 - Po większych partiach pracy często prosi o aktualizację dokumentacji oraz push na `main` (po testach, gdy o to poprosi).
 - Komunikacja i odpowiedzi agenta: po polsku.
@@ -10,7 +10,7 @@
 - Klik w brand/nazwę „Coach” w nawigacji wraca do ekranu chatu; zakładka Profil usunięta — nick w ustawieniach konta.
 - Domyślne/seed wyniki mają zależeć od person użytkownika, nie od uniwersalnych hardcoded sportów (np. badminton/triathlon dla każdego).
 - Usuwanie persony: z dialogu edycji (nie tylko z karty na liście).
-- W czacie: status „persona + akcja po ludzku” (jedna linia, znika przy pierwszym tokenie); Markdown zamiast surowych `**`; bez logów/`role=tool` JSON (chipy tooli: czytelne summary); pole Wyślij zawsze w viewport bez scrolla strony; OK kilka wiadomości od trenerów przy uzgadnianiu planu.
+- W czacie: status „persona + akcja po ludzku” (jedna linia, znika przy pierwszym tokenie); Markdown zamiast surowych `**`; bez logów/`role=tool` JSON (chipy tooli: czytelne summary); pole Wyślij zawsze w viewport bez scrolla strony; multi-reply: N osobnych wiadomości sekwencyjnie, gdy routing uzna ≥2 role albo user poda kilka slashy (max 3).
 - Persony mają układać plany i zapisywać wyniki (zakładki Plan/Wyniki); plan ma być uzgodniony ze wszystkimi aktywnymi personami (edycja + przebudowa), nie tylko rekomendacja w czacie.
 
 ## Learned Workspace Facts
@@ -23,7 +23,7 @@
 - `motor_coach` → kategoria wyników `strength` (UI: zakładka Trening); bez osobnej kategorii `running`/`cardio`.
 - Prompt persony: user edytuje tylko zachowanie (`system_prompt`); lekarz/leki/red flags w `app_private.persona_template_safety` + preambuł; w prompcie czatu data dnia (Europe/Warsaw).
 - Vercel SPA: `frontend/vercel.json` z rewrite `/(.*) → /index.html` — bez tego odświeżenie `/personas`, `/settings` itd. daje `404` na CDN.
-- Na Render `DATABASE_URL` musi iść przez Supabase Connection pooler (Supavisor, port 6543); bezpośredni `db.<ref>.supabase.co` daje `Network is unreachable` (IPv6).
+- Na Render `DATABASE_URL` musi iść przez Supabase Connection pooler (Supavisor, port 6543); bezpośredni `db.<ref>.supabase.co` daje `Network is unreachable` (IPv6); lokalnie: `postgresql+asyncpg://…@localhost:5432/goat` (bez poolera).
 - Cloudflare CNAME dla `goat` / `api-goat`: Proxy status = DNS only (szara chmura); w polach Name/Target bez `https://`.
 - Jedyny admin: `fmazurkiewicz@gmail.com` (allowlist); `/account` = nick (ADR-15), `/profile` = biometria; `ProfilesRepo.ensure()` przed zapisem; asyncpg: UUID→str w DTO, jsonb przez `CAST(:param AS jsonb)`.
 - Chat tools: `log_result`, `update_user_profile`, `get_plan`, `upsert_plan_items`, `rebuild_plan` (przebudowa = pipeline 3 etapów); SSE statusy PL na FE; routing general może zwrócić 1..N person sekwencyjnie (multi-slash / klasyfikator, max 3); layout czatu: AppShell `h-svh`, scroll tylko w MessageList.
