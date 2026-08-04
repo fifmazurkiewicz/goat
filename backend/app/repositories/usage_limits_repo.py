@@ -18,9 +18,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
+
+from app.repositories._row_utils import as_float, stringify_uuid
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,6 +34,13 @@ class UsageLimitsRow:
     tokens_used: int
     plan_generations_used: int
     cost_usd_used: float
+
+
+def _row_to_usage(row: Any) -> UsageLimitsRow:
+    mapping = dict(row._mapping)
+    mapping["user_id"] = stringify_uuid(mapping["user_id"])
+    mapping["cost_usd_used"] = as_float(mapping["cost_usd_used"])
+    return UsageLimitsRow(**mapping)
 
 
 class UsageLimitsRepo:
@@ -86,7 +96,7 @@ class UsageLimitsRepo:
             },
         )
         row = result.one_or_none()
-        return UsageLimitsRow(**row._mapping) if row is not None else None
+        return _row_to_usage(row) if row is not None else None
 
     async def reconcile(
         self, *, user_id: str, period_start: date, delta_usd: float, tokens_delta: int = 0
@@ -125,7 +135,7 @@ class UsageLimitsRepo:
             {"user_id": user_id, "period_start": period_start},
         )
         row = result.one_or_none()
-        return UsageLimitsRow(**row._mapping) if row is not None else None
+        return _row_to_usage(row) if row is not None else None
 
     async def list_for_period(self, period_start: date) -> dict[str, UsageLimitsRow]:
         """Wszyscy userzy w danym okresie — dla `/admin/users` (wymaga `service_role`,
@@ -141,4 +151,5 @@ class UsageLimitsRepo:
             ),
             {"period_start": period_start},
         )
-        return {row.user_id: UsageLimitsRow(**row._mapping) for row in result}
+        rows = [_row_to_usage(row) for row in result]
+        return {row.user_id: row for row in rows}

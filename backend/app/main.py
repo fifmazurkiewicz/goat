@@ -24,6 +24,7 @@ from app.api.routers import (
     profile,
     results,
     templates,
+    usage,
 )
 from app.core.config import settings
 from app.core.db import service_role_connection
@@ -66,12 +67,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Allowlist jawny (docs/technical/security.md sekcja 5) + regex dla Vercel preview
-# deployments — NIGDY wildcard "*", zwłaszcza przy nagłówku Authorization.
+# Allowlist jawny (docs/technical/security.md sekcja 5) + regex dla custom domain
+# i Vercel preview — NIGDY wildcard "*", zwłaszcza przy nagłówku Authorization.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
-    allow_origin_regex=r"https://.*\.vercel\.app$",
+    allow_origin_regex=r"https://([a-z0-9-]+\.)?fmazurkiewicz\.dev$|https://.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -90,6 +91,7 @@ app.include_router(templates.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(profile.router, prefix="/api/v1")
 app.include_router(account.router, prefix="/api/v1")
+app.include_router(usage.router, prefix="/api/v1")
 app.include_router(results.router, prefix="/api/v1")
 app.include_router(plans.router, prefix="/api/v1")
 app.include_router(exercises.router, prefix="/api/v1")

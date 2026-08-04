@@ -274,6 +274,22 @@ class AccountUpdate(BaseModel):
     nick: str | None = Field(default=None, max_length=100)
 
 
+# ============ Usage (ADR-16) ============
+
+
+class UsageLimitsOut(BaseModel):
+    """`GET /api/v1/usage` — budżet + zużycie bieżącego okresu (badge 90% na FE)."""
+
+    user_id: str
+    period_start: date
+    period_renews_at: date
+    messages_used: int = 0
+    tokens_used: int = 0
+    plan_generations_used: int = 0
+    cost_usd_used: float = 0.0
+    usage_budget_usd: float
+
+
 # ============ Katalog ćwiczeń (ADR-14) ============
 
 ExerciseLevel = Literal["beginner", "intermediate", "advanced"]

@@ -20,6 +20,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.exceptions import NotFoundError
+from app.repositories._row_utils import stringify_uuid
 
 _SELECT_COLUMNS = """
     id, user_id, type, name, system_prompt, base_template_id, chat_model,
@@ -28,6 +29,14 @@ _SELECT_COLUMNS = """
     moderation_checked_prompt_hash, preamble_version, cloned_from_persona_id,
     active, created_at, updated_at
 """
+
+_UUID_KEYS = (
+    "id",
+    "user_id",
+    "base_template_id",
+    "plan_template_id",
+    "cloned_from_persona_id",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +68,9 @@ class PersonaRow:
 
 def _row_to_persona(row: Any) -> PersonaRow:
     mapping = dict(row._mapping)
+    for key in _UUID_KEYS:
+        if key in mapping:
+            mapping[key] = stringify_uuid(mapping[key])
     overrides = mapping.get("template_overrides")
     if isinstance(overrides, str):
         mapping["template_overrides"] = json.loads(overrides)

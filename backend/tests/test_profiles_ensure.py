@@ -24,32 +24,25 @@ def _profile_row() -> MagicMock:
     return row
 
 
-class _SelectThenEnsure:
-    """Pierwsze execute = INSERT ensure, drugie = SELECT get."""
+@pytest.mark.asyncio
+async def test_ensure_inserts_missing_profile() -> None:
+    calls: list[str] = []
 
-    def __init__(self) -> None:
-        self.calls: list[str] = []
-
-    async def __call__(self, statement: Any, params: dict[str, Any] | None = None) -> MagicMock:
+    async def execute(statement: Any, params: dict[str, Any] | None = None) -> MagicMock:
         sql = str(statement)
-        self.calls.append(sql)
+        calls.append(sql)
         result = MagicMock()
         if "INSERT INTO profiles" in sql:
-            result.one_or_none = MagicMock(return_value=None)
             return result
         result.one_or_none = MagicMock(return_value=_profile_row())
         return result
 
-
-@pytest.mark.asyncio
-async def test_ensure_inserts_missing_profile() -> None:
     conn = AsyncMock()
-    tracker = _SelectThenEnsure()
-    conn.execute = AsyncMock(side_effect=tracker)
+    conn.execute = AsyncMock(side_effect=execute)
 
     repo = ProfilesRepo(conn)
     profile = await repo.ensure("u1")
 
     assert profile.id == "u1"
-    assert any("INSERT INTO profiles" in c for c in tracker.calls)
-    assert any("SELECT" in c and "FROM profiles" in c for c in tracker.calls)
+    assert any("INSERT INTO profiles" in c for c in calls)
+    assert any("SELECT" in c and "FROM profiles" in c for c in calls)

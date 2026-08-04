@@ -11,11 +11,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.exceptions import NotFoundError
+from app.repositories._row_utils import as_float, stringify_uuid
 
 DEFAULT_MAX_ACTIVE_PERSONAS = 5
 DEFAULT_USAGE_BUDGET_USD = 10.00
@@ -33,6 +35,13 @@ class ProfileRow:
     created_at: datetime
 
 
+def _row_to_profile(row: Any) -> ProfileRow:
+    mapping = dict(row._mapping)
+    mapping["id"] = stringify_uuid(mapping["id"])
+    mapping["usage_budget_usd"] = as_float(mapping["usage_budget_usd"])
+    return ProfileRow(**mapping)
+
+
 class ProfilesRepo:
     def __init__(self, conn: AsyncConnection) -> None:
         self._conn = conn
@@ -43,7 +52,7 @@ class ProfilesRepo:
             {"user_id": user_id},
         )
         row = result.one_or_none()
-        return ProfileRow(**row._mapping) if row is not None else None
+        return _row_to_profile(row) if row is not None else None
 
     async def list_all(self) -> list[ProfileRow]:
         """`/admin/users` — wymaga połączenia `service_role` (RLS na `profiles` daje
@@ -51,7 +60,7 @@ class ProfilesRepo:
         result = await self._conn.execute(
             text(f"SELECT {_COLUMNS} FROM profiles ORDER BY created_at DESC")
         )
-        return [ProfileRow(**row._mapping) for row in result]
+        return [_row_to_profile(row) for row in result]
 
     async def update_max_active_personas(self, user_id: str, value: int) -> ProfileRow:
         """`PATCH /admin/users/{user_id}/persona-limit` (ADR-12). Zakres 0-50 egzekwowany
@@ -70,7 +79,7 @@ class ProfilesRepo:
         row = result.one_or_none()
         if row is None:
             raise NotFoundError(f"Profil dla user_id={user_id!r} nie istnieje.")
-        return ProfileRow(**row._mapping)
+        return _row_to_profile(row)
 
     async def update_usage_budget(self, user_id: str, value: float) -> ProfileRow:
         """`PATCH /admin/users/{user_id}/usage-budget` (ADR-16) — wzorzec identyczny
@@ -88,7 +97,7 @@ class ProfilesRepo:
         row = result.one_or_none()
         if row is None:
             raise NotFoundError(f"Profil dla user_id={user_id!r} nie istnieje.")
-        return ProfileRow(**row._mapping)
+        return _row_to_profile(row)
 
     async def ensure(self, user_id: str) -> ProfileRow:
         """Tworzy brakujący wiersz `profiles` (np. po wipe DB gdy auth.users zostali).
@@ -126,4 +135,4 @@ class ProfilesRepo:
         row = result.one_or_none()
         if row is None:
             raise NotFoundError(f"Profil dla user_id={user_id!r} nie istnieje.")
-        return ProfileRow(**row._mapping)
+        return _row_to_profile(row)
