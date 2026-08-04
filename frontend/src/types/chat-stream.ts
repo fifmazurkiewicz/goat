@@ -38,7 +38,8 @@ export interface ChatStreamErrorEvent {
 // nagłówek z nazwą/awatarem persony zanim przyjdzie treść.
 export interface ChatStreamPersonaTurnStartEvent {
   type: "persona_turn_start";
-  persona_id: string;
+  /** `null` dla Goata (Kierownik Zespołu) — ADR-17 */
+  persona_id: string | null;
   persona_label: string;
 }
 
@@ -51,7 +52,7 @@ export type PersonaStatusPhase = "thinking" | "writing" | "tool" | "wrapping_up"
 
 export interface ChatStreamPersonaStatusEvent {
   type: "persona_status";
-  persona_id: string;
+  persona_id: string | null;
   persona_label: string;
   phase: PersonaStatusPhase;
   message: string;
@@ -66,7 +67,7 @@ export interface ChatStreamTeamPhaseEvent {
 
 export interface ChatStreamPersonaTurnEndEvent {
   type: "persona_turn_end";
-  persona_id: string;
+  persona_id: string | null;
   persona_label: string;
 }
 

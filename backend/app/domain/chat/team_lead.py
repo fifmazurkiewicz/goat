@@ -18,22 +18,142 @@ from app.domain.chat.routing import (
     RoutingResult,
     parse_multi_slash_command,
 )
+from app.domain.chat.persona_scope import routing_persona_line
 
 logger = structlog.get_logger(__name__)
 
-TEAM_LEAD_SYSTEM = """Jesteś Kierownikiem Zespołu Trenerów w aplikacji coachingowej.
-User widzi odpowiedzi poszczególnych trenerów — NIE widzi Ciebie.
+TEAM_LEAD_NAME = "Goat"
+TEAM_LEAD_ROLE_LABEL = "Kierownik Zespołu"
+TEAM_LEAD_DISPLAY_LABEL = f"{TEAM_LEAD_NAME} · {TEAM_LEAD_ROLE_LABEL}"
+TEAM_LEAD_PERSONA_ID = "__team_lead__"
+
+TEAM_LEAD_PLAN_BEHAVIOR = """Jesteś Goat — Kierownikiem Zespołu Trenerów. User widzi Cię przy operacjach
+na planie (harmonizacja trening + dieta + motoryka w zakładce Plany).
+
+Gdy user prosi o plan tygodnia/miesiąca lub przebudowę planu:
+1. Wywołaj rebuild_plan z poprawnym period_type i start_date (ISO).
+2. Potwierdź po polsku, co uruchomiłeś i że wynik pojawi się w zakładce Plany.
+3. Możesz streścić szkielet tygodnia na wysokim poziomie — bez udawania dietetyka/trenera.
+4. Nie wołaj log_result ani update_user_profile — to rola trenerów."""
+
+TEAM_LEAD_SYSTEM = """Jesteś Kierownikiem Zespołu Trenerów (Goat) w aplikacji coachingowej.
+Przy zwykłych pytaniach user NIE widzi Cię — odpowiadają trenerzy. Przy prośbie o plan
+tygodnia/miesiąca to Ty (Goat) koordynujesz rebuild_plan i potwierdzasz userowi.
 
 Twoje zadanie na podstawie wiadomości usera:
 1. Wybierz 1–{max_n} trenerów (po id), którzy powinni SEKWENCYJNIE odpowiedzieć.
 2. Dla każdego wybranego trenera napisz krótki brief (po polsku): co ma uwzględnić,
-   jakie dane zebrać, czy ma użyć narzędzi (log_result, get_plan, upsert_plan_items, rebuild_plan).
-3. Jeśli user prosi o plan tygodnia/miesiąca — w briefie wskaż rebuild_plan u pierwszego
-   trenera lub kierownika operacji (ten kto ma najszerszy obraz).
-4. Wybierz WIĘCEJ niż jednego trenera tylko gdy pytanie realnie wymaga kilku ról.
+   jakie dane zebrać, czy ma użyć narzędzi (log_result, get_plan, upsert_plan_items).
+   NIE wskazuj rebuild_plan trenerom — plan uruchamia Goat osobno.
+3. Wybierz WIĘCEJ niż jednego trenera tylko gdy pytanie realnie wymaga kilku ról.
 
 Trenerzy NIE widzą nawzajem historii — dostaną Twój brief i podsumowania poprzednich
-w tej turze. Koordynuj spójnie (np. dietetyk + trener przy planie)."""
+w tej turze. Koordynuj spójnie (np. dietetyk + trener przy szczegółach diety/treningu)."""
+
+
+PERSONA_TYPE_LABELS_PL: dict[str, str] = {
+    "personal_trainer": "Trener personalny",
+    "dietitian": "Dietetyk",
+    "sport_psychologist": "Psycholog sportowy",
+    "psychologist": "Psycholog",
+    "motor_coach": "Trener motoryczny",
+    "badminton_coach": "Trener badmintona",
+    "custom": "Własna persona",
+    "team_lead": TEAM_LEAD_ROLE_LABEL,
+}
+
+
+def persona_display_label(persona: PersonaLike) -> str:
+    role = PERSONA_TYPE_LABELS_PL.get(persona.type, persona.type)
+    return f"{persona.name} · {role}"
+
+
+def user_requests_plan_rebuild(message: str) -> bool:
+    lower = message.lower()
+    needles = (
+        "plan na",
+        "ułóż plan",
+        "ulóż plan",
+        "ułóz plan",
+        "zharmonizowany plan",
+        "przebuduj plan",
+        "plan tygodnia",
+        "plan miesiąca",
+        "generuj plan",
+        "stwórz plan",
+        "zaplanuj mi",
+        "harmoniz",
+        "w zakładce plany",
+    )
+    return any(n in lower for n in needles)
+
+
+def is_plan_coordination_only(message: str) -> bool:
+    """Heurystyka: prośba głównie o plan, bez osobnego pytania merytorycznego do trenera."""
+    if not user_requests_plan_rebuild(message):
+        return False
+    lower = message.lower()
+    detail_markers = (
+        "co jeść",
+        "co jem",
+        "makro",
+        "technika",
+        "jak trenować",
+        " ćwiczen",
+        "contuzj",
+        "kontuzj",
+        "psychik",
+        "motywac",
+    )
+    return not any(m in lower for m in detail_markers)
+
+
+def build_plan_only_consultation(
+    *, message: str, active_personas: list[PersonaLike]
+) -> ConsultationPlan | None:
+    """Plan-only bez LLM konsultacji — oszczędność kosztu gdy i tak odpowiada tylko Goat."""
+    slash_match = parse_multi_slash_command(message, active_personas)
+    content = slash_match[1] if slash_match else message
+    if not (user_requests_plan_rebuild(content) and is_plan_coordination_only(content)):
+        return None
+
+    status = "Goat uruchamia plan w zakładce Plany…"
+    brief = "Plan-only — Goat koordynuje harmonizację w zakładce Plany."
+
+    if slash_match:
+        personas, rest = slash_match
+        invoked: Literal["slash_command", "multi_slash"] = (
+            "multi_slash" if len(personas) > 1 else "slash_command"
+        )
+        return ConsultationPlan(
+            persona_ids=[p.id for p in personas],
+            invoked_via=invoked,
+            content=rest,
+            team_brief=brief,
+            per_persona_briefs={},
+            status_message=status,
+        )
+
+    return ConsultationPlan(
+        persona_ids=[active_personas[0].id],
+        invoked_via="auto_routed",
+        content=content,
+        team_brief=brief,
+        per_persona_briefs={},
+        status_message=status,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class TeamLeadSpeaker:
+    """Wirtualna persona Goata — widoczna w UI przy operacjach na planie."""
+
+    id: str = TEAM_LEAD_PERSONA_ID
+    name: str = TEAM_LEAD_NAME
+    type: str = "team_lead"
+    system_prompt: str = TEAM_LEAD_PLAN_BEHAVIOR
+    base_template_id: None = None
+    persona_constraints: None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +172,10 @@ class TeamLeadLLMProtocol(Protocol):
     ) -> dict: ...
 
 
+class TeamLeadChatRepoProtocol(Protocol):
+    async def get_last_responding_persona(self, session_id: str) -> str | None: ...
+
+
 def _first_sentence(text: str, *, max_length: int = 160) -> str:
     stripped = text.strip()
     for sep in (".", "!", "?", "\n"):
@@ -64,12 +188,23 @@ def _first_sentence(text: str, *, max_length: int = 160) -> str:
 class TeamLeadService:
     """Plan konsultacji przed turą person w sesji `general`."""
 
-    def __init__(self, llm_client: TeamLeadLLMProtocol, *, chat_model: str) -> None:
+    def __init__(
+        self,
+        llm_client: TeamLeadLLMProtocol,
+        *,
+        chat_model: str,
+        chat_repo: TeamLeadChatRepoProtocol | None = None,
+    ) -> None:
         self._llm_client = llm_client
         self._chat_model = chat_model
+        self._chat_repo = chat_repo
 
     async def plan_consultation(
-        self, *, message: str, active_personas: list[PersonaLike]
+        self,
+        *,
+        message: str,
+        active_personas: list[PersonaLike],
+        session_id: str | None = None,
     ) -> ConsultationPlan:
         if not active_personas:
             raise ValueError("plan_consultation wymaga co najmniej jednej aktywnej persony.")
@@ -101,15 +236,25 @@ class TeamLeadService:
                 status_message=f"{p.slug} analizuje…",
             )
 
-        return await self._classify_with_briefs(message=message, active_personas=active_personas)
+        return await self._classify_with_briefs(
+            message=message, active_personas=active_personas, session_id=session_id
+        )
 
     async def _classify_with_briefs(
-        self, *, message: str, active_personas: list[PersonaLike]
+        self,
+        *,
+        message: str,
+        active_personas: list[PersonaLike],
+        session_id: str | None = None,
     ) -> ConsultationPlan:
         ids = [p.id for p in active_personas]
         max_n = min(len(ids), CHAT_MAX_PERSONAS_PER_TURN)
         roster = "\n".join(
-            f"- id={p.id} | slug={p.slug} | typ={p.type} | {_first_sentence(p.system_prompt)}"
+            routing_persona_line(
+                persona_id=p.id,
+                persona_type=p.type,
+                first_sentence=_first_sentence(p.system_prompt),
+            )
             for p in active_personas
         )
         json_schema = {
@@ -176,12 +321,17 @@ class TeamLeadService:
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("team_lead_consultation_failed", error=str(exc))
+            fallback_id = ids[0]
+            if session_id and self._chat_repo is not None:
+                last = await self._chat_repo.get_last_responding_persona(session_id)
+                if last is not None and last in ids:
+                    fallback_id = last
             return ConsultationPlan(
-                persona_ids=[ids[0]],
+                persona_ids=[fallback_id],
                 invoked_via="auto_routed",
                 content=message,
                 team_brief="Fallback — odpowiedz jako pierwszy dostępny trener.",
-                per_persona_briefs={ids[0]: "Odpowiedz na pytanie usera."},
+                per_persona_briefs={fallback_id: "Odpowiedz na pytanie usera."},
                 status_message="Przygotowuję odpowiedź…",
             )
 

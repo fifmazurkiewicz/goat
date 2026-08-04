@@ -111,6 +111,7 @@ chat_sessions (
   persona_id uuid FK nullable,       -- ADR-13: NULL gdy session_type='general'
   session_type text default 'persona', -- 'persona' (1:1, NOT NULL persona_id) | 'general' (auto-routing, NULL persona_id)
   title text,
+  turn_in_progress boolean not null default false,  -- 0008: tura czatu w tle (SSE disconnect ≠ cancel)
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 )
@@ -126,9 +127,24 @@ chat_messages (
   persona_id uuid FK nullable,  -- ADR-13: atrybucja per wiadomość. W sesji 'general' różne wiadomości
                                  -- assistant/tool mogą mieć różny persona_id; w sesji 'persona' kopiuje
                                  -- session.persona_id (spójny odczyt niezależnie od typu sesji).
-  invoked_via text nullable,    -- ADR-13: 'auto_routed' | 'slash_command' | NULL (np. dla wiadomości usera)
+  invoked_via text nullable,    -- ADR-13/17: 'auto_routed' | 'slash_command' | 'multi_slash' | NULL
   created_at timestamptz default now()
 )
+
+-- ============ BACKGROUND JOBS (0008) ============
+background_jobs (
+  id uuid PK,
+  user_id uuid FK,
+  job_type text,     -- 'plan_generate' | 'plan_harmonize' | 'chat_title'
+  status text,       -- 'pending' | 'running' | 'success' | 'error'
+  payload jsonb,
+  error_message text,
+  attempts int,
+  created_at timestamptz,
+  started_at timestamptz,
+  finished_at timestamptz
+)
+-- RLS: user_id = auth.uid(). Indeksy: (user_id, status), pending/running.
 
 -- ============ WYNIKI ============
 results (

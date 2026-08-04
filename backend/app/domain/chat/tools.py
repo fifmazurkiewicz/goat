@@ -220,6 +220,21 @@ def get_chat_tools() -> list[dict[str, Any]]:
     ]
 
 
+def get_trainer_chat_tools() -> list[dict[str, Any]]:
+    """Trenerzy — bez rebuild_plan (harmonizację uruchamia Goat)."""
+    return [
+        t
+        for t in get_chat_tools()
+        if t.get("function", {}).get("name") != "rebuild_plan"
+    ]
+
+
+def get_team_lead_plan_tools() -> list[dict[str, Any]]:
+    """Goat (kierownik) — tylko odczyt/ przebudowa planu, bez log_result ani profilu."""
+    allowed = {"get_plan", "rebuild_plan"}
+    return [t for t in get_chat_tools() if t.get("function", {}).get("name") in allowed]
+
+
 def build_profile_intake_instruction(profile: UserProfileOut | None) -> str | None:
     """Dynamiczny segment system promptu (ai-pipeline.md sekcja 0) — `None` gdy profil
     kompletny (nic do doklejenia). Wołane przez `ContextBuilder` przy KAŻDEJ wiadomości,

@@ -19,11 +19,12 @@
 - Stack: frontend Vite + React (Vercel), backend FastAPI (Render), Supabase Cloud (Postgres + Auth), OpenRouter, DNS Cloudflare.
 - Domeny: `goat.fmazurkiewicz.dev` (FE), `api-goat.fmazurkiewicz.dev` (API); prod Supabase project id: `dynkfllyfykudfxymmtc`.
 - Monorepo: `backend/`, `frontend/`, `supabase/migrations/`, docs w `docs/` (`cloud-setup.md` = aktualny deploy).
-- Migracje cloud: SQL Editor — re-init: `supabase/reset_public.sql` → `0001_init.sql` → `0002_exercise_catalog.sql` (bez 0003; safety w `app_private`); bieganie pod motorykę: `0007_running_metrics_strength.sql` (`strength`).
+- Migracje cloud: SQL Editor — re-init: `supabase/reset_public.sql` → `0001_init.sql` → `0002_exercise_catalog.sql` (bez 0003; safety w `app_private`); bieganie pod motorykę: `0007_running_metrics_strength.sql`; role boundaries: `0009_persona_role_boundaries.sql`; drop `chat_model`: `0010_drop_personas_chat_model.sql`; multi-slash invoked_via: `0011_invoked_via_multi_slash.sql`.
+- **Goat (Kierownik Zespołu):** koordynuje sesję `general`; widoczny przy prośbie o plan; `rebuild_plan` wyłącznie u Goata; docs: `docs/technical/team-lead.md`, ADR-17.
 - `motor_coach` → kategoria wyników `strength` (UI: zakładka Trening); bez osobnej kategorii `running`/`cardio`.
 - Prompt persony: user edytuje tylko zachowanie (`system_prompt`); lekarz/leki/red flags w `app_private.persona_template_safety` + preambuł; w prompcie czatu data dnia (Europe/Warsaw).
 - Vercel SPA: `frontend/vercel.json` z rewrite `/(.*) → /index.html` — bez tego odświeżenie `/personas`, `/settings` itd. daje `404` na CDN.
 - Na Render `DATABASE_URL` musi iść przez Supabase Connection pooler (Supavisor, port 6543); bezpośredni `db.<ref>.supabase.co` daje `Network is unreachable` (IPv6); lokalnie: `postgresql+asyncpg://…@localhost:5432/goat` (bez poolera).
 - Cloudflare CNAME dla `goat` / `api-goat`: Proxy status = DNS only (szara chmura); w polach Name/Target bez `https://`.
 - Jedyny admin: `fmazurkiewicz@gmail.com` (allowlist); `/account` = nick (ADR-15), `/profile` = biometria; `ProfilesRepo.ensure()` przed zapisem; asyncpg: UUID→str w DTO, jsonb przez `CAST(:param AS jsonb)`.
-- Chat tools: `log_result`, `update_user_profile`, `get_plan`, `upsert_plan_items`, `rebuild_plan` (przebudowa = pipeline 3 etapów); SSE statusy PL na FE; routing general może zwrócić 1..N person sekwencyjnie (multi-slash / klasyfikator, max 3); layout czatu: AppShell `h-svh`, scroll tylko w MessageList.
+- Chat tools: `log_result`, `update_user_profile`, `get_plan`, `upsert_plan_items`; **`rebuild_plan` tylko Goat** (sesja general); SSE statusy PL na FE; Goat · Kierownik Zespołu przy harmonizacji planu; routing general może zwrócić 1..N person sekwencyjnie (multi-slash / klasyfikator Goat, max 3); layout czatu: AppShell `h-svh`, scroll tylko w MessageList.

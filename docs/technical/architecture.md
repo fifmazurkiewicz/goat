@@ -98,39 +98,36 @@ async def chat_stream_endpoint(request: Request, ...):
 ### 3a. "Ogólna rozmowa" — auto-routing i wywołanie persony komendą `/slug` (ADR-13)
 
 Obok sesji `persona` (1:1, opisanej wyżej — bez zmian w jej logice) istnieje sesja `general`
-(`chat_sessions.session_type='general'`, `persona_id IS NULL`). W sesji `general` backend musi
-najpierw wybrać DOKŁADNIE JEDNĄ personę, która odpowie na daną wiadomość, zanim uruchomi dokładnie
-tę samą pętlę co dla sesji `persona`:
+(`chat_sessions.session_type='general'`, `persona_id IS NULL`). W sesji `general` backend
+**najpierw koordynuje turę przez Kierownika Zespołu (Goat, ADR-17)**, potem deleguje do 1..N
+trenerów sekwencyjnie (max 3):
 
-1. **Parsowanie `/slug`** — deterministyczne, zero LLM: regex na starcie treści wiadomości
-   (`^/([a-z0-9_]+)\s+(.+)`), lookup po `personas.slug` wśród aktywnych person usera. Trafienie →
-   persona wywołana wprost (`invoked_via='slash_command'`), reszta treści (bez prefiksu) trafia do
-   `ChatOrchestrator.handle_message` jak zwykła wiadomość.
-2. **Brak `/slug` → routing klasyfikatorem** (`ChatRoutingService`, `app/domain/chat/routing.py`) —
-   jedno tanie wywołanie `chat_model` (nie `PLANNER_MODEL`) z `response_format: json_schema`
-   zwracającym `{persona_id: str}`. Input: krótkie opisy ról aktywnych person (kicker + pierwsze
-   zdanie `system_prompt`), NIE pełne system prompty — koszt i latencja mają zostać na poziomie
-   zwykłego czatu, nie generowania planu.
-3. **Fallback przy niepewnym/braku trafienia:** persona, która ostatnio odpowiadała w tej sesji
-   `general`; jeśli to pierwsza wiadomość sesji — pierwsza aktywna persona usera. Brak dodatkowego
-   pytania zwrotnego do usera w MVP (deterministyczne, przewidywalne zachowanie).
-4. Wybrana persona odpowiada przez **niezmieniony** `ChatOrchestrator.handle_message` —
-   `invoked_via='auto_routed'` zapisywane razem z wiadomością. Routing to wyłącznie krok PRZED tym
-   wywołaniem, nie osobna ścieżka logiki tool-callingu/streamingu.
-5. Backend emituje `persona_turn_start {persona_id, persona_label}` do kolejki PRZED pierwszym
-   tokenem **każdej** tury persony — przy multi-reply (1..N person sekwencyjnie, max 3) event
-   powtarza się N razy; `done` jest emitowane **raz** na końcu całej tury użytkownika.
-   Frontend po kolejnym `persona_turn_start` finalizuje poprzednią odpowiedź do cache historii.
-6. `ContextBuilder` budując prompt dla persony X w sesji `general` filtruje historię: wszystkie
-   `role='user'` (wspólne dla wszystkich person w tej sesji) + `role in ('assistant','tool')` WHERE
-   `chat_messages.persona_id = X` — inaczej persona X "widziałaby" w kontekście odpowiedzi innych
-   person jako własne, co psuje spójność głosu i tool-callingu.
+1. **`TeamLeadService.plan_consultation`** — wybór person + brief per trener:
+   - **Parsowanie `/slug` / multi-slash** — deterministyczne, zero LLM (`parse_multi_slash_command`).
+   - **Dokładnie jedna aktywna persona** — bez LLM kierownika.
+   - **≥2 aktywne persony, brak slashy** — jedno wywołanie `chat_model` z `json_schema`
+     (`persona_ids[]`, `team_brief`, `per_persona_briefs`, `status_message`).
+   - Emitowane: `team_phase` (`planning` → `delegating`), `team_status`.
+2. **Opcjonalna tura Goata (widoczna w UI)** — gdy `user_requests_plan_rebuild(content)`:
+   - `TeamLeadSpeaker` woła `rebuild_plan`; etykieta SSE/DB: **„Goat · Kierownik Zespołu”**,
+     `persona_id IS NULL`.
+   - Gdy `is_plan_coordination_only` — po Goacie samo `done` (trenerzy pominięci).
+3. **Pętla trenerów** — każda persona przez `ChatOrchestrator.handle_message` z
+   `build_consultation_user_message` (brief + rekomendacje poprzednich w tej turze).
+   Narzędzia: `get_trainer_chat_tools()` — **bez** `rebuild_plan`.
+4. Backend emituje `persona_turn_start {persona_id, persona_label}` przed tokenami **każdej**
+   tury (Goat: `persona_id=null`); `done` **raz** na końcu tury usera.
+5. `ContextBuilder` filtruje historię per `persona_id` trenera (Goat: pełna historia sesji
+   `general` bez filtra persona).
 
-**Aktualizacja (2026-08-04):** routing może zwrócić wiele `persona_ids` (klasyfikator lub
+Szczegóły: `docs/technical/team-lead.md`. Legacy `ChatRoutingService` (`routing.py`) nie jest
+wołany z orchestratora — do deprecacji (P2).
+
+**Aktualizacja (2026-08-04):** routing może zwrócić wiele `persona_ids` (klasyfikator Goat lub
 multi-slash `/a /b treść`). Świadomie odrzucone: równoległe / przeplatane tokeny.
 
-Narzędzia czatu obejmują też `get_plan` / `upsert_plan_items` / `rebuild_plan` (zapis w zakładce
-Plany + pełny pipeline 3-etapowy przy przebudowie).
+Narzędzia czatu: trenerzy — `get_plan`, `upsert_plan_items`, `log_result`, profil; Goat —
+`get_plan`, `rebuild_plan` (pipeline 3-etapowy).
 
 ## 4. Generowanie planu — pipeline (decyzja: priorytet to SYNCHRONIZACJA między personami)
 

@@ -1,7 +1,9 @@
 # Design: Kierownik zespołu, tytuły rozmów, tło czatu
 
 **Data:** 2026-08-04  
-**Status:** wdrożone (faza 1 + faza 2)
+**Status:** wdrożone (faza 1 + faza 2) + **odchylenie ADR-17** (Goat widoczny przy planie)
+
+> **Kanon:** [docs/technical/team-lead.md](../../technical/team-lead.md) · **Audyt:** [docs/technical/audits/2026-08-04-goat-team-lead-audit.md](../../technical/audits/2026-08-04-goat-team-lead-audit.md)
 
 ## Analiza zespołu ekspertów (synteza)
 
@@ -26,7 +28,7 @@
 
 | Temat | Decyzja |
 |-------|---------|
-| Kierownik zespołu | Systemowa persona (prompt w kodzie), niewidoczna; UI nadal „Ogólna rozmowa” |
+| Kierownik zespołu | Systemowa persona (prompt w kodzie); **widoczny jako „Goat · Kierownik Zespołu”** przy operacjach na planie; przy zwykłych pytaniach niewidoczny |
 | Flow ogólnej rozmowy | (1) kierownik planuje konsultację → (2) status „Uzgodniam z…” → (3) trenerzy odpowiadają sekwencyjnie z briefem + rekomendacjami poprzednich → (4) `done` |
 | Tytuł rozmowy | Auto z pierwszych ~60 znaków pierwszej wiadomości usera; edycja PATCH; PPM → „Zmień tytuł” / „Usuń” |
 | Tło | BE nie anuluje orchestratora przy disconnect SSE; FE: globalny runner w AppShell (jak plan jobs) |
@@ -54,11 +56,23 @@ Istniejące: `persona_turn_start`, `token`, `tool_call_start`, `tool_result`, `d
 
 - Pełna tabela `chat_turn_jobs` w Postgres (Render Free = jedna instancja; rejestr in-memory wystarczy na start).
 - Równoległe odpowiedzi trenerów (zostaje sekwencja).
-- Widoczne wiadomości kierownika w czacie (user widzi tylko trenerów).
+- Widoczne wiadomości kierownika w czacie przy **operacjach na planie** (Goat); przy zwykłych pytaniach user widzi tylko trenerów.
 
 ## ADR (propozycja)
 
 **ADR-17:** Sesja `general` jest koordynowana przez systemowego Kierownika Zespołu przed delegacją do person użytkownika. Routing slash/multi-slash pozostaje deterministyczny (pomija kierownika).
+
+### Znane trade-offy (ADR-17, 2026-08-04)
+
+| Scenariusz | Zachowanie |
+|------------|------------|
+| Plan-only bez pytań merytorycznych | Tylko Goat (`is_plan_coordination_only`) — trenerzy pominięci, nawet przy multi-slash |
+| Plan-only | `build_plan_only_consultation` pomija LLM konsultacji (1 wywołanie mniej) |
+| Multi-slash + plan-only | Slash wybiera persony w routingu, ale tura kończy się po Goacie |
+| Retry streamu | Nie idempotentny dla `rebuild_plan` — może powtórzyć job planu |
+| Sesja persona 1:1 | Brak Goata i `rebuild_plan` — harmonizacja przez Ogólną rozmowę lub zakładkę Plany |
+
+Legacy `ChatRoutingService` zastąpiony przez `TeamLeadService` — do usunięcia w P2.
 
 ---
 

@@ -253,3 +253,43 @@ usunięta.
 **Konsekwencje:** panel admina pokazuje `cost_usd_used`/`usage_budget_usd` (kwota + edytowalny limit),
 BEZ etykiet "Free"/"Pro". Wymaga rozszerzenia `ai-pipeline.md` o sposób liczenia kosztu z cennika
 OpenRoutera i utrzymywania cache'u cen modeli.
+
+---
+
+## ADR-17: Kierownik Zespołu (Goat) — koordynacja sesji `general`
+
+**Status:** zaakceptowane (wdrożone 2026-08-04).
+
+**Kontekst:** W sesji `general` (ADR-13) klasyfikator routingu wybierał persony, ale każda
+odpowiadała w izolacji — bez briefu kierownika i bez podsumowań poprzednich trenerów w tej samej
+turze. Trenerzy nie widzą historii innych person (`ContextBuilder` filtruje po `persona_id`).
+User oczekuje spójnej odpowiedzi zespołu; operacje na planie mają być zsynchronizowane między
+rolami (ADR-2), nie rozproszone między trenerami (wcześniej dietetyk uruchamiał `rebuild_plan`).
+
+**Decyzja:**
+
+- **Goat** — systemowa rola (`TeamLeadService`, `TeamLeadSpeaker`, prompt w kodzie). Nie jest
+  personą usera w DB ani w galerii onboardingu.
+- **Przed delegacją** (sesja `general`, brak slashy, ≥2 aktywne persony): jedno wywołanie
+  `chat_model` z `json_schema` zwraca `persona_ids[]`, `team_brief`, `per_persona_briefs`,
+  `status_message`. Trenerzy dostają segmenty `[BRIEF…]` i `[REKOMENDACJE…]` (niewidoczne w UI).
+- **Bypass deterministyczny** (bez LLM kierownika): `/slug`, multi-slash, dokładnie jedna aktywna
+  persona — zachowanie zgodne z ADR-13 dla wyboru person.
+- **Widoczność:** przy zwykłych pytaniach user widzi tylko trenerów. Przy prośbie o plan
+  tygodnia/miesiąca (`user_requests_plan_rebuild`) Goat odpowiada widocznie jako
+  **„Goat · Kierownik Zespołu”**, woła `rebuild_plan`. Gdy prośba dotyczy wyłącznie planu
+  (`is_plan_coordination_only`), tura kończy się po Goacie — bez kolejnych trenerów.
+- **Narzędzia:** Goat — `get_plan`, `rebuild_plan`; trenerzy — reszta **bez** `rebuild_plan`
+  (`get_trainer_chat_tools`).
+- **Granice ról:** `[ZAKRES ROLI]` (`persona_scope.py`) + overlay safety (migracja `0009`).
+- **Kontekst:** `ContextBuilder` dokleja `[PLAN TRENINGOWY]` i `[OSTATNIE WYNIKI UŻYTKOWNIKA]`.
+- **SSE:** `team_phase`, `team_status`, `persona_status`, `persona_turn_end`, `turn_complete`;
+  `persona_id: null` dla Goata w `persona_turn_start` / persistencji.
+- **Tura w tle:** `chat_sessions.turn_in_progress`; disconnect SSE nie anuluje orkiestratora;
+  FE: globalny `useChatTurnRunner` w AppShell.
+
+**Konsekwencje:** +1 wywołanie LLM na turę `general` (planning/consultation). ADR-13 pozostaje
+źródłem prawdy dla modelu sesji, multi-reply (max 3, sekwencyjnie) i filtrowania historii.
+Dokumentacja kanoniczna: `docs/technical/team-lead.md`. Audyt: `docs/technical/audits/2026-08-04-goat-team-lead-audit.md`.
+
+**Supersedes:** fragment design spec „kierownik niewidoczny” → widoczny przy operacjach na planie.

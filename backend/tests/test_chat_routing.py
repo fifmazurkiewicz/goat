@@ -1,14 +1,25 @@
-"""Testy `ChatRoutingService` — multi-slash + classifier `persona_ids[]` (ADR-13 multi)."""
+"""Testy `ChatRoutingService` — multi-slash + classifier `persona_ids[]` (ADR-13 multi).
+
+Legacy: `ChatRoutingService` jest deprecated (ADR-17); testy utrzymują regresję parsera slash.
+"""
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
+
+import pytest
 
 from app.domain.chat.routing import (
     ChatRoutingService,
     parse_multi_slash_command,
     parse_slash_command,
 )
+
+
+@pytest.fixture(autouse=True)
+def _ignore_routing_deprecation() -> None:
+    warnings.simplefilter("ignore", DeprecationWarning)
 
 
 @dataclass(frozen=True, slots=True)

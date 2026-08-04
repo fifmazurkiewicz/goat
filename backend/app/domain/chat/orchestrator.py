@@ -30,11 +30,17 @@ from app.domain.chat.plan_tools import ChatPlanToolsService
 from app.domain.chat.team_lead import (
     ConsultationPlan,
     TeamLeadService,
+    TeamLeadSpeaker,
+    TEAM_LEAD_DISPLAY_LABEL,
     build_consultation_user_message,
+    build_plan_only_consultation,
     consultation_to_routing,
+    is_plan_coordination_only,
+    persona_display_label,
+    user_requests_plan_rebuild,
 )
 from app.domain.jobs.runner import enqueue_chat_title_async
-from app.domain.chat.tools import get_chat_tools
+from app.domain.chat.tools import get_team_lead_plan_tools, get_trainer_chat_tools
 from app.domain.results.metrics_cache import allowed_metrics_cache
 from app.domain.results.service import ResultsService
 from app.domain.usage.service import UsageLimitService
@@ -86,8 +92,14 @@ async def _emit_persona_status(
     phase: str,
     message: str | None = None,
     tool_name: str | None = None,
+    label: str | None = None,
 ) -> None:
-    label = getattr(persona, "name", "Trener")
+    display = label or (
+        TEAM_LEAD_DISPLAY_LABEL
+        if getattr(persona, "type", None) == "team_lead"
+        else persona_display_label(persona)
+    )
+    persona_id = None if getattr(persona, "type", None) == "team_lead" else persona.id
     if message is None:
         template = _PERSONA_PHASE_MESSAGES.get(phase, "{name} pracuje…")
         action = ""
@@ -100,18 +112,22 @@ async def _emit_persona_status(
                 "rebuild_plan": "uzgadnia plan",
             }
             action = labels.get(tool_name, "wykonuje akcję")
-        message = template.format(name=label, action=action)
+        message = template.format(name=display.split(" · ")[0], action=action)
     await _emit(
         queue,
         "persona_status",
         {
-            "persona_id": persona.id,
-            "persona_label": label,
+            "persona_id": persona_id,
+            "persona_label": display,
             "phase": phase,
             "message": message,
             **({"tool_name": tool_name} if tool_name else {}),
         },
     )
+
+
+def _persist_persona_id(persona: Any) -> str | None:
+    return None if getattr(persona, "type", None) == "team_lead" else persona.id
 
 
 async def _emit_team_phase(
@@ -253,7 +269,7 @@ class ChatOrchestrator:
         )
 
         template_safety: str | None = None
-        if persona.base_template_id:
+        if persona.type != "team_lead" and persona.base_template_id:
             async with service_role_connection() as sconn:
                 template_safety = await PersonaTemplatesRepo(sconn).get_safety_prompt(
                     persona.base_template_id
@@ -284,7 +300,9 @@ class ChatOrchestrator:
                 plan_items=plan_items,
             )
             history = await context_builder.build_message_history(
-                session_id=session_id, session_type=session_type, persona_id=persona.id
+                session_id=session_id,
+                session_type=session_type,
+                persona_id=None if persona.type == "team_lead" else persona.id,
             )
 
         messages: list[dict[str, Any]] = [
@@ -292,7 +310,7 @@ class ChatOrchestrator:
             *history,
             {"role": "user", "content": user_message},
         ]
-        tools = get_chat_tools()
+        tools = get_team_lead_plan_tools() if persona.type == "team_lead" else get_trainer_chat_tools()
         fallback_models = [
             m.strip()
             for m in settings.openrouter_chat_model_fallbacks.split(",")
@@ -345,7 +363,12 @@ class ChatOrchestrator:
                     if not emitted_tool_call_start and buffer.name:
                         emitted_tool_call_start = True
                         await _emit(
-                            queue, "tool_call_start", {"name": buffer.name, "persona_id": persona.id}
+                            queue,
+                            "tool_call_start",
+                            {
+                                "name": buffer.name,
+                                "persona_id": _persist_persona_id(persona),
+                            },
                         )
                         await _emit_persona_status(
                             queue, persona=persona, phase="tool", tool_name=buffer.name
@@ -397,7 +420,7 @@ class ChatOrchestrator:
                     session_id=session_id,
                     content=assistant_content,
                     tool_calls=None,
-                    persona_id=persona.id,
+                    persona_id=_persist_persona_id(persona),
                 )
                 await chat_repo.touch_session(session_id)
 
@@ -490,7 +513,7 @@ class ChatOrchestrator:
                 session_id=session_id,
                 content=assistant_content,
                 tool_calls=tool_calls_payload,
-                persona_id=persona.id,
+                persona_id=_persist_persona_id(persona),
             )
 
             results_service = ResultsService(ResultsRepo(conn), allowed_metrics_cache)
@@ -507,7 +530,7 @@ class ChatOrchestrator:
                     name=name,
                     raw_arguments=raw_arguments,
                     user_id=user_id,
-                    persona_id=persona.id,
+                    persona=persona,
                     results_service=results_service,
                     user_profile_repo=user_profile_repo,
                     plan_tools=plan_tools,
@@ -518,7 +541,7 @@ class ChatOrchestrator:
                     session_id=session_id,
                     tool_call_id=tool_call_id,
                     content=response_content,
-                    persona_id=persona.id,
+                    persona_id=_persist_persona_id(persona),
                 )
                 await _emit(
                     queue,
@@ -537,7 +560,7 @@ class ChatOrchestrator:
         name: str,
         raw_arguments: str,
         user_id: str,
-        persona_id: str,
+        persona: Any,
         results_service: ResultsService,
         user_profile_repo: UserProfileRepo,
         plan_tools: ChatPlanToolsService,
@@ -545,6 +568,13 @@ class ChatOrchestrator:
     ) -> str:
         """Błąd walidacji (JSON niepoprawny / Pydantic) wraca jako tool response, NIGDY
         wyjątek serwera (security.md §3) — niezaufany input mimo że pochodzi z modelu."""
+        if getattr(persona, "type", None) == "team_lead" and name not in {"get_plan", "rebuild_plan"}:
+            return json.dumps(
+                {"error": "Narzędzie niedostępne dla Kierownika Zespołu (Goat)."},
+                ensure_ascii=False,
+            )
+
+        persona_id = persona.id
         try:
             arguments = json.loads(raw_arguments) if raw_arguments else {}
         except json.JSONDecodeError as exc:
@@ -732,14 +762,34 @@ async def _run_chat_turn_body(
                     "rozpoczęciem ogólnej rozmowy."
                 )
             personas_by_id = {p.id: p for p in active_personas}
-            await _emit_team_phase(
-                queue, phase="planning", message="Kierownik analizuje pytanie i dobiera trenerów…"
-            )
-            team_lead = TeamLeadService(llm_client, chat_model=settings.openrouter_chat_model)
-            consultation = await team_lead.plan_consultation(
+            plan_only = build_plan_only_consultation(
                 message=user_message, active_personas=active_personas
             )
-            await _emit_team_phase(queue, phase="delegating", message=consultation.status_message)
+            if plan_only is not None:
+                consultation = plan_only
+                await _emit_team_phase(
+                    queue, phase="planning", message="Goat przygotowuje harmonizację planu…"
+                )
+                await _emit_team_phase(
+                    queue, phase="delegating", message=consultation.status_message
+                )
+            else:
+                await _emit_team_phase(
+                    queue, phase="planning", message="Kierownik analizuje pytanie i dobiera trenerów…"
+                )
+                team_lead = TeamLeadService(
+                    llm_client,
+                    chat_model=settings.openrouter_chat_model,
+                    chat_repo=chat_repo,
+                )
+                consultation = await team_lead.plan_consultation(
+                    message=user_message,
+                    active_personas=active_personas,
+                    session_id=session_id,
+                )
+                await _emit_team_phase(
+                    queue, phase="delegating", message=consultation.status_message
+                )
             routing = consultation_to_routing(consultation)
             persona_ids = list(routing.persona_ids)
             content = routing.content
@@ -784,6 +834,35 @@ async def _run_chat_turn_body(
     orchestrator = ChatOrchestrator(llm_client, claims)
     prior_summaries: list[tuple[str, str]] = []
 
+    plan_turn_handled = False
+    if session_type == "general" and user_requests_plan_rebuild(content):
+        goat = TeamLeadSpeaker()
+        await _emit(
+            queue,
+            "persona_turn_start",
+            {"persona_id": None, "persona_label": TEAM_LEAD_DISPLAY_LABEL},
+        )
+        plan_turn_handled, _ = await orchestrator.handle_message(
+            user_id=user_id,
+            session_id=session_id,
+            session_type="general",
+            persona=goat,
+            user_message=content,
+            queue=queue,
+            emit_done=False,
+            allowed_persona_ids=active_ids,
+        )
+        await _emit(
+            queue,
+            "persona_turn_end",
+            {"persona_id": None, "persona_label": TEAM_LEAD_DISPLAY_LABEL},
+        )
+        if not plan_turn_handled:
+            return
+        if is_plan_coordination_only(content):
+            await queue.put({"event": "done", "data": "{}"})
+            return
+
     for index, persona_id in enumerate(persona_ids):
         persona = personas_by_id.get(persona_id)
         if persona is None:
@@ -797,11 +876,17 @@ async def _run_chat_turn_body(
                 persona_brief=consultation.per_persona_briefs.get(persona_id),
                 prior_summaries=prior_summaries,
             )
+        if plan_turn_handled:
+            turn_message += (
+                "\n\n[NOTATKA KIEROWNIKA] Goat uruchomił już generowanie planu w zakładce Plany — "
+                "nie wołaj rebuild_plan; odpowiedz tylko ze swojego zakresu trenera."
+            )
 
+        display_label = persona_display_label(persona)
         await _emit(
             queue,
             "persona_turn_start",
-            {"persona_id": persona.id, "persona_label": persona.name},
+            {"persona_id": persona.id, "persona_label": display_label},
         )
         ok, assistant_text = await orchestrator.handle_message(
             user_id=user_id,
@@ -823,5 +908,5 @@ async def _run_chat_turn_body(
         await _emit(
             queue,
             "persona_turn_end",
-            {"persona_id": persona.id, "persona_label": persona.name},
+            {"persona_id": persona.id, "persona_label": display_label},
         )

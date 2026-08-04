@@ -18,6 +18,7 @@ def test_all_builtin_persona_types_have_scope_and_boundaries() -> None:
         "psychologist",
         "motor_coach",
         "badminton_coach",
+        "team_lead",
         "custom",
     }
     assert set(PERSONA_TYPE_SCOPE) == expected
@@ -36,6 +37,12 @@ def test_scope_block_for_trainer_redirects_diet_and_motor() -> None:
     block = build_persona_scope_block("personal_trainer")
     assert "dietetyk" in block.lower()
     assert "trener motoryczny" in block.lower()
+
+
+def test_scope_block_for_team_lead_redirects_to_trainers() -> None:
+    block = build_persona_scope_block("team_lead")
+    assert "Goat" in block or "kierownik" in block.lower() or "trener" in block.lower()
+    assert "Nie wypowiadasz się za inne persony" in block
 
 
 def test_routing_persona_line_includes_scope() -> None:

@@ -1,14 +1,15 @@
-"""`ChatRoutingService` — wybór 1..N person odpowiadających sekwencyjnie w sesji `general`
-(ADR-13 supersede: multi-persona turns, architecture.md sekcja 3a).
+"""Parsowanie slash / wspólne typy routingu sesji `general` (ADR-13).
 
-Kolejność: (1) deterministyczne parsowanie jednego lub wielu `/slug` (zero LLM),
-(2) tanie wywołanie klasyfikujące `chat_model` z `persona_ids[]`,
-(3) fallback — ostatnia odpowiadająca persona / pierwsza aktywna (lista 1-el.).
+**Produkcja:** `TeamLeadService` (`team_lead.py`) — ADR-17.
+
+`ChatRoutingService` — **deprecated** (zastąpiony przez `TeamLeadService`); moduł
+zachowuje `parse_multi_slash_command`, `RoutingResult`, `PersonaLike`.
 """
 
 from __future__ import annotations
 
 import re
+import warnings
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
@@ -114,7 +115,10 @@ def _normalize_persona_ids(raw_ids: list[str], allowlist: list[str]) -> list[str
 
 
 class ChatRoutingService:
-    """Nie zna FastAPI/HTTP — testowalna z fake LLM client + repo (architecture.md §7)."""
+    """Deprecated — użyj `TeamLeadService.plan_consultation` (ADR-17).
+
+    Zachowany dla testów regresji ADR-13; nie wołany z orchestratora.
+    """
 
     def __init__(
         self,
@@ -123,6 +127,11 @@ class ChatRoutingService:
         *,
         chat_model: str,
     ) -> None:
+        warnings.warn(
+            "ChatRoutingService jest deprecated — produkcja używa TeamLeadService (ADR-17).",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._llm_client = llm_client
         self._chat_repo = chat_repo
         self._chat_model = chat_model
@@ -130,6 +139,11 @@ class ChatRoutingService:
     async def route(
         self, *, session_id: str, message: str, active_personas: list[PersonaLike]
     ) -> RoutingResult:
+        warnings.warn(
+            "ChatRoutingService.route() jest deprecated.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         if not active_personas:
             raise ValueError("route() wymaga co najmniej jednej aktywnej persony.")
 

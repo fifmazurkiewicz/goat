@@ -18,6 +18,31 @@ describe("parseSseEvent", () => {
     });
   });
 
+  it("parsuje persona_turn_start z persona_id null (Goat, ADR-17)", () => {
+    const chunk =
+      'event: persona_turn_start\ndata: {"persona_id":null,"persona_label":"Goat · Kierownik Zespołu"}';
+    expect(parseSseEvent(chunk)).toEqual({
+      type: "persona_turn_start",
+      persona_id: null,
+      persona_label: "Goat · Kierownik Zespołu",
+    });
+  });
+
+  it("parsuje team_status i team_phase", () => {
+    expect(
+      parseSseEvent('event: team_status\ndata: {"message":"Uzgodniam z dietetykiem…"}')
+    ).toEqual({ type: "team_status", message: "Uzgodniam z dietetykiem…" });
+    expect(
+      parseSseEvent(
+        'event: team_phase\ndata: {"phase":"planning","message":"Kierownik analizuje…"}'
+      )
+    ).toEqual({
+      type: "team_phase",
+      phase: "planning",
+      message: "Kierownik analizuje…",
+    });
+  });
+
   it("parsuje tool_result", () => {
     const chunk =
       'event: tool_result\ndata: {"tool_name":"log_result","summary":"Zapisano sprint 10m: 1.8s","success":true}';

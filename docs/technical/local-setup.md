@@ -47,7 +47,7 @@ Gdybyś startował od zera tylko lokalnie (bez deployu):
 2. Supabase → **SQL** → **New query**.
 3. Wklej **całą** treść `0001_init.sql` → **Run** (musi przejść bez błędu).
 4. Nowa query → wklej **całą** treść `0002_exercise_catalog.sql` → **Run**.
-5. Kolejne migracje (jeśli jeszcze nie były na projekcie): `0007_running_metrics_strength.sql`, `0008_background_jobs.sql` — każda w osobnej query, **Run**.
+5. Kolejne migracje (jeśli jeszcze nie były na projekcie): `0007_running_metrics_strength.sql`, `0008_background_jobs.sql`, `0009_persona_role_boundaries.sql`, `0010_drop_personas_chat_model.sql`, `0011_invoked_via_multi_slash.sql` — każda w osobnej query, **Run**.
 6. **Table Editor** — powinny być m.in.:
    - `profiles`, `personas`, `persona_templates`, `plan_templates`, `allowed_metrics`
    - `chat_sessions`, `chat_messages`, `results`, `plans`, `plan_items`
@@ -174,7 +174,7 @@ API: `http://localhost:8000`
 1. `curl http://localhost:8000/api/health` → `200` / `{"status":"ok"}` (lub równoważne).
 2. Przeglądarka → `http://localhost:3000` → **Zaloguj się** (email/hasło z `DEV_AUTH_*`).
 3. Utwórz personę z szablonu.
-4. Wyślij wiadomość w czacie → streaming tokenów (SSE).
+4. **Ogólna rozmowa** → „Generuj zharmonizowany plan na sierpień” → **Goat · Kierownik Zespołu** (nie dietetyk); wynik w zakładce Plany.
 5. (Opcjonalnie) wygeneruj plan tygodniowy → status joba `success` / `partial_success`.
 6. Sprawdź `/results` i `/settings`.
 
@@ -201,7 +201,7 @@ Szczegóły nie są potrzebne przy pierwszym setupie — wróć tu dopiero gdy �
 | 1 | Projekt Supabase **`goat`** Active (zwykle już z cloud-setup) | |
 | 2 | Google OAuth w GCP + Supabase Providers | |
 | 3 | Site URL / Redirect `localhost:3000` | |
-| 4 | SQL: `0001_init` + `0002_exercise_catalog` (+ `0007`, `0008` jeśli brak) | |
+| 4 | SQL: `0001_init` + `0002` + `0007`–`0011` jeśli brak | |
 | 5 | Table Editor: tabele + seed | |
 | 6 | OpenRouter API key | |
 | 7 | `backend/.env`: localhost + `DEV_AUTH_*` (bez Supabase) | |

@@ -54,24 +54,23 @@ Fallback lista min. 2 dostawców dla `chat_model` (np. `[anthropic/claude-haiku-
 
 Orientacyjny koszt: ~$0.003/wiadomość czatu, ~$0.15-0.20/generację planu tygodniowego dla 5 person (3-etapowy pipeline).
 
-## 1a. Routing person w "Ogólnej rozmowie" (ADR-13)
+## 1a. Koordynacja Kierownika Zespołu — Goat (ADR-17)
 
-`ChatRoutingService` (`app/domain/chat/routing.py`) wybiera dokładnie jedną personę odpowiadającą w
-sesji `general`, gdy user nie użył `/slug` (parsowanie `/slug` jest deterministyczne, bez LLM — patrz
-`architecture.md` §3a).
+Produkcja używa **`TeamLeadService`** (`team_lead.py`), nie bezpośrednio `ChatRoutingService`
+(legacy — do deprecacji). Kanon: [team-lead.md](./team-lead.md).
 
-- **Model:** `chat_model` (tani/szybki — routing ma być niezauważalny kosztowo, analogicznie do
-  moderacji), NIE `PLANNER_MODEL`.
-- **Format:** `response_format: json_schema`, `{"persona_id": str}` — schemat ograniczony do ID
-  aktywnych person usera w danej sesji (enum w schemacie, nie wolny tekst — model nie może zwrócić
-  nieistniejącego ID).
-- **Input:** krótkie opisy ról aktywnych person (kicker/typ + pierwsze zdanie `system_prompt`), NIE
-  pełne system prompty — routing nie potrzebuje pełnego kontekstu persony, tylko jej domeny.
-- **Fallback** (niepewność/brak trafienia): persona ostatnio odpowiadająca w tej sesji, a przy braku
-  historii — pierwsza aktywna persona usera. Bez pytania zwrotnego do usera w MVP.
-- **Golden cases** dla routingu (analogicznie do sekcji 5 — moderacja): zestaw pytań jednoznacznie
-  przypisanych do jednej domeny (np. pytanie o dietę → dietetyk) jako regression fixture w CI,
-  metryka: accuracy trafień na zestawie referencyjnym.
+| Krok | Opis |
+|------|------|
+| Bypass | `/slug`, multi-slash, 1 aktywna persona — deterministycznie, bez LLM |
+| Plan-only | `build_plan_only_consultation` — pomija LLM gdy `is_plan_coordination_only` |
+| Konsultacja LLM | ≥2 persony, brak slashy — `json_schema`: `persona_ids[]`, briefy, `status_message` |
+| Tura Goata | `user_requests_plan_rebuild` → widoczny „Goat · Kierownik Zespołu”, `rebuild_plan` |
+| Trenerzy | `get_trainer_chat_tools()` — **bez** `rebuild_plan` |
+
+**Fallback przy błędzie LLM konsultacji:** ostatnio odpowiadająca persona w sesji (ADR-13),
+inaczej pierwsza aktywna.
+
+**Golden cases** routingu: pytanie o dietę → dietetyk; plan-only → tylko Goat.
 
 ## 1b. Koszt LLM i budżet USD (ADR-16)
 
@@ -108,7 +107,7 @@ Walidacja przez `allowed_metrics` (cache in-memory, ładowana na starcie appki �
 
 `MAX_INPUT_TOKENS` per `chat_model` jako twardy target (np. 6-10k, niezależnie od tego że model wspiera 128k+ — kwestia kosztu/latencji, nie limitu modelu). Bez rolling summary w MVP (patrz [`architecture.md`](architecture.md#5-kontekst-czatu--zarządzanie-tokenami)).
 
-**Od 2026-08-04 (ADR-17):** każda persona dostaje deterministyczne bloki `[PLAN TRENINGOWY]` i `[OSTATNIE WYNIKI UŻYTKOWNIKA]` w system prompt (`ContextBuilder`). Sesja `general` jest koordynowana przez systemowego **Kierownika Zespołu** (`team_lead.py`) — wybiera trenerów, przygotowuje brief, przekazuje rekomendacje poprzednich w tej turze. User widzi tylko odpowiedzi trenerów; UI: „Ogólna rozmowa”.
+**Od 2026-08-04 (ADR-17):** każda persona dostaje deterministyczne bloki `[PLAN TRENINGOWY]` i `[OSTATNIE WYNIKI UŻYTKOWNIKA]` w system prompt (`ContextBuilder`). Sesja `general` jest koordynowana przez systemowego **Kierownika Zespołu (Goat)** (`team_lead.py`) — wybiera trenerów, przygotowuje brief, przekazuje rekomendacje poprzednich w tej turze. Przy prośbie o plan tygodnia/miesiąca Goat odpowiada widocznie w UI (**„Goat · Kierownik Zespołu”**), woła `rebuild_plan`; trenerzy nie mają tego narzędzia. UI sesji: „Ogólna rozmowa”. **Kanon:** [team-lead.md](./team-lead.md) · **Audyt:** [audits/2026-08-04-goat-team-lead-audit.md](./audits/2026-08-04-goat-team-lead-audit.md).
 
 ### SSE — statusy per trener (faza 2)
 

@@ -74,10 +74,10 @@ ChatLayout (smart) — drawer open/closed (localStorage), URL sync sessionId;
 ├─ PersonaSessionDrawer (smart) — collapsible od startu (Sheet z shadcn na mobile)
 │  └─ SessionListItem (dumb) — avatar/kolor persony (silne kodowanie wizualne, nie tylko tekst)
 ├─ ChatHeader (dumb) — avatar/kolor/nazwa aktywnej persony
-├─ ChatWindow (smart) — JEDYNE miejsce otwierające/zamykające SSE (useChatStream hook)
+├─ ChatWindow (smart) — stan czatu; SSE przez globalny `useChatTurnRunner` w AppShell (tura w tle)
 │  ├─ MessageList (dumb, wirtualizowana przy długiej historii — @tanstack/react-virtual)
-│  │  ├─ MessageBubble (dumb) — w sesji 'general' pokazuje nagłówek persona_label (z eventu
-│  │  │  `persona_turn_start`, ADR-13) nad odpowiedzią; w sesji 'persona' nagłówek pomijany
+│  │  ├─ MessageBubble (dumb) — w sesji 'general' nagłówek persona_label (trener lub
+│  │  │  **Goat · Kierownik Zespołu** gdy `persona_id=null` — `isTeamLeadAssistantMessage`)
 │  │  │  (kontekst już wiadomy z ChatHeader). Treść **asystenta** renderowana jako Markdown
 │  │  │  (`react-markdown`, bez raw HTML). Historia UI filtruje `role=tool` i puste
 │  │  │  `assistant` (tool_calls-only) — surowe JSON-y narzędzi zostają w DB dla LLM, nie w bubble.

@@ -22,6 +22,10 @@ PERSONA_TYPE_SCOPE: dict[str, str] = {
     "badminton_coach": (
         "badminton: technika, taktyka, trening specyficzny, przygotowanie do meczu, footwork"
     ),
+    "team_lead": (
+        "koordynacja zespołu, uruchamianie i harmonizacja planu w zakładce Plany — bez szczegółów "
+        "treningu/diety pojedynczych trenerów"
+    ),
     "custom": "wyłącznie zakres opisany w zachowaniu tej persony",
 }
 
@@ -50,6 +54,7 @@ PERSONA_OUT_OF_SCOPE: dict[str, str] = {
         "plan siłowy ogólny → trener personalny; motoryka poza badmintonem → trener motoryczny; "
         "dieta → dietetyk; psychika → psycholog sportowy"
     ),
+    "team_lead": "szczegóły diety/treningu/techniki → właściwy trener z zespołu użytkownika",
     "custom": "wszystko poza zakresem opisanym w zachowaniu persony — wskaż inną personę z zespołu użytkownika",
 }
 

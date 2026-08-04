@@ -29,4 +29,14 @@ describe("MessageBubble", () => {
     );
     expect(screen.getByText("**nie renderuj**")).toBeInTheDocument();
   });
+
+  it("renderuje nagłówek Goata nad odpowiedzią asystenta", () => {
+    render(
+      <MessageBubble
+        message={{ role: "assistant", content: "Plan w Plany." }}
+        personaLabel="Goat · Kierownik Zespołu"
+      />
+    );
+    expect(screen.getByText("Goat · Kierownik Zespołu")).toBeInTheDocument();
+  });
 });
