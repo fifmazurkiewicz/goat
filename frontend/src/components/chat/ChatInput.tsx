@@ -86,7 +86,7 @@ export function ChatInput({
   }
 
   return (
-    <div className="border-t p-4">
+    <div className="shrink-0 border-t bg-background p-4">
       <Popover open={isAutocompleteOpen}>
         <PopoverAnchor asChild>
           <div className="flex gap-2">

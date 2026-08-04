@@ -71,7 +71,7 @@ export function MessageList({ messages, personaLabelFor, streaming }: MessageLis
   }, [rows.length, streaming?.content]);
 
   return (
-    <div ref={parentRef} className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+    <div ref={parentRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
       <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
         {virtualizer.getVirtualItems().map((virtualRow) => {
           const row = rows[virtualRow.index];

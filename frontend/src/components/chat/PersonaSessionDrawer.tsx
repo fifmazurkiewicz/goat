@@ -47,9 +47,9 @@ export function PersonaSessionDrawer({
   }, [sessions, personas]);
 
   return (
-    <div className="flex h-full flex-col gap-4 p-4">
-      <h2 className="text-lg font-semibold">Rozmowy</h2>
-      <div className="flex-1 space-y-4 overflow-y-auto">
+    <div className="flex h-full min-h-0 flex-col gap-4 p-4">
+      <h2 className="shrink-0 text-lg font-semibold">Rozmowy</h2>
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
         {groups.map((group) => (
           <div key={group.key}>
             <div className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-accent-foreground/70">
@@ -71,7 +71,7 @@ export function PersonaSessionDrawer({
           <p className="text-sm text-muted-foreground">Brak rozmów — zacznij nową poniżej.</p>
         ) : null}
       </div>
-      <Button type="button" variant="ghost" className="justify-start px-0" onClick={onNewSession}>
+      <Button type="button" variant="ghost" className="shrink-0 justify-start px-0" onClick={onNewSession}>
         <Plus className="mr-1 h-4 w-4" /> Nowa rozmowa
       </Button>
     </div>

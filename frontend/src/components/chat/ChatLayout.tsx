@@ -18,7 +18,8 @@ interface ChatLayoutProps {
 
 /**
  * `ChatLayout` (smart) — drawer open/closed (localStorage), URL sync sessionId
- * (docs/technical/frontend.md sekcja 4).
+ * (docs/technical/frontend.md sekcja 4). Wysokość = `h-full` w AppShell (`h-svh`);
+ * scroll tylko w MessageList / liście sesji — input „Wyślij” zawsze widoczny.
  */
 export function ChatLayout({ sessionId }: ChatLayoutProps) {
   const navigate = useNavigate();
@@ -48,8 +49,10 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
   );
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)]">
-      {!isMobile && isDrawerOpen ? <div className="w-72 shrink-0 border-r">{drawer}</div> : null}
+    <div className="flex h-full min-h-0 overflow-hidden">
+      {!isMobile && isDrawerOpen ? (
+        <div className="flex h-full w-72 shrink-0 flex-col overflow-hidden border-r">{drawer}</div>
+      ) : null}
 
       {isMobile ? (
         <Sheet open={isMobileDrawerOpen} onOpenChange={setIsMobileDrawerOpen}>
@@ -60,9 +63,9 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
         </Sheet>
       ) : null}
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {!isMobile ? (
-          <div className="flex items-center border-b px-2 py-1">
+          <div className="flex shrink-0 items-center border-b px-2 py-1">
             <Button type="button" variant="ghost" size="icon" onClick={() => setIsDrawerOpen((v) => !v)}>
               {isDrawerOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
             </Button>
@@ -80,7 +83,7 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
             onOpenDrawer={isMobile ? () => setIsMobileDrawerOpen(true) : undefined}
           />
         ) : (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 overflow-y-auto p-6 text-center">
             <p className="text-muted-foreground">Wybierz rozmowę z listy albo zacznij nową.</p>
             <Button type="button" onClick={() => setIsNewSessionOpen(true)}>
               <MessageSquarePlus className="mr-1 h-4 w-4" /> Nowa rozmowa

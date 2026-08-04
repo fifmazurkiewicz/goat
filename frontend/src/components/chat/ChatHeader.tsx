@@ -15,7 +15,7 @@ interface ChatHeaderProps {
 /** Avatar/kolor/nazwa aktywnej persony (docs/technical/frontend.md sekcja 4). */
 export function ChatHeader({ session, persona, onOpenDrawer }: ChatHeaderProps) {
   return (
-    <div className="flex items-center justify-between gap-2 border-b p-4">
+    <div className="flex shrink-0 items-center justify-between gap-2 border-b p-4">
       <div className="flex items-center gap-3">
         {onOpenDrawer ? (
           <Button type="button" variant="ghost" size="icon" className="md:hidden" onClick={onOpenDrawer}>

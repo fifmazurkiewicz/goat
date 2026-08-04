@@ -68,7 +68,9 @@ Dyskryminowany union: `type ChatStreamEvent = {type:'token', text:string} | {typ
 ## 4. Komponenty — `/chat`
 
 ```
-ChatLayout (smart) — drawer open/closed (localStorage), URL sync sessionId
+ChatLayout (smart) — drawer open/closed (localStorage), URL sync sessionId;
+│                    AppShell `h-svh` + `min-h-0` flex chain — scroll tylko w MessageList,
+│                    pole „Wyślij” zawsze w viewport bez scrolla strony
 ├─ PersonaSessionDrawer (smart) — collapsible od startu (Sheet z shadcn na mobile)
 │  └─ SessionListItem (dumb) — avatar/kolor persony (silne kodowanie wizualne, nie tylko tekst)
 ├─ ChatHeader (dumb) — avatar/kolor/nazwa aktywnej persony

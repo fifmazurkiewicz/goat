@@ -51,8 +51,8 @@ export function AppShell() {
   usePlanGenerationPolling();
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b">
+    <div className="flex h-svh flex-col overflow-hidden bg-background">
+      <header className="shrink-0 border-b">
         <div className="container flex h-14 items-center justify-between gap-4">
           <NavLink
             to="/chat"
@@ -107,7 +107,7 @@ export function AppShell() {
           </div>
         </div>
       </header>
-      <main>
+      <main className="min-h-0 flex-1 overflow-y-auto">
         <Outlet />
       </main>
     </div>

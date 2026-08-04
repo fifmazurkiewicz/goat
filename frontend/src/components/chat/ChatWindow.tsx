@@ -41,23 +41,23 @@ export function ChatWindow({ session, personas, onOpenDrawer }: ChatWindowProps)
   const disabled = isStreaming || isBudgetExceeded;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <ChatHeader session={session} persona={activePersona} onOpenDrawer={onOpenDrawer} />
 
       {isLoading ? (
-        <div className="flex-1 p-6 text-sm text-muted-foreground">Ładowanie historii…</div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-6 text-sm text-muted-foreground">Ładowanie historii…</div>
       ) : (
         <MessageList messages={messages ?? []} personaLabelFor={personaLabelFor} streaming={streaming} />
       )}
 
       {isNearLimit && !error ? (
-        <Alert variant="warning" className="mx-4 mb-2">
+        <Alert variant="warning" className="mx-4 mb-2 shrink-0">
           <AlertDescription>Zbliżasz się do limitu budżetu na tym koncie.</AlertDescription>
         </Alert>
       ) : null}
 
       {error ? (
-        <Alert variant={isBudgetExceeded ? "destructive" : "warning"} className="mx-4 mb-2">
+        <Alert variant={isBudgetExceeded ? "destructive" : "warning"} className="mx-4 mb-2 shrink-0">
           <AlertTitle>{isBudgetExceeded ? "Limit budżetu osiągnięty" : "Połączenie przerwane"}</AlertTitle>
           <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <span>{error.message}</span>
