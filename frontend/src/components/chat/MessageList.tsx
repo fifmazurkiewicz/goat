@@ -4,6 +4,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { ToolResultChip } from "@/components/chat/ToolResultChip";
 import type { StreamingAssistantMessage } from "@/hooks/useChatStream";
+import { visibleChatMessages } from "@/lib/chat-messages";
 import type { ChatMessage } from "@/types/api";
 import type { ChatStreamToolResultEvent } from "@/types/chat-stream";
 
@@ -21,13 +22,15 @@ interface MessageListProps {
 /**
  * `MessageList` (dumb, wirtualizowana przy długiej historii — `@tanstack/react-virtual`,
  * docs/technical/frontend.md sekcja 4). `aria-live="polite"` na kontenerze streamującej
- * wiadomości, nie na całej liście.
+ * wiadomości, nie na całej liście. Historia: tylko `user`/`assistant` z treścią —
+ * `role=tool` zostaje w API dla LLM, nie w UI.
  */
 export function MessageList({ messages, personaLabelFor, streaming }: MessageListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
   const rows = useMemo<Row[]>(() => {
-    const chatRows: Row[] = messages.map((message) => ({
+    const visible = visibleChatMessages(messages);
+    const chatRows: Row[] = visible.map((message) => ({
       kind: "chat",
       key: message.id,
       message,

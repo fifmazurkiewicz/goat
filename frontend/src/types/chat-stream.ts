@@ -48,4 +48,6 @@ export type ChatStreamEvent =
 
 export interface SendMessageBody {
   content: string;
+  /** Ponowienie po błędzie streamu — backend nie wstawia drugi raz tej samej wiadomości usera. */
+  retry?: boolean;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseSseEvent } from "@/lib/sse";
+import { parseSseEvent, parseSseEvents } from "@/lib/sse";
 
 describe("parseSseEvent", () => {
   it("parsuje event token z pojedynczą linią data", () => {
@@ -9,7 +9,8 @@ describe("parseSseEvent", () => {
   });
 
   it("parsuje persona_turn_start (ADR-13)", () => {
-    const chunk = 'event: persona_turn_start\ndata: {"persona_id":"p1","persona_label":"Kasia Wilk · Trener badmintona"}';
+    const chunk =
+      'event: persona_turn_start\ndata: {"persona_id":"p1","persona_label":"Kasia Wilk · Trener badmintona"}';
     expect(parseSseEvent(chunk)).toEqual({
       type: "persona_turn_start",
       persona_id: "p1",
@@ -57,5 +58,22 @@ describe("parseSseEvent", () => {
   it("wywnioskowuje typ z payloadu gdy brak linii event:", () => {
     const chunk = 'data: {"type":"tool_call_start","tool_name":"log_result"}';
     expect(parseSseEvent(chunk)).toEqual({ type: "tool_call_start", tool_name: "log_result" });
+  });
+
+  it("rozdziela dwa eventy sklejone w jednym chunku bez podwójnego \\n\\n", () => {
+    const chunk =
+      'event: persona_turn_start\ndata: {"persona_id":"p1","persona_label":"Dietetyk"}\nevent: error\ndata: {"code":"internal_error","message":"Wystąpił nieoczekiwany błąd czatu."}';
+    const events = parseSseEvents(chunk);
+    expect(events).toHaveLength(2);
+    expect(events[0]).toEqual({
+      type: "persona_turn_start",
+      persona_id: "p1",
+      persona_label: "Dietetyk",
+    });
+    expect(events[1]).toEqual({
+      type: "error",
+      code: "internal_error",
+      message: "Wystąpił nieoczekiwany błąd czatu.",
+    });
   });
 });

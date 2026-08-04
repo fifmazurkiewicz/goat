@@ -205,6 +205,22 @@ class ChatRepo:
         row = result.one_or_none()
         return stringify_uuid(row.persona_id) if row is not None else None
 
+    async def get_last_user_message(self, session_id: str) -> ChatMessageRow | None:
+        """Ostatnia wiadomość usera — używane przy `retry` (pomijanie podwójnego INSERT)."""
+        result = await self._conn.execute(
+            text(
+                f"""
+                SELECT {_MESSAGE_COLUMNS} FROM chat_messages
+                WHERE session_id = :session_id AND role = 'user'
+                ORDER BY created_at DESC
+                LIMIT 1
+                """
+            ),
+            {"session_id": session_id},
+        )
+        row = result.one_or_none()
+        return _row_to_message(row) if row is not None else None
+
     async def insert_user_message(
         self,
         *,

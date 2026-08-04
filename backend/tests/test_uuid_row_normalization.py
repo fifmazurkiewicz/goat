@@ -121,3 +121,27 @@ def test_result_row_stringifies_uuid_and_decimal() -> None:
     assert result.source_persona_id == str(persona_id)
     assert isinstance(result.value, float)
     assert result.value == 10.5
+
+
+def test_user_profile_row_stringifies_uuid_and_decimal() -> None:
+    from app.repositories.user_profile_repo import _row_to_profile
+
+    user_id = uuid4()
+    row = _MappingRow(
+        {
+            "user_id": user_id,
+            "height_cm": Decimal("180.5"),
+            "weight_kg": Decimal("75.0"),
+            "date_of_birth": None,
+            "sex": None,
+            "activity_level": None,
+            "primary_goal": None,
+            "notes": None,
+            "updated_at": datetime.now(timezone.utc),
+        }
+    )
+    profile = _row_to_profile(row)
+    assert profile.user_id == str(user_id)
+    assert isinstance(profile.height_cm, float)
+    assert profile.height_cm == 180.5
+    assert profile.weight_kg == 75.0

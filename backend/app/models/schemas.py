@@ -410,6 +410,9 @@ class ChatMessageOut(BaseModel):
 
 class ChatSendMessage(BaseModel):
     content: str = Field(min_length=1, max_length=4000)
+    # Ponowienie po urwanym SSE — nie wstawiaj drugi raz tej samej wiadomości usera
+    # (frontend.md: "Wyślij ponownie" = nowy request, historia usera już w DB).
+    retry: bool = False
 
 
 # ============ Plany (`/plans`, architecture.md §4, ADR-1/2) ============

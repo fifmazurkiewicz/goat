@@ -29,12 +29,13 @@ export function PersonaSessionDrawer({
   onNewSession,
 }: PersonaSessionDrawerProps) {
   const groups = useMemo<SessionGroup[]>(() => {
-    const generalSessions = sessions.filter((s) => s.session_type === "general");
+    const uniqueSessions = Array.from(new Map(sessions.map((s) => [s.id, s])).values());
+    const generalSessions = uniqueSessions.filter((s) => s.session_type === "general");
     const personaGroups = personas
       .map((persona) => ({
         key: persona.id,
         label: `${persona.name} · ${PERSONA_TYPE_LABELS[persona.type]}`,
-        sessions: sessions.filter((s) => s.session_type === "persona" && s.persona_id === persona.id),
+        sessions: uniqueSessions.filter((s) => s.session_type === "persona" && s.persona_id === persona.id),
       }))
       .filter((group) => group.sessions.length > 0);
 

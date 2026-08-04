@@ -91,6 +91,7 @@ async def send_chat_message(
             session_id=session_id,
             user_message=payload.content,
             queue=queue,
+            retry=payload.retry,
         )
     )
 

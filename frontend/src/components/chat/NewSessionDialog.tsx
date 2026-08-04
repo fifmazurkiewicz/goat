@@ -22,10 +22,13 @@ interface NewSessionDialogProps {
  */
 export function NewSessionDialog({ open, onOpenChange, personas, onCreated }: NewSessionDialogProps) {
   const [selected, setSelected] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const createSession = useCreateChatSession();
   const activePersonas = personas.filter((p) => p.active);
 
   async function handleCreate() {
+    if (submitting || createSession.isPending) return;
+    setSubmitting(true);
     try {
       const session = await createSession.mutateAsync({ persona_id: selected });
       onCreated(session.id);
@@ -33,6 +36,8 @@ export function NewSessionDialog({ open, onOpenChange, personas, onCreated }: Ne
       setSelected(null);
     } catch (err) {
       toast.error(getErrorMessage(err, "Nie udało się utworzyć rozmowy."));
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -47,7 +52,7 @@ export function NewSessionDialog({ open, onOpenChange, personas, onCreated }: Ne
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
             Anuluj
           </Button>
-          <Button onClick={handleCreate} disabled={createSession.isPending}>
+          <Button onClick={handleCreate} disabled={submitting || createSession.isPending}>
             Rozpocznij
           </Button>
         </>

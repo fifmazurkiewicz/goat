@@ -8,8 +8,29 @@ import type { ChatStreamEvent, SendMessageBody } from "@/types/chat-stream";
  * linii — `sse-starlette` (`architecture.md` sekcja 3) serializuje tak `EventSourceResponse`.
  * Linie komentarza (`:` na początku, np. heartbeat ping co 15s) są ignorowane i zwracamy `null`
  * — to nie jest zdarzenie domenowe, tylko utrzymanie połączenia.
+ *
+ * Gdy w jednym chunku wpadną dwa eventy (brak `\n\n` między nimi), `parseSseEvents` rozdziela
+ * je po `event:` — inaczej `data:` skleja się w nieparsowalny JSON i FE pokazuje surowy dump.
  */
 export function parseSseEvent(chunk: string): ChatStreamEvent | null {
+  const events = parseSseEvents(chunk);
+  return events[events.length - 1] ?? null;
+}
+
+export function parseSseEvents(chunk: string): ChatStreamEvent[] {
+  const trimmed = chunk.trim();
+  if (!trimmed) return [];
+
+  const parts = trimmed.includes("\nevent:") ? trimmed.split(/\n(?=event:)/) : [trimmed];
+  const events: ChatStreamEvent[] = [];
+  for (const part of parts) {
+    const event = parseSingleSseEvent(part);
+    if (event) events.push(event);
+  }
+  return events;
+}
+
+function parseSingleSseEvent(chunk: string): ChatStreamEvent | null {
   const lines = chunk.split("\n").filter((line) => line.length > 0 && !line.startsWith(":"));
   if (lines.length === 0) return null;
 
@@ -85,11 +106,13 @@ export async function* streamChatMessage({
     const chunks = buffer.split("\n\n");
     buffer = chunks.pop() ?? "";
     for (const chunk of chunks) {
-      const event = parseSseEvent(chunk);
-      if (event) yield event;
+      for (const event of parseSseEvents(chunk)) {
+        yield event;
+      }
     }
   }
 
-  const lastEvent = parseSseEvent(buffer);
-  if (lastEvent) yield lastEvent;
+  for (const event of parseSseEvents(buffer)) {
+    yield event;
+  }
 }

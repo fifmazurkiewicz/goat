@@ -86,7 +86,8 @@ async def chat_stream_endpoint(request: Request, ...):
 4. Parsowanie JSON argumentów + walidacja Pydantic (**niezaufany input mimo że pochodzi z "naszego" modelu**) → wykonanie `log_result` (batch, patrz [`ai-pipeline.md`](ai-pipeline.md)) → zapis do `results`.
 5. Zapis `assistant` message (z `tool_calls`) + `tool` message (z wynikiem) **w jednej transakcji** — inaczej crash między nimi zostawia niespójną historię.
 6. Kolejny request do OpenRoutera z pełną historią → powtórz aż `finish_reason == "stop"` lub **twardy limit 3-5 rund** (chroni przed pętlą/kosztem).
-7. `queue.put({"event": "tool_result", ...})` po każdym zapisie — frontend pokazuje inline chip w czacie w czasie rzeczywistym.
+7. `queue.put({"event": "tool_result", "data": {"tool_name", "summary", "success"}})` po każdym
+   zapisie — frontend pokazuje inline chip (nie surowy JSON tool response).
 
 **Krytyczne — połączenie DB nie może żyć przez cały czas streamu.** Endpoint czatu NIE bierze długożyjącej zależności DB przez `Depends`. Orkiestrator otwiera krótkie transakcje tylko na moment zapisu (per rundę), zwalniając połączenie natychmiast — inaczej przy kilku równoległych czatach (60-90s każdy) szybko wyczerpuje się pula Supavisor.
 

@@ -60,9 +60,9 @@ async function* streamChatMessage(sessionId: string, body: SendMessageBody, sign
 Dyskryminowany union: `type ChatStreamEvent = {type:'token', text:string} | {type:'tool_call_start', ...} | {type:'tool_result', ...} | {type:'done'} | {type:'error', message:string}`.
 
 - **Anulowanie:** `AbortController` w `useChatStream` hooku, `abort()` w cleanupie `useEffect` (nawigacja przerywa stream).
-- **Reconnect: brak w MVP (świadomy dług).** Błąd sieci w trakcie streamu → częściowa odpowiedź + komunikat "Połączenie przerwane" + "Wyślij ponownie" (nowy request od zera, backend ma już zapisaną wiadomość usera).
+- **Reconnect: brak w MVP (świadomy dług).** Błąd sieci w trakcie streamu → częściowa odpowiedź + komunikat "Połączenie przerwane" + "Wyślij ponownie" (`POST .../message` z `retry: true` — backend nie wstawia drugi raz tej samej wiadomości usera, jeśli ostatni `role=user` ma identyczną treść).
 - **Wygaśnięcie JWT w trakcie streamu** (401 w połowie) → czytelny komunikat "Sesja wygasła, zaloguj się ponownie", nie ciche urwanie.
-- Optymistyczne dodanie wiadomości usera, strumieniowe append tokenów przez batchowanie (`requestAnimationFrame`/debounce 16-30ms) — nie re-render przy każdym tokenie.
+- Optymistyczne dodanie wiadomości usera (pomijane przy `retry`), strumieniowe append tokenów przez batchowanie (`requestAnimationFrame`/debounce 16-30ms) — nie re-render przy każdym tokenie.
 - `aria-live="polite"` na kontenerze streamującej wiadomości asystenta (nie na całej liście) — accessibility dla czytników ekranu.
 
 ## 4. Komponenty — `/chat`
@@ -76,8 +76,10 @@ ChatLayout (smart) — drawer open/closed (localStorage), URL sync sessionId
 │  ├─ MessageList (dumb, wirtualizowana przy długiej historii — @tanstack/react-virtual)
 │  │  ├─ MessageBubble (dumb) — w sesji 'general' pokazuje nagłówek persona_label (z eventu
 │  │  │  `persona_turn_start`, ADR-13) nad odpowiedzią; w sesji 'persona' nagłówek pomijany
-│  │  │  (kontekst już wiadomy z ChatHeader)
-│  │  └─ ToolResultChip (dumb) — inline chip z tool_result eventu w czasie rzeczywistym
+│  │  │  (kontekst już wiadomy z ChatHeader). Historia UI filtruje `role=tool` i puste
+│  │  │  `assistant` (tool_calls-only) — surowe JSON-y narzędzi zostają w DB dla LLM, nie w bubble.
+│  │  └─ ToolResultChip (dumb) — inline chip z `tool_result` (pola `tool_name`/`summary`/`success`)
+│  │     w czasie rzeczywistym; po odświeżeniu historii chip znika (wynik widać w `/results` / profilu)
 │  └─ ChatInput (dumb) — disabled podczas streamu i przy 429; w sesji 'general' nasłuchuje na
 │     wpisanie "/" na starcie treści → PersonaSlashAutocomplete (dropdown z avatarem + nazwą
 │     aktywnych person, filtrowany po dalszym wpisywaniu; Enter/klik wstawia `/{slug} `) — surowa

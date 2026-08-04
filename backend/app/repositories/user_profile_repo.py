@@ -14,9 +14,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
+
+from app.repositories._row_utils import normalize_row_mapping
+
+_UUID_KEYS = ("user_id",)
+_FLOAT_KEYS = ("height_cm", "weight_kg")
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,6 +36,11 @@ class UserProfileRow:
     primary_goal: str | None
     notes: str | None
     updated_at: datetime
+
+
+def _row_to_profile(row: Any) -> UserProfileRow:
+    mapping = normalize_row_mapping(dict(row._mapping), uuid_keys=_UUID_KEYS, float_keys=_FLOAT_KEYS)
+    return UserProfileRow(**mapping)
 
 
 class UserProfileRepo:
@@ -51,7 +62,7 @@ class UserProfileRepo:
             {"user_id": user_id},
         )
         row = result.one_or_none()
-        return UserProfileRow(**row._mapping) if row is not None else None
+        return _row_to_profile(row) if row is not None else None
 
     async def upsert(self, user_id: str, fields: dict[str, object]) -> UserProfileRow:
         """Częściowa aktualizacja — `fields` to tylko klucze faktycznie podane przez
@@ -78,4 +89,4 @@ class UserProfileRepo:
             ),
             {"user_id": user_id, **fields},
         )
-        return UserProfileRow(**result.one()._mapping)
+        return _row_to_profile(result.one())

@@ -52,7 +52,41 @@ class LLMClientProtocol(Protocol):
 
 
 async def _emit(queue: asyncio.Queue[dict[str, Any]], event: str, data: dict[str, Any]) -> None:
-    await queue.put({"event": event, "data": json.dumps(data, default=str)})
+    await queue.put({"event": event, "data": json.dumps(data, default=str, ensure_ascii=False)})
+
+
+def _tool_result_event_payload(name: str, response_content: str) -> dict[str, Any]:
+    """Kontrakt FE (`tool_name`/`summary`/`success`) — nie surowy JSON tool response."""
+    summary = "Wykonano narzędzie"
+    success = True
+    try:
+        parsed = json.loads(response_content) if response_content else {}
+    except json.JSONDecodeError:
+        parsed = {}
+    if isinstance(parsed, dict):
+        if parsed.get("error"):
+            summary = str(parsed["error"])
+            success = False
+        elif name == "update_user_profile":
+            fields = parsed.get("updated_fields") or []
+            summary = (
+                f"Zaktualizowano profil: {', '.join(fields)}"
+                if fields
+                else "Profil bez zmian"
+            )
+            success = parsed.get("status") != "error"
+        elif name == "log_result":
+            results = parsed.get("results") or []
+            ok = sum(1 for r in results if isinstance(r, dict) and r.get("status") == "ok")
+            failed = len(results) - ok
+            if failed:
+                summary = f"Zapisano {ok}, błędów: {failed}"
+                success = False
+            else:
+                summary = "Zapisano wynik" if ok == 1 else f"Zapisano {ok} wyników"
+        elif response_content:
+            summary = response_content[:80] + ("…" if len(response_content) > 80 else "")
+    return {"tool_name": name, "summary": summary, "success": success}
 
 
 class ChatOrchestrator:
@@ -365,7 +399,7 @@ class ChatOrchestrator:
                 await _emit(
                     queue,
                     "tool_result",
-                    {"name": name, "persona_id": persona.id, "result": response_content},
+                    _tool_result_event_payload(name, response_content),
                 )
                 tool_response_messages.append(
                     {"role": "tool", "tool_call_id": tool_call_id, "content": response_content}
@@ -441,16 +475,51 @@ async def run_chat_turn(
     session_id: str,
     user_message: str,
     queue: asyncio.Queue[dict[str, Any]],
+    retry: bool = False,
 ) -> None:
     """Funkcja producent, uruchamiana jako `asyncio.create_task` z routera (architecture.md
     §3, `run_chat_orchestrator` w pseudokodzie tam). Odpowiada za:
     1. Rozwiązanie sesji + (jeśli `general`) ROUTING persony PRZED wywołaniem
        `ChatOrchestrator.handle_message` (ADR-13 — routing to krok POZA logiką pojedynczej
        persony, która pozostaje niezmieniona).
-    2. Zapis wiadomości usera.
+    2. Zapis wiadomości usera (pomijany przy `retry=True`, gdy ostatnia wiadomość usera
+       ma tę samą treść — „Wyślij ponownie” po urwanym SSE).
     3. Emisję `persona_turn_start` przed pierwszym tokenem tury.
     4. Delegację do `ChatOrchestrator.handle_message`.
     """
+    try:
+        await _run_chat_turn_inner(
+            user_id=user_id,
+            claims=claims,
+            session_id=session_id,
+            user_message=user_message,
+            queue=queue,
+            retry=retry,
+        )
+    except asyncio.CancelledError:
+        raise
+    except AppError as exc:
+        await _emit(queue, "error", {"code": exc.code, "message": exc.message})
+        await queue.put({"event": "done", "data": "{}"})
+    except Exception as exc:  # noqa: BLE001 — top-level safety net dla producer taska
+        logger.error("run_chat_turn_unexpected_error", error=str(exc), exc_info=exc)
+        await _emit(
+            queue,
+            "error",
+            {"code": "internal_error", "message": "Wystąpił nieoczekiwany błąd czatu."},
+        )
+        await queue.put({"event": "done", "data": "{}"})
+
+
+async def _run_chat_turn_inner(
+    *,
+    user_id: str,
+    claims: dict[str, Any],
+    session_id: str,
+    user_message: str,
+    queue: asyncio.Queue[dict[str, Any]],
+    retry: bool,
+) -> None:
     llm_client = get_openrouter_client()
 
     async with rls_connection(claims) as conn:
@@ -489,9 +558,15 @@ async def run_chat_turn(
         if len(content) > settings.chat_max_message_length:
             content = content[: settings.chat_max_message_length]
 
-        await chat_repo.insert_user_message(
-            session_id=session_id, content=content, persona_id=None, invoked_via=invoked_via
-        )
+        skip_insert = False
+        if retry:
+            last_user = await chat_repo.get_last_user_message(session_id)
+            skip_insert = last_user is not None and (last_user.content or "") == content
+
+        if not skip_insert:
+            await chat_repo.insert_user_message(
+                session_id=session_id, content=content, persona_id=None, invoked_via=invoked_via
+            )
 
     await _emit(queue, "persona_turn_start", {"persona_id": persona.id, "persona_label": persona.name})
 
