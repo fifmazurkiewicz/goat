@@ -1,4 +1,5 @@
 import { API_BASE_URL, toApiError } from "@/lib/api-client";
+import { reportApiNetworkError } from "@/store/useApiHealthStore";
 
 const STORAGE_KEY = "goat_dev_auth";
 
@@ -34,11 +35,17 @@ export async function signInWithDevCredentials(
   email: string,
   password: string
 ): Promise<DevAuthState> {
-  const res = await fetch(`${API_BASE_URL}/api/v1/auth/dev-login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/api/v1/auth/dev-login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+  } catch (err) {
+    reportApiNetworkError(err);
+    throw err;
+  }
 
   if (!res.ok) {
     throw await toApiError(res);

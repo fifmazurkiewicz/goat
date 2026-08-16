@@ -1,5 +1,6 @@
 import { API_BASE_URL, toApiError } from "@/lib/api-client";
 import { useAuthStore } from "@/store/useAuthStore";
+import { reportApiNetworkError } from "@/store/useApiHealthStore";
 import type { ChatStreamEvent, SendMessageBody } from "@/types/chat-stream";
 
 /**
@@ -82,15 +83,21 @@ export async function* streamChatMessage({
 }: StreamChatMessageOptions): AsyncGenerator<ChatStreamEvent> {
   const token = useAuthStore.getState().getAccessToken();
 
-  const res = await fetch(`${API_BASE_URL}/api/v1/chat/sessions/${sessionId}/message`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(body),
-    signal,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/api/v1/chat/sessions/${sessionId}/message`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+      signal,
+    });
+  } catch (err) {
+    reportApiNetworkError(err);
+    throw err;
+  }
 
   if (!res.ok || !res.body) {
     throw await toApiError(res);

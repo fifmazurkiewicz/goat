@@ -313,3 +313,23 @@ offsetu. Brak `viewport-fit=cover` i `env(safe-area-inset-*)`.
 **Konsekwencje:** czat nie scrolluje całej strony; inne ekrany scrollują w `main`. Bottom
 nav to osobna zmiana IA (kolejny sprint).
 
+---
+
+## ADR-19: Lampka cold startu API — tylko gdy backend nie odpowiada
+
+**Status:** zaakceptowane (2026-08-16).
+
+**Kontekst:** Render Free usypia Web Service po ~15 min. SPA na Vercelu jest od razu
+dostępne, więc pierwsze requesty do API wiszą 30–60 s. User odświeża stronę, bo nie
+wie, że to cold start, a nie awaria.
+
+**Decyzja:** frontend woła `GET /api/health` **tylko w oknie wybudzania** (mount AppShell
+albo błąd sieci w prawdziwym requeście). Lampka **tylko** gdy 200 nie wraca ≥ 2 s.
+Hover/tap: „Budzimy aplikację, poczekaj chwilę.” Po 200 — stop sondy, lampka znika,
+TanStack Query refetchuje. Po ~90 s bez 200 — czerwień i stop automatu (tap = jedno
+nowe okno). Karta w tle i sam `/login` **nie** pingują. Brak zielonej lampki, bannera,
+overlaya, `refetchInterval` i keep-alive — Render ma móc usnąć po 15 min.
+
+**Konsekwencje:** sonda nie jest heartbeatem. Lokalnie lampka się nie pokazuje. Spec:
+`docs/superpowers/specs/2026-08-16-api-status-lamp-design.md`.
+

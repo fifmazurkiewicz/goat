@@ -91,6 +91,11 @@ Deploy do prod automatyczny przez natywne integracje Render/Vercel po merge; mig
 
 Logi Render (wbudowane), Sentry free tier (backend Python SDK + frontend React SDK), health check monitorowany natywnie przez Render, limit wydatków ustawiony w panelu OpenRouter (soft limit + alert mailowy) — bez budowania własnej infrastruktury alertingu.
 
+**Cold start (ADR-19):** SPA pokazuje lampkę, gdy w oknie wybudzania `GET /api/health`
+nie wraca ≥ 2 s. Po 200 (albo ~90 s / karta w tle) **zero** dalszych pingów — Render
+Free ma usnąć po 15 min. To UX, nie keep-alive. Spec:
+[`../superpowers/specs/2026-08-16-api-status-lamp-design.md`](../superpowers/specs/2026-08-16-api-status-lamp-design.md).
+
 ## 10. Cloudflare DNS
 
 | Typ | Nazwa | Wartość | Proxy |

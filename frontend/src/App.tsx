@@ -4,6 +4,7 @@ import { Navigate, RouterProvider, createBrowserRouter } from "react-router-dom"
 import { AdminRoute, ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppShell } from "@/components/layout/AppShell";
 import { Toaster } from "@/components/ui/sonner";
+import { useApiHealthProbe } from "@/hooks/useApiHealthProbe";
 import { isDevLoginEnabled, loadDevAuth } from "@/lib/dev-auth";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/store/useAuthStore";
@@ -56,6 +57,8 @@ export default function App() {
   const setSession = useAuthStore((state) => state.setSession);
   const setDevAuth = useAuthStore((state) => state.setDevAuth);
   const setInitialized = useAuthStore((state) => state.setInitialized);
+
+  useApiHealthProbe();
 
   useEffect(() => {
     let active = true;

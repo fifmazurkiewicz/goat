@@ -1,4 +1,5 @@
 import { useAuthStore } from "@/store/useAuthStore";
+import { reportApiNetworkError, watchSlowApiRequest } from "@/store/useApiHealthStore";
 import type { ApiErrorBody } from "@/types/api";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -58,20 +59,31 @@ export async function apiFetch<TResponse = unknown>(
 ): Promise<TResponse> {
   const token = getAccessToken();
   const { body, headers, ...rest } = options;
+  const finishWatch = watchSlowApiRequest();
 
-  const res = await fetch(`${API_BASE_URL}${path}`, {
-    ...rest,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...headers,
-    },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}${path}`, {
+      ...rest,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...headers,
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+  } catch (err) {
+    finishWatch(false);
+    reportApiNetworkError(err);
+    throw err;
+  }
 
   if (!res.ok) {
+    finishWatch(false);
     throw await toApiError(res);
   }
+
+  finishWatch(true);
 
   if (res.status === 204) {
     return undefined as TResponse;

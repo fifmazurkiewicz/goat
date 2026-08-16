@@ -31,6 +31,12 @@ Vite + React + TypeScript + Tailwind + shadcn/ui, hosting Vercel (Hobby — skal
 
 Po odebraniu `tool_result` w oknie czatu: `queryClient.invalidateQueries(['results'])` globalnie — żeby `/results` pokazywał świeże dane po przejściu z czatu bez ręcznego refresh.
 
+**Lampka cold startu (ADR-19):** `GET /api/health` wyłącznie w oknie wybudzania (nie
+`refetchInterval`, nie ping przy `/login` ani karcie w tle). Lampka obok „Coach” **tylko**
+gdy 200 nie wraca ≥ 2 s; po 200 znika, invaliduje pozostałe query i **milczy**, żeby
+Render mógł usnąć. Hover/tap = krótki tekst. Szczegóły:
+[`../superpowers/specs/2026-08-16-api-status-lamp-design.md`](../superpowers/specs/2026-08-16-api-status-lamp-design.md).
+
 ## 3. SSE po stronie klienta
 
 `fetch` + `ReadableStream`, **nie** `EventSource` (nie wspiera POST z body ani nagłówka `Authorization`).

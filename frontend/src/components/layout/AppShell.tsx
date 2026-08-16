@@ -10,8 +10,10 @@ import { useChatTurnRunner } from "@/hooks/useChatTurnRunner";
 import { useUsage } from "@/hooks/useUsage";
 import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
 import { ChatTurnBanner } from "@/components/chat/ChatTurnBanner";
+import { ApiStatusLamp } from "@/components/layout/ApiStatusLamp";
 import { isChatPath } from "@/lib/layout";
 import { cn } from "@/lib/utils";
+import { useApiHealthStore } from "@/store/useApiHealthStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useThemeStore } from "@/store/useThemeStore";
 import { useUsageLimitsStore } from "@/store/useUsageLimitsStore";
@@ -41,6 +43,8 @@ export function AppShell() {
   const toggleTheme = useThemeStore((state) => state.toggleTheme);
   const isNearLimit = useUsageLimitsStore((state) => state.isNearLimit);
   const limits = useUsageLimitsStore((state) => state.limits);
+  const lamp = useApiHealthStore((state) => state.lamp);
+  const startWakeWindow = useApiHealthStore((state) => state.startWakeWindow);
 
   useVisualViewportHeight();
 
@@ -61,6 +65,10 @@ export function AppShell() {
   usePlanGenerationPolling();
   useChatTurnRunner();
 
+  useEffect(() => {
+    startWakeWindow();
+  }, [startWakeWindow]);
+
   return (
     <div
       className="flex h-dvh flex-col overflow-hidden bg-background"
@@ -74,6 +82,7 @@ export function AppShell() {
           >
             Coach
           </NavLink>
+          <ApiStatusLamp lamp={lamp} onRetry={() => startWakeWindow({ force: true })} />
           <nav className="flex min-h-11 min-w-0 flex-1 items-center gap-1 overflow-x-auto text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-3">
             {NAV_ITEMS.map((item) => (
               <NavLink
