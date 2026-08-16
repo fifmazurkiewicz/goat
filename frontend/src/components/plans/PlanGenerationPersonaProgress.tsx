@@ -3,6 +3,7 @@ import { CheckCircle2, Circle, Loader2, XCircle } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
 import { PERSONA_TYPE_LABELS } from "@/lib/persona-labels";
+import { TEAM_LEAD_DISPLAY_LABEL } from "@/lib/team-lead";
 import type { Persona, PlanGenerationJobPersonaBreakdown, PlanItem } from "@/types/api";
 
 const STATUS_LABELS: Record<PlanGenerationJobPersonaBreakdown["status"], string> = {
@@ -34,7 +35,7 @@ interface PlanGenerationPersonaProgressProps {
 
 /**
  * Podgląd postępu per persona — draft każdej persony widoczny w kalendarzu zaraz po `done`,
- * finalny plan po harmonizacji (status planu `ready`).
+ * finalny plan po harmonizacji Goata (status planu `ready`).
  */
 export function PlanGenerationPersonaProgress({
   breakdown,
@@ -53,29 +54,41 @@ export function PlanGenerationPersonaProgress({
   }, new Map());
 
   const doneCount = breakdown.filter((b) => b.status === "done").length;
-  const harmonizing = doneCount === breakdown.length && jobStatus === "generating";
+  const allPersonasTerminal = breakdown.every((b) => b.status === "done" || b.status === "failed");
+  const goatStatus: PlanGenerationJobPersonaBreakdown["status"] =
+    jobStatus === "ready" || jobStatus === "partial_ready"
+      ? "done"
+      : allPersonasTerminal && jobStatus === "generating"
+        ? "running"
+        : "pending";
+  const goatStatusLabel =
+    goatStatus === "running"
+      ? "Harmonizuje…"
+      : goatStatus === "done"
+        ? "Gotowe"
+        : "Oczekuje na szkice";
 
   return (
     <div className="mb-6 space-y-3 rounded-lg border bg-card p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">Postęp trenerów</h2>
-        {harmonizing ? (
-          <Badge variant="secondary" className="gap-1">
-            <Loader2 className="h-3 w-3 animate-spin" />
-            Harmonizacja planu…
-          </Badge>
-        ) : (
-          <span className="text-xs text-muted-foreground">
-            {doneCount}/{breakdown.length} person gotowych
-          </span>
-        )}
+        <span className="text-xs text-muted-foreground">
+          {doneCount}/{breakdown.length} person gotowych
+        </span>
+      </div>
+
+      <div className="flex items-center gap-3 rounded-md border border-dashed bg-muted/30 px-3 py-2">
+        <StatusIcon status={goatStatus} />
+        <span className="flex-1 text-sm font-medium">{TEAM_LEAD_DISPLAY_LABEL}</span>
+        <Badge variant={goatStatus === "running" ? "secondary" : "outline"} className="shrink-0 text-xs">
+          {goatStatusLabel}
+        </Badge>
       </div>
 
       <Accordion type="multiple" className="w-full">
         {breakdown.map((entry) => {
           const persona = personaById.get(entry.persona_id);
           const items = itemsByPersona.get(entry.persona_id) ?? [];
-          const previewDates = [...new Set(items.map((i) => i.item_date))].sort().slice(0, 5);
 
           return (
             <AccordionItem key={entry.persona_id} value={entry.persona_id}>
@@ -115,9 +128,9 @@ export function PlanGenerationPersonaProgress({
                     {items.length > 8 ? (
                       <li>… i {items.length - 8} więcej (zobacz w kalendarzu)</li>
                     ) : null}
-                    {previewDates.length > 0 && jobStatus !== "ready" ? (
+                    {jobStatus !== "ready" ? (
                       <li className="pt-1 text-[11px] italic">
-                        Wersja robocza persony — po harmonizacji plan może się lekko zmienić.
+                        Szkic persony — Goat · Kierownik może jeszcze scalić / poprawić układ.
                       </li>
                     ) : null}
                   </ul>

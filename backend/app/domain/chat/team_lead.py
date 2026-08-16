@@ -18,19 +18,34 @@ TEAM_LEAD_PERSONA_ID = "__team_lead__"
 MAX_CONSULTS_PER_TURN = 5
 
 TEAM_LEAD_TURN_BEHAVIOR = """Jesteś Goat — Kierownikiem Zespołu Trenerów. User rozmawia WYŁĄCZNIE z Tobą.
-Trenerzy pracują za kulisami przez narzędzie consult_persona. Nie udawaj specjalistów z rosteru —
-gdy potrzebujesz szczegółu z ich zakresu, wołaj consult_persona z właściwym slugiem z rosteru.
+Domyślnie odpowiadaj SAMODZIELNIE — szybko, bez consult_persona. Trenerzy są za kulisami tylko gdy
+naprawdę potrzebujesz szczegółu specjalistycznego spoza Twojej ogólnej wiedzy coachingowej.
 
-Zasady consult_persona:
-- Roster poniżej to JEDYNE persony tego usera (te, które sam utworzył i ma aktywne). Nie wymyślaj ról spoza listy.
-- Zawsze podawaj slug z rosteru — NIE typ persony (motor_coach, dietitian, custom) jako slug.
-- Dobierz slug do tematu po polu „zakres” (i opisie zachowania) przy każdej osobie z rosteru.
-- Nie wołaj złej persony. Po tool response odpowiedz SAM — zwięźle, możesz wspomnieć z kim uzgodniłeś,
-  ale nie wklejaj odpowiedzi trenera w całości.
-- User prosi „niech każdy” / o skład zespołu → consult_persona dla KAŻDEGO slug z rosteru, potem jedna odpowiedź.
-- Plan tygodnia/miesiąca / przebudowa → rebuild_plan (zakładka Plany). Szczegół merytoryczny w tej samej
-  wiadomości → dodatkowo consult_persona.
-- update_user_profile tylko gdy user jawnie podaje dane. Nie wołaj log_result ani upsert_plan_items.
+Kiedy NIE wołaj consult_persona (odpowiedz sam):
+- proste rzeczy: powitanie, status, potwierdzenie, „ok”, dopytanie o preferencje;
+- korekta / przebudowa / aktualizacja planu, skargi na plan („widzę badminton”, „bez X”);
+- ogólne wskazówki, które znasz jako kierownik (motywacja, struktura tygodnia, priorytety).
+
+Kiedy wolno consult_persona (rzadko):
+- konkretny szczegół z zakresu persony z rosteru (makra, plyometria, technika dyscypliny, psychika startowa),
+  którego nie da się sensownie domknąć bez eksperta;
+- user jawnie prosi „niech każdy” / o skład zespołu → consult_persona dla KAŻDEGO slug z rosteru.
+
+Zasady consult_persona (gdy już wołasz):
+- Roster poniżej = JEDYNE persony tego usera. Nie wymyślaj ról spoza listy.
+- Zawsze slug z rosteru — NIE typ (motor_coach, dietitian, custom) jako slug.
+- Dobierz slug po polu „zakres” / zachowaniu. Nie wołaj złej persony.
+- Po tool response odpowiedz SAM — zwięźle; nie wklejaj odpowiedzi trenera w całości.
+
+Plan:
+- tygodnia/miesiąca / przebudowa / „zaktualizuj plan” → TYLKO rebuild_plan (zakładka Plany).
+- Ograniczenia usera (np. „bez badmintona”, „tylko siła i bieg”) wstaw w user_brief przy rebuild_plan.
+- Przy samej korekcie planu NIE wołaj consult_persona.
+- Szczegół merytoryczny W TEJ SAMEJ wiadomości co plan (np. „i co jeść”) → dopiero wtedy ewentualny consult.
+- Persony mogą zapisywać szkice (upsert). Ty masz OSTATECZNY GŁOS: upsert_plan_items z persona_id
+  aktywnej persony albo rebuild_plan z briefem, gdy trzeba przebudować całość.
+
+update_user_profile tylko gdy user jawnie podaje dane. Nie wołaj log_result.
 Bezpośrednia rozmowa usera z trenerem: tylko /slug."""
 
 TEAM_LEAD_PLAN_BEHAVIOR = TEAM_LEAD_TURN_BEHAVIOR
@@ -153,14 +168,38 @@ def build_goat_turn_prompt(*, active_personas: list[PersonaLike], user_message: 
         lines.append(
             f"- slug=`{p.slug}` | {persona_display_label(p)} | zakres: {scope}{extra}"
         )
-    hint = consult_scope_hint(message=user_message, active_personas=active_personas)
-    if hint:
-        lines.extend(["", hint])
-    if user_requests_all_trainers(user_message):
-        slugs = ", ".join(f"`{p.slug}`" for p in active_personas)
-        lines.extend(["", f"User prosi o cały zespół — skonsultuj wszystkich: {slugs}."])
-    if user_requests_plan_rebuild(user_message):
-        lines.extend(["", "User prosi o plan — wołaj rebuild_plan."])
+    if is_plan_coordination_only(user_message):
+        lines.extend(
+            [
+                "",
+                "User prosi o plan/korektę planu — wołaj TYLKO rebuild_plan "
+                "(user_brief = twarde ograniczenia, np. bez badmintona). "
+                "NIE wołaj consult_persona.",
+            ]
+        )
+    else:
+        hint = consult_scope_hint(message=user_message, active_personas=active_personas)
+        if hint:
+            lines.extend(["", hint])
+        if user_requests_all_trainers(user_message):
+            slugs = ", ".join(f"`{p.slug}`" for p in active_personas)
+            lines.extend(["", f"User prosi o cały zespół — skonsultuj wszystkich: {slugs}."])
+        elif user_requests_plan_rebuild(user_message):
+            lines.extend(
+                [
+                    "",
+                    "User prosi o plan — wołaj rebuild_plan z user_brief. "
+                    "consult_persona tylko jeśli w tej samej wiadomości jest osobne pytanie eksperckie.",
+                ]
+            )
+        else:
+            lines.extend(
+                [
+                    "",
+                    "Preferuj odpowiedź samodzielną. NIE wołaj consult_persona, "
+                    "chyba że pytanie wymaga szczegółu z zakresu persony z rosteru.",
+                ]
+            )
     return "\n".join(lines)
 
 
@@ -211,15 +250,44 @@ def user_requests_plan_rebuild(message: str) -> bool:
         "ułóz plan",
         "zharmonizowany plan",
         "przebuduj plan",
+        "przebudow",
         "plan tygodnia",
         "plan miesiąca",
         "generuj plan",
         "stwórz plan",
         "zaplanuj mi",
+        "zaktualizuj plan",
+        "aktualizuj plan",
+        "w aktualnym planie",
+        "w planie widzę",
         "harmoniz",
         "w zakładce plany",
     )
     return any(n in lower for n in needles)
+
+
+def plan_brief_excludes_persona_type(brief: str, persona_type: str) -> bool:
+    """Czy brief usera wyklucza generowanie wkładu danej roli (np. bez badmintona)."""
+    lower = (brief or "").lower()
+    if not lower:
+        return False
+    if persona_type == "badminton_coach":
+        if "badminton" not in lower:
+            return False
+        exclusion = (
+            "bez",
+            "zero",
+            "żadn",
+            "zadn",
+            "wyklucz",
+            "nie planuj",
+            "usuń",
+            "usun",
+            "wywal",
+            "bez jakiegokolwiek",
+        )
+        return any(w in lower for w in exclusion)
+    return False
 
 
 def is_plan_coordination_only(message: str) -> bool:

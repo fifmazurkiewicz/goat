@@ -258,7 +258,7 @@ OpenRoutera i utrzymywania cache'u cen modeli.
 
 ## ADR-17: Kierownik Zespołu (Goat) — koordynacja sesji `general`
 
-**Status:** zaakceptowane (wdrożone 2026-08-04; **nowelizowane 2026-08-16**).
+**Status:** zaakceptowane (wdrożone 2026-08-04; **nowelizowane 2026-08-16**, delta 2026-08-17).
 
 **Kontekst:** W sesji `general` (ADR-13) klasyfikator routingu wybierał persony, ale każda
 odpowiadała w izolacji — bez briefu kierownika. Potem (2026-08-04) Goat robił relay cytatów
@@ -275,12 +275,17 @@ User oczekuje rozmowy **z kierownikiem**; eksperci tylko na żądanie Goata albo
 - **Wyjątek:** `/slug` / multi-slash / sesja `persona` — user widzi personę bezpośrednio; Goat
   nie startuje.
 - **Plan:** Goat woła `rebuild_plan` w swojej turze (bez osobnej pętli trenerów jako mówców).
+  Opcjonalne `user_brief` (np. „bez badmintona”) trafia do joba generacji; role wykluczone
+  briefem nie generują pozycji. Etap 3 = **Goat** (ostateczny głos: patche update/delete).
 - **Narzędzia:** Goat — `get_plan`, `rebuild_plan`, `update_user_profile`, `consult_persona`
-  (max 5/turę); trenerzy — reszta **bez** `rebuild_plan` i `consult_persona`.
+  (max 5/turę; **domyślnie bez consult**), **`upsert_plan_items`** (dowolna aktywna persona);
+  trenerzy — reszta **bez** `rebuild_plan` i `consult_persona`.
 - **Granice ról:** `[ZAKRES ROLI]` (`persona_scope.py`) + overlay safety (migracja `0009`).
 - **Kontekst:** `ContextBuilder` dokleja `[PLAN TRENINGOWY]` i `[OSTATNIE WYNIKI UŻYTKOWNIKA]`.
 - **SSE:** `persona_status` / `tool_result` dla consult z etykietą Goata; `persona_id: null`.
 - **Tura w tle:** `chat_sessions.turn_in_progress`; FE: `useChatTurnRunner` w AppShell.
+  Status startowy: „Goat przygotowuje odpowiedź…” (nie „uzgadnia z zespołem”).
+  Postęp planu: wiersz `Goat · Kierownik Zespołu` przy harmonizacji.
 
 **Konsekwencje:** 0..N dodatkowych wywołań LLM tylko gdy Goat woła `consult_persona` (nie zawsze
 +1 klasyfikator JSON). ADR-13 pozostaje źródłem prawdy dla modelu sesji i `/slug`.

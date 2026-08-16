@@ -8,12 +8,12 @@ export const TOOL_ACTION_LABELS: Record<string, string> = {
   update_user_profile: "aktualizuje profil",
   get_plan: "przegląda plan",
   upsert_plan_items: "zapisuje w Plany",
-  rebuild_plan: "uzgadnia plan między trenerami",
+  rebuild_plan: "przebudowuje plan",
   consult_persona: "konsultuje",
 };
 
 export const ROUTING_STATUS = "Goat dobiera trenerów…";
-export const TEAM_STATUS_DEFAULT = "Goat uzgadnia z zespołem…";
+export const TEAM_STATUS_DEFAULT = "Goat przygotowuje odpowiedź…";
 export const PREPARING_STATUS = "Przygotowuję odpowiedź…";
 export const DEFAULT_TOOL_ACTION = "wykonuje akcję";
 

@@ -153,7 +153,8 @@ UPSERT_PLAN_ITEMS_TOOL_SCHEMA: dict[str, Any] = {
             "Dopisz lub zaktualizuj pozycje dnia w zakładce Plany. Wołaj TYLKO gdy user "
             "jawnie prosi o zapisanie treningu/diety w planie (nie gdy dostajesz samą radę). "
             "Bez item_id = insert; z item_id = update własnej pozycji. Daty ISO wg "
-            "[KONTEKST CZASOWY]."
+            "[KONTEKST CZASOWY]. Jako Goat (kierownik): w każdej pozycji PODAJ persona_id "
+            "aktywnej persony z rosteru — masz ostateczny głos i możesz poprawiać cudze karty."
         ),
         "parameters": {
             "type": "object",
@@ -195,15 +196,23 @@ REBUILD_PLAN_TOOL_SCHEMA: dict[str, Any] = {
     "function": {
         "name": "rebuild_plan",
         "description": (
-            "Uruchom pełną przebudowę planu (wszystkie aktywne persony + harmonizacja). "
-            "Kosztowne — tylko gdy user jawnie prosi o wygenerowanie/przebudowę planu "
-            "na tydzień lub miesiąc."
+            "Uruchom pełną przebudowę planu (aktywne persony + harmonizacja). "
+            "Kosztowne — gdy user jawnie prosi o wygenerowanie/przebudowę/aktualizację "
+            "planu na tydzień lub miesiąc. Przekaż user_brief z twardymi ograniczeniami "
+            "(np. „bez badmintona — tylko siłownia i bieganie”)."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "period_type": {"type": "string", "enum": ["week", "month"]},
                 "start_date": {"type": "string", "format": "date"},
+                "user_brief": {
+                    "type": "string",
+                    "description": (
+                        "Twarde ograniczenia / cel przebudowy od usera "
+                        "(np. zero badmintona, fokus siła+bieg do września)."
+                    ),
+                },
             },
             "required": ["period_type", "start_date"],
             "additionalProperties": False,
@@ -216,11 +225,12 @@ CONSULT_PERSONA_TOOL_SCHEMA: dict[str, Any] = {
     "function": {
         "name": "consult_persona",
         "description": (
-            "Dopytaj jednego aktywnego trenera usera (za kulisami). Wołaj gdy potrzebujesz "
-            "szczegółu z JEGO zakresu. Motoryka/plyometria/bieganie/skok → slug trenera "
-            "motor_coach; dieta/makro → dietitian; siła/hipertrofia → personal_trainer. "
-            "Nie wołaj złej roli. Po wyniku odpowiedz userowi SAM jako Goat — nie cytuj "
-            "trenera w całości."
+            "Rzadko: dopytaj jednego aktywnego trenera (za kulisami) TYLKO gdy potrzebujesz "
+            "szczegółu z JEGO zakresu, którego nie domkniesz sam. Nie używaj przy prostych "
+            "wiadomościach ani przy samej korekcie/przebudowie planu (tam: rebuild_plan). "
+            "Motoryka/plyometria/bieganie/skok → slug motor_coach; dieta/makro → dietitian; "
+            "siła/hipertrofia → personal_trainer. Nie wołaj złej roli. Po wyniku odpowiedz "
+            "userowi SAM jako Goat — nie cytuj trenera w całości."
         ),
         "parameters": {
             "type": "object",
@@ -262,12 +272,12 @@ def get_trainer_chat_tools() -> list[dict[str, Any]]:
 
 
 TEAM_LEAD_CHAT_TOOL_NAMES = frozenset(
-    {"get_plan", "rebuild_plan", "update_user_profile", "consult_persona"}
+    {"get_plan", "rebuild_plan", "update_user_profile", "consult_persona", "upsert_plan_items"}
 )
 
 
 def get_team_lead_plan_tools() -> list[dict[str, Any]]:
-    """Goat (kierownik) — plan + profil usera; bez log_result i upsert_plan_items."""
+    """Goat (kierownik) — plan (w tym upsert dowolnej persony) + profil; bez log_result."""
     return [
         t
         for t in [*get_chat_tools(), CONSULT_PERSONA_TOOL_SCHEMA]

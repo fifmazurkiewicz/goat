@@ -88,8 +88,17 @@ def test_user_requests_plan_rebuild_detects_harmonized_plan() -> None:
     assert user_requests_plan_rebuild("Generuj zharmonizowany plan na sierpień")
 
 
+def test_user_requests_plan_rebuild_detects_update_and_complaints() -> None:
+    assert user_requests_plan_rebuild("Zaktualizuj plan na ten tydzień")
+    assert user_requests_plan_rebuild(
+        "W aktualnym planie widzę w każdy dzień trening badmintonowy"
+    )
+    assert user_requests_plan_rebuild("Przebuduj plan bez badmintona")
+
+
 def test_is_plan_coordination_only_without_detail_questions() -> None:
     assert is_plan_coordination_only("Ułóż plan na sierpień w Plany")
+    assert is_plan_coordination_only("Zaktualizuj plan na ten tydzień — bez badmintona")
 
 
 def test_is_plan_coordination_only_false_when_diet_question() -> None:
@@ -100,6 +109,32 @@ def test_user_requests_plan_rebuild_negative_cases() -> None:
     assert not user_requests_plan_rebuild("Jaka jest harmonia w muzyce?")
     assert not user_requests_plan_rebuild("Opowiedz o planie marketingowym firmy")
     assert not user_requests_plan_rebuild("Cześć, jak się masz?")
+
+
+def test_build_goat_turn_prompt_prefers_no_consult_on_simple_greeting() -> None:
+    diet = _FakePersona(id="a", type="dietitian", slug="dietetyk", name="Anna")
+    prompt = build_goat_turn_prompt(active_personas=[diet], user_message="Cześć")
+    assert "NIE wołaj consult_persona" in prompt or "bez consult_persona" in prompt.lower()
+    assert "proste" in prompt.lower() or "samodzielnie" in prompt.lower()
+
+
+def test_build_goat_turn_prompt_plan_only_forbids_consult() -> None:
+    motor = _FakePersona(id="b", type="motor_coach", slug="motoryka", name="Bartek")
+    prompt = build_goat_turn_prompt(
+        active_personas=[motor],
+        user_message="Zaktualizuj plan na ten tydzień — bez badmintona",
+    )
+    assert "rebuild_plan" in prompt
+    assert "NIE wołaj consult_persona" in prompt
+
+
+def test_plan_brief_excludes_badminton_coach() -> None:
+    from app.domain.chat.team_lead import plan_brief_excludes_persona_type
+
+    brief = "Tydzień bez badmintona — tylko siłownia i bieganie"
+    assert plan_brief_excludes_persona_type(brief, "badminton_coach")
+    assert not plan_brief_excludes_persona_type(brief, "motor_coach")
+    assert not plan_brief_excludes_persona_type("Więcej badmintona na hali", "badminton_coach")
 
 
 def test_persona_display_label_for_trainer() -> None:

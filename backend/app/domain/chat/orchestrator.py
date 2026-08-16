@@ -116,7 +116,7 @@ async def _emit_persona_status(
                 "update_user_profile": "aktualizuje profil",
                 "get_plan": "przegląda plan",
                 "upsert_plan_items": "zapisuje w Plany",
-                "rebuild_plan": "uzgadnia plan",
+                "rebuild_plan": "przebudowuje plan",
             }
             action = labels.get(tool_name, "wykonuje akcję")
         message = template.format(name=display.split(" · ")[0], action=action)
@@ -734,9 +734,32 @@ class ChatOrchestrator:
             entries = arguments.get("entries")
             if not isinstance(entries, list) or not entries:
                 return json.dumps({"error": "Wymagane entries: lista pozycji planu."})
+            is_goat = getattr(persona, "type", None) == "team_lead"
+            if is_goat:
+                missing = [
+                    i
+                    for i, e in enumerate(entries)
+                    if isinstance(e, dict) and not str(e.get("persona_id") or "").strip()
+                ]
+                if missing:
+                    return json.dumps(
+                        {
+                            "error": "Goat musi podać persona_id w każdej pozycji "
+                            f"(brak w indeksach: {missing})."
+                        },
+                        ensure_ascii=False,
+                    )
+                if not allowed_persona_ids:
+                    return json.dumps(
+                        {"error": "Brak rosteru person do zapisu planu."},
+                        ensure_ascii=False,
+                    )
+                default_persona_id = allowed_persona_ids[0]
+            else:
+                default_persona_id = persona_id
             result = await plan_tools.upsert_plan_items(
                 user_id=user_id,
-                persona_id=persona_id,
+                persona_id=default_persona_id,
                 entries=entries,
                 allowed_persona_ids=allowed_persona_ids,
             )
@@ -748,8 +771,13 @@ class ChatOrchestrator:
                 start_date = date.fromisoformat(str(arguments["start_date"]))
             except (KeyError, ValueError, TypeError) as exc:
                 return json.dumps({"error": f"Nieprawidłowe argumenty rebuild_plan: {exc}"})
+            user_brief = arguments.get("user_brief")
+            brief = str(user_brief).strip() if user_brief is not None else None
             result = await plan_tools.rebuild_plan(
-                user_id=user_id, period_type=period_type, start_date=start_date
+                user_id=user_id,
+                period_type=period_type,
+                start_date=start_date,
+                user_brief=brief or None,
             )
             return json.dumps(result, default=str, ensure_ascii=False)
 

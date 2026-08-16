@@ -62,10 +62,22 @@ Jedna tura SSE: `persona_turn_start` tylko dla Goata (`persona_id: null`). Zagni
 
 | Rola | Narzędzia |
 |------|-----------|
-| **Goat** | `get_plan`, `rebuild_plan`, `update_user_profile`, **`consult_persona`** — **bez** `log_result` / `upsert_plan_items` |
-| **Trenerzy** | `log_result`, `update_user_profile`, `get_plan`, `upsert_plan_items` — **bez** `rebuild_plan` / `consult_persona` |
+| **Goat** | `get_plan`, `rebuild_plan`, `update_user_profile`, **`consult_persona`**, **`upsert_plan_items`** (dowolna aktywna persona; wymagane `persona_id` w entry) — **bez** `log_result` |
+| **Trenerzy** | `log_result`, `update_user_profile`, `get_plan`, `upsert_plan_items` (swoje) — **bez** `rebuild_plan` / `consult_persona` |
 
 **Limit:** max 5 wywołań `consult_persona` na turę Goata.
+
+**ADDED 2026-08-17 — latencja / brief planu**
+
+- Goat **domyślnie bez** `consult_persona` (proste odpowiedzi i korekty planu samodzielnie).
+- `rebuild_plan` przyjmuje opcjonalne `user_brief` (np. „bez badmintona”) — brief idzie do joba generacji; role wykluczone briefem (heurystyka `plan_brief_excludes_persona_type`) nie generują pozycji.
+- Status startowy FE: „Goat przygotowuje odpowiedź…” (nie „uzgadnia z zespołem”).
+
+**ADDED 2026-08-17 — ostateczny głos Goata nad planem**
+
+- Persony szkicują; etap 3 harmonizacji = **Goat · Kierownik** (prompt + `user_brief` + deterministyczne usuwanie wykluczonych ról + patche `update`/`delete`).
+- W UI postępu joba: wiersz Goata (Oczekuje / Harmonizuje… / Gotowe), nie anonimowa pigułka.
+- W czacie Goat może `upsert_plan_items` na dowolną aktywną personę — ostateczna korekta bez pełnego rebuild.
 
 ### Slash (bez zmian)
 

@@ -38,6 +38,7 @@ def test_get_team_lead_plan_tools_includes_consult_persona() -> None:
         "rebuild_plan",
         "update_user_profile",
         "consult_persona",
+        "upsert_plan_items",
     }
 
 
@@ -54,12 +55,22 @@ def test_consult_persona_schema_requires_slug_and_question() -> None:
     params = fn["parameters"]
     assert set(params["required"]) == {"slug", "question"}
     assert params["additionalProperties"] is False
+    assert "rzadko" in fn["description"].lower() or "tylko gdy" in fn["description"].lower()
+
+
+def test_rebuild_plan_schema_accepts_optional_user_brief() -> None:
+    from app.domain.chat.tools import REBUILD_PLAN_TOOL_SCHEMA
+
+    fn = REBUILD_PLAN_TOOL_SCHEMA["function"]
+    props = fn["parameters"]["properties"]
+    assert "user_brief" in props
+    assert set(fn["parameters"]["required"]) == {"period_type", "start_date"}
 
 
 def test_trainer_and_team_lead_tool_sets_disjoint_except_shared() -> None:
     trainer = {t["function"]["name"] for t in get_trainer_chat_tools()}
     goat = {t["function"]["name"] for t in get_team_lead_plan_tools()}
-    assert trainer & goat == {"get_plan", "update_user_profile"}
+    assert trainer & goat == {"get_plan", "update_user_profile", "upsert_plan_items"}
     assert "rebuild_plan" in goat and "rebuild_plan" not in trainer
     assert "consult_persona" in goat and "consult_persona" not in trainer
     assert "log_result" in trainer and "log_result" not in goat

@@ -279,6 +279,13 @@ class PlansRepo:
             {"plan_id": plan_id, "persona_id": persona_id},
         )
 
+    async def delete_item(self, item_id: str) -> None:
+        """Usuwa pojedynczą pozycję — np. harmonizacja Goata wycina kartę wykluczoną briefem."""
+        await self._conn.execute(
+            text("DELETE FROM plan_items WHERE id = :id"),
+            {"id": item_id},
+        )
+
     async def update_item_content(self, item_id: str, content: dict[str, Any]) -> None:
         """Targeted patch etapu 3 — harmonizacja (architecture.md §4) koryguje TYLKO
         konkretne `plan_items`, nie pełna regeneracja."""

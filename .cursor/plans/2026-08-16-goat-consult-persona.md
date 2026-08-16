@@ -13,7 +13,11 @@
 | 2026-08-16 | Roundtable = N consultów + **jeden** bubble Goata | Spójne z „rozmawiam z kierownikiem”. |
 | 2026-08-16 | Roster = aktywne persony **tego usera** (w tym `custom`); hint bez hardcodu motoryki | User tworzy własne persony — tool nie jest ograniczony do dietetyk/motoryka. |
 | 2026-08-16 | Cap 5 `consult_persona` / turę | Max 5 person w produkcie. |
+| 2026-08-17 | Domyślnie **bez** consult — tylko gdy potrzeba szczegółu; plan/korekta → sam `rebuild_plan` | Wolne odpowiedzi; Goat konsultował proste rzeczy. |
+| 2026-08-17 | `rebuild_plan.user_brief` + wykluczenie ról z briefu (np. bez badmintona → skip `badminton_coach`) | Przebudowy ignorowały „bez badmintona”; plan wracał z badmintonem. |
+| 2026-08-17 | Status startowy FE: „Goat przygotowuje odpowiedź…” (nie „uzgadnia z zespołem”) | Stary copy z ery multi-speaker mylił przy czekaniu. |
 
 ## Status
 
-**Wdrożone** (2026-08-16): schema, orchestrator, FE chipy, cleanup relay/klasyfikatora, docs/ADR.
+**Wdrożone** (2026-08-16): schema, orchestrator, FE chipy, cleanup relay/klasyfikatora, docs/ADR.  
+**Delta 2026-08-17:** rzadziej consult + `user_brief` w przebudowie planu + status FE.

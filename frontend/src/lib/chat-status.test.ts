@@ -11,8 +11,10 @@ import {
 } from "@/lib/chat-status";
 
 describe("chat-status", () => {
-  it("initialStreamStatus: general → team lead, persona → preparing", () => {
+  it("initialStreamStatus: general → Goat myśli, persona → preparing", () => {
     expect(initialStreamStatus("general")).toBe(TEAM_STATUS_DEFAULT);
+    expect(TEAM_STATUS_DEFAULT).toMatch(/Goat/i);
+    expect(TEAM_STATUS_DEFAULT.toLowerCase()).not.toContain("uzgadnia z zespołem");
     expect(initialStreamStatus("persona")).toBe(PREPARING_STATUS);
   });
 
@@ -23,9 +25,7 @@ describe("chat-status", () => {
 
   it("personaToolStatus mapuje toole planu", () => {
     expect(personaToolStatus("Trener", "upsert_plan_items")).toBe("Trener zapisuje w Plany…");
-    expect(personaToolStatus("Dietetyk", "rebuild_plan")).toBe(
-      "Dietetyk uzgadnia plan między trenerami…"
-    );
+    expect(personaToolStatus("Dietetyk", "rebuild_plan")).toBe("Dietetyk przebudowuje plan…");
   });
 
   it("personaToolStatus: nieznany tool + brak persony", () => {

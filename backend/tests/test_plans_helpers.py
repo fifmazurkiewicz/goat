@@ -49,3 +49,12 @@ def test_pick_best_plan_newest_when_same_status() -> None:
 
 def test_pick_best_plan_empty_returns_none() -> None:
     assert pick_best_plan_for_range([]) is None
+
+
+def test_harmonization_schema_supports_delete_action() -> None:
+    from app.domain.plans.orchestrator import _harmonization_schema
+
+    schema = _harmonization_schema(["pid-1", "pid-2"])
+    props = schema["schema"]["properties"]["patches"]["items"]["properties"]
+    assert props["action"]["enum"] == ["update", "delete"]
+    assert "action" in schema["schema"]["properties"]["patches"]["items"]["required"]

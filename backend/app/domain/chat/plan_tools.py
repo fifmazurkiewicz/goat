@@ -205,6 +205,7 @@ class ChatPlanToolsService:
         user_id: str,
         period_type: str,
         start_date: date,
+        user_brief: str | None = None,
     ) -> dict[str, Any]:
         if period_type not in ("week", "month"):
             return {"error": "period_type musi być 'week' albo 'month'."}
@@ -228,6 +229,7 @@ class ChatPlanToolsService:
             user_id=user_id,
             claims=self._claims,
             background_tasks=None,
+            user_brief=user_brief,
         )
         return {
             "status": "ok",
