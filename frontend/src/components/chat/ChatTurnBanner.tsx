@@ -39,7 +39,7 @@ export function ChatTurnBanner() {
           type="button"
           variant="destructive"
           size="sm"
-          className="h-7"
+          className="min-h-11"
           onClick={() => stopTurn(sessionId)}
         >
           <Square className="mr-1 h-3 w-3 fill-current" />

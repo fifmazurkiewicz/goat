@@ -9,6 +9,7 @@ import { PersonaCard } from "@/components/personas/PersonaCard";
 import { PersonaConfigDialog } from "@/components/personas/PersonaConfigDialog";
 import { PersonaFormDialog } from "@/components/personas/PersonaFormDialog";
 import { usePersonas } from "@/hooks/usePersonas";
+import { PAGE_SHELL_CLASS, PAGE_TITLE_CLASS } from "@/lib/layout";
 import type { Persona } from "@/types/api";
 
 /**
@@ -40,8 +41,8 @@ export default function PersonasPage() {
   }
 
   return (
-    <div className="container py-10">
-      <h1 className="text-3xl font-semibold tracking-tight">Twoi trenerzy</h1>
+    <div className={PAGE_SHELL_CLASS}>
+      <h1 className={PAGE_TITLE_CLASS}>Twoi trenerzy</h1>
       <p className="mt-2 max-w-[70ch] text-muted-foreground">
         Do {maxActivePersonas} person, każda ze swoim głosem i celem. Włącz, edytuj prompt albo zajrzyj do person,
         które udostępnili inni.

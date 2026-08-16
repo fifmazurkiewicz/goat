@@ -66,7 +66,7 @@ export function CommunitySection({ isAtLimit, maxActivePersonas }: CommunitySect
               <div className="text-base font-semibold">{persona.name}</div>
               <p className="line-clamp-2 text-sm text-muted-foreground">{persona.system_prompt}</p>
               <div className="mt-1 flex gap-2">
-                <Button type="button" variant="ghost" size="sm" className="px-0" onClick={() => setPreviewPersona(persona)}>
+                <Button type="button" variant="ghost" size="sm" className="min-h-11 px-2" onClick={() => setPreviewPersona(persona)}>
                   Podgląd promptu →
                 </Button>
               </div>

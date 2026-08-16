@@ -18,7 +18,7 @@ interface ChatLayoutProps {
 
 /**
  * `ChatLayout` (smart) — drawer open/closed (localStorage), URL sync sessionId
- * (docs/technical/frontend.md sekcja 4). Wysokość = `h-full` w AppShell (`h-svh`);
+ * (docs/technical/frontend.md sekcja 4). Wysokość = `flex-1 min-h-0` w AppShell (`h-dvh`);
  * scroll tylko w MessageList / liście sesji — input „Wyślij” zawsze widoczny.
  */
 export function ChatLayout({ sessionId }: ChatLayoutProps) {
@@ -61,14 +61,14 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
   );
 
   return (
-    <div className="flex h-full min-h-0 overflow-hidden">
+    <div className="flex min-h-0 flex-1 overflow-hidden">
       {!isMobile && isDrawerOpen ? (
-        <div className="flex h-full w-72 shrink-0 flex-col overflow-hidden border-r">{drawer}</div>
+        <div className="flex min-h-0 w-72 shrink-0 flex-col overflow-hidden border-r">{drawer}</div>
       ) : null}
 
       {isMobile ? (
         <Sheet open={isMobileDrawerOpen} onOpenChange={setIsMobileDrawerOpen}>
-          <SheetContent side="left" className="w-80 p-0">
+          <SheetContent side="left" className="w-[min(20rem,100%)] p-0 pt-[env(safe-area-inset-top)]">
             <SheetTitle className="sr-only">Rozmowy</SheetTitle>
             {drawer}
           </SheetContent>
@@ -93,6 +93,7 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
             session={activeSession}
             personas={personas}
             onOpenDrawer={isMobile ? () => setIsMobileDrawerOpen(true) : undefined}
+            onNewSession={isMobile ? () => setIsNewSessionOpen(true) : undefined}
           />
         ) : (
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 overflow-y-auto p-6 text-center">

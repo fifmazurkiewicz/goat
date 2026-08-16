@@ -81,19 +81,19 @@ export function PersonaCard({ persona, onOpenConfig, onEdit }: PersonaCardProps)
           {persona.is_shared ? (
             <Badge variant="outline">Udostępniona</Badge>
           ) : (
-            <Button type="button" variant="ghost" size="sm" className="px-0" onClick={handleShare}>
+            <Button type="button" variant="ghost" size="sm" className="min-h-11 px-2" onClick={handleShare}>
               Udostępnij
             </Button>
           )}
         </div>
-        <Button type="button" variant="ghost" size="sm" className="justify-start px-0" onClick={() => onOpenConfig(persona)}>
+        <Button type="button" variant="ghost" size="sm" className="min-h-11 justify-start px-2" onClick={() => onOpenConfig(persona)}>
           Zobacz konfigurację →
         </Button>
         <div className="mt-auto flex gap-2">
-          <Button type="button" variant="outline" className="flex-1" onClick={() => onEdit(persona)}>
+          <Button type="button" variant="outline" className="min-h-11 flex-1" onClick={() => onEdit(persona)}>
             Edytuj
           </Button>
-          <Button type="button" variant="secondary" className="flex-1" onClick={handleChat} disabled={createSession.isPending}>
+          <Button type="button" variant="secondary" className="min-h-11 flex-1" onClick={handleChat} disabled={createSession.isPending}>
             Porozmawiaj
           </Button>
         </div>

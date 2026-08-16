@@ -67,10 +67,10 @@ export function CalendarViewSwitcher({
           <div />
         )}
         <div className="flex gap-2">
-          <Button type="button" variant="secondary" size="sm" onClick={onPrev}>
+          <Button type="button" variant="secondary" className="min-h-11" onClick={onPrev}>
             <ChevronLeft className="mr-1 h-4 w-4" /> Poprzedni
           </Button>
-          <Button type="button" variant="secondary" size="sm" onClick={onNext}>
+          <Button type="button" variant="secondary" className="min-h-11" onClick={onNext}>
             Następny <ChevronRight className="ml-1 h-4 w-4" />
           </Button>
         </div>

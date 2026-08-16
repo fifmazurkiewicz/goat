@@ -9,5 +9,9 @@ import { ChatLayout } from "@/components/chat/ChatLayout";
 export default function ChatPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
 
-  return <ChatLayout sessionId={sessionId} />;
+  return (
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <ChatLayout sessionId={sessionId} />
+    </div>
+  );
 }

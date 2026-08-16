@@ -16,9 +16,8 @@ interface ResponsiveDialogProps {
 }
 
 /**
- * `Sheet` (bottom, pełna wysokość) na mobile zamiast wyśrodkowanego `Dialog` — używane dla
- * dłuższych formularzy (dodaj personę, edycja promptu, szczegóły ćwiczenia), zgodnie z
- * docs/technical/frontend.md sekcja 11.
+ * `Sheet` (bottom) na mobile / niskim ekranie zamiast wyśrodkowanego `Dialog`.
+ * Jeden scroller (body), footer przyklejony nad safe area — klawiatura nie gubi Zapisz.
  */
 export function ResponsiveDialog({ open, onOpenChange, title, description, children, footer, className }: ResponsiveDialogProps) {
   const isMobile = useIsMobile();
@@ -26,13 +25,25 @@ export function ResponsiveDialog({ open, onOpenChange, title, description, child
   if (isMobile) {
     return (
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="bottom" className={cn("flex h-[92vh] flex-col overflow-y-auto", className)}>
-          <SheetHeader>
+        <SheetContent
+          side="bottom"
+          className={cn(
+            "flex h-[min(92dvh,100dvh)] max-h-[100dvh] flex-col gap-0 overflow-hidden p-4 pb-0",
+            className
+          )}
+        >
+          <SheetHeader className="shrink-0 pr-8 text-left">
             <SheetTitle>{title}</SheetTitle>
             {description ? <SheetDescription>{description}</SheetDescription> : null}
           </SheetHeader>
-          <div className="flex-1 overflow-y-auto py-2">{children}</div>
-          {footer ? <SheetFooter>{footer}</SheetFooter> : null}
+          <div className="min-h-0 flex-1 overflow-y-auto py-3">{children}</div>
+          {footer ? (
+            <SheetFooter className="shrink-0 border-t bg-background py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+              {footer}
+            </SheetFooter>
+          ) : (
+            <div className="h-[env(safe-area-inset-bottom)] shrink-0" />
+          )}
         </SheetContent>
       </Sheet>
     );

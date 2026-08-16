@@ -22,6 +22,7 @@ import { PlanGenerationBanner } from "@/components/plans/PlanGenerationBanner";
 import { usePersonas } from "@/hooks/usePersonas";
 import { usePlanRange } from "@/hooks/usePlans";
 import { useIsMobile } from "@/hooks/useMediaQuery";
+import { PAGE_SHELL_CLASS, PAGE_TITLE_CLASS } from "@/lib/layout";
 import { usePlanGenerationStore } from "@/store/usePlanGenerationStore";
 
 const DATE_FORMAT = "yyyy-MM-dd";
@@ -82,10 +83,10 @@ export default function PlansPage() {
       : format(selectedDate, "LLLL yyyy", { locale: pl });
 
   return (
-    <div className="container py-10">
+    <div className={PAGE_SHELL_CLASS}>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-3xl font-semibold capitalize tracking-tight">Plan {view === "week" ? "tygodnia" : "miesiąca"}</h1>
+          <h1 className={`${PAGE_TITLE_CLASS} capitalize`}>Plan {view === "week" ? "tygodnia" : "miesiąca"}</h1>
           <p className="capitalize text-muted-foreground">{periodLabel}</p>
         </div>
         {data?.plan ? (

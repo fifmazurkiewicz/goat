@@ -122,19 +122,19 @@ export function ResultsTable({ results, category }: ResultsTableProps) {
                 <TableCell className="text-right">
                   {isEditing ? (
                     <div className="flex justify-end gap-1">
-                      <Button size="icon" variant="ghost" onClick={() => saveEdit(result.id)} aria-label="Zapisz">
+                      <Button size="icon" variant="ghost" className="min-h-11 min-w-11" onClick={() => saveEdit(result.id)} aria-label="Zapisz">
                         <Check className="h-4 w-4" />
                       </Button>
-                      <Button size="icon" variant="ghost" onClick={() => setEditingId(null)} aria-label="Anuluj">
+                      <Button size="icon" variant="ghost" className="min-h-11 min-w-11" onClick={() => setEditingId(null)} aria-label="Anuluj">
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
                   ) : (
                     <div className="flex justify-end gap-1">
-                      <Button size="icon" variant="ghost" onClick={() => startEdit(result)} aria-label="Edytuj">
+                      <Button size="icon" variant="ghost" className="min-h-11 min-w-11" onClick={() => startEdit(result)} aria-label="Edytuj">
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button size="icon" variant="ghost" onClick={() => handleDelete(result.id)} aria-label="Usuń">
+                      <Button size="icon" variant="ghost" className="min-h-11 min-w-11" onClick={() => handleDelete(result.id)} aria-label="Usuń">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>

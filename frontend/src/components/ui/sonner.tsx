@@ -14,6 +14,7 @@ function Toaster({ ...props }: ToasterProps) {
     <Sonner
       theme={isDark ? "dark" : "light"}
       className="toaster group"
+      offset={{ bottom: "calc(12px + env(safe-area-inset-bottom, 0px))" }}
       toastOptions={{
         classNames: {
           toast:

@@ -9,6 +9,7 @@ import { AdminUsersTable } from "@/components/admin/AdminUsersTable";
 import { AuditLogPanel } from "@/components/admin/AuditLogPanel";
 import { ModerationEventsPanel } from "@/components/admin/ModerationEventsPanel";
 import { useAdminUsers } from "@/hooks/useAdmin";
+import { PAGE_SHELL_CLASS, PAGE_TITLE_CLASS } from "@/lib/layout";
 
 /**
  * Chroniona auth + `is_admin`. Kwota w USD BEZ etykiet "Free"/"Pro" (ADR-16 — budżet
@@ -18,8 +19,8 @@ export default function AdminPage() {
   const { data: users, isLoading } = useAdminUsers();
 
   return (
-    <div className="container py-10">
-      <h1 className="text-3xl font-semibold tracking-tight">Panel admina</h1>
+    <div className={PAGE_SHELL_CLASS}>
+      <h1 className={PAGE_TITLE_CLASS}>Panel admina</h1>
       <p className="mt-2 max-w-[70ch] text-muted-foreground">
         Konta, budżety i limity person. Diagnostyka platformy (moderacja, log audytowy) jest opcjonalna —
         przydatna głównie przy incydentach bezpieczeństwa lub wielu użytkownikach.

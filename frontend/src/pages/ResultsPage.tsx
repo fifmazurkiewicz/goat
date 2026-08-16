@@ -15,6 +15,7 @@ import { ResultsTable } from "@/components/results/ResultsTable";
 import { usePersonas } from "@/hooks/usePersonas";
 import { useAllResults, useResults } from "@/hooks/useResults";
 import { resultCategoryTabsFromPersonas } from "@/lib/result-categories";
+import { PAGE_SHELL_CLASS, PAGE_TITLE_CLASS } from "@/lib/layout";
 import type { ResultCategory } from "@/types/api";
 
 /**
@@ -56,8 +57,8 @@ export default function ResultsPage() {
 
   if (personasLoading) {
     return (
-      <div className="container py-10">
-        <h1 className="text-3xl font-semibold tracking-tight">Wyniki</h1>
+      <div className={PAGE_SHELL_CLASS}>
+        <h1 className={PAGE_TITLE_CLASS}>Wyniki</h1>
         <p className="mt-6 text-sm text-muted-foreground">Ładowanie…</p>
       </div>
     );
@@ -65,8 +66,8 @@ export default function ResultsPage() {
 
   if (categoryTabs.length === 0 || !activeCategory) {
     return (
-      <div className="container py-10">
-        <h1 className="mb-6 text-3xl font-semibold tracking-tight">Wyniki</h1>
+      <div className={PAGE_SHELL_CLASS}>
+        <h1 className={`mb-6 ${PAGE_TITLE_CLASS}`}>Wyniki</h1>
         <p className="text-sm text-muted-foreground">
           Kategorie wyników zależą od Twoich person.{" "}
           <Link to="/personas" className="underline underline-offset-2 hover:text-foreground">
@@ -79,9 +80,9 @@ export default function ResultsPage() {
   }
 
   return (
-    <div className="container py-10">
+    <div className={PAGE_SHELL_CLASS}>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight">Wyniki</h1>
+        <h1 className={PAGE_TITLE_CLASS}>Wyniki</h1>
         <AddResultDialog category={activeCategory} />
       </div>
 
@@ -110,7 +111,7 @@ export default function ResultsPage() {
               <h2 className="text-lg font-semibold">Trend</h2>
               {metrics.length > 0 ? (
                 <Select value={selectedMetric ?? undefined} onValueChange={setMetric}>
-                  <SelectTrigger className="w-56">
+                  <SelectTrigger className="w-full max-w-56">
                     <SelectValue placeholder="Wybierz metrykę" />
                   </SelectTrigger>
                   <SelectContent>

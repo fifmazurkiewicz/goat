@@ -70,13 +70,15 @@ Dyskryminowany union: `type ChatStreamEvent = {type:'token', text:string} | {typ
 
 ```
 ChatLayout (smart) — drawer open/closed (localStorage), URL sync sessionId;
-│                    AppShell `h-svh` + `min-h-0` flex chain — scroll tylko w MessageList,
-│                    pole „Wyślij” zawsze w viewport bez scrolla strony
+│                    AppShell `h-dvh` + `--app-height` (visualViewport) + `min-h-0`.
+│                    Na `/chat` `main` = `overflow-hidden` (bez page-scroll).
+│                    Scroll tylko w MessageList; pole „Wyślij” zawsze w viewport.
+│                    Composer: `env(safe-area-inset-bottom)` + min. 44px.
 ├─ PersonaSessionDrawer (smart) — collapsible od startu (Sheet z shadcn na mobile)
 │  └─ SessionListItem (dumb) — avatar/kolor persony (silne kodowanie wizualne, nie tylko tekst)
-├─ ChatHeader (dumb) — avatar/kolor/nazwa aktywnej persony
+├─ ChatHeader (dumb) — tytuł sesji; na mobile hamburger + „Nowa rozmowa”; bez copy /slug
 ├─ ChatWindow (smart) — stan czatu; SSE przez globalny `useChatTurnRunner` w AppShell (tura w tle)
-│  ├─ MessageList (dumb, wirtualizowana przy długiej historii — @tanstack/react-virtual)
+│  ├─ MessageList (dumb) — kotwica na dole (`chat-history-end`); bez wirtualizacji (MVP)
 │  │  ├─ MessageBubble (dumb) — w sesji 'general' nagłówek persona_label (trener lub
 │  │  │  **Goat · Kierownik Zespołu** gdy `persona_id=null` — `isTeamLeadAssistantMessage`)
 │  │  │  (kontekst już wiadomy z ChatHeader). Treść **asystenta** renderowana jako Markdown
@@ -185,4 +187,14 @@ Sekcje 4-5 adresują mobile dla `/chat` i `/plans` explicite. Dla pozostałych s
 - **Tabele `/results` i `/admin`** — pierwsza kolumna `sticky left-0` + poziomy scroll dla
   reszty (nie card-layout — dane tabelaryczne z wieloma numerycznymi kolumnami czytelniejsze
   w formie tabeli nawet przy scrollu, w odróżnieniu od `PlanItemTable` gdzie kolumny mają
-  zmienną, tekstową treść).
+  zmienną, tekstową treść). Akcje w `/results` mają touch target ≥44px.
+- **Viewport (ADR-18):** `viewport-fit=cover`, `h-dvh` + `--app-height` z `visualViewport`
+  (klawiatura iOS/Android). Safe area: header `pt-[env(safe-area-inset-top)]`, strony i
+  composer `pb-[env(safe-area-inset-bottom)]`. Gutter stron: `PAGE_SHELL_CLASS` (`py-6` na
+  telefonie, `md:py-10`). Touch target min. 44px (`min-h-11`) w nav, composerze, tabach,
+  chipach katalogu i przyciskach planu. Input/textarea: `text-base md:text-sm` (bez zoomu
+  iOS przy focusie). `useIsMobile`: `(max-width: 767px), (max-height: 500px)` — iPhone
+  landscape dostaje Sheet i tydzień planu, nie wyśrodkowany Dialog / siatkę miesiąca.
+  `ResponsiveDialog`: jeden scroll, footer `shrink-0` + safe area.
+- **Nawigacja:** poziomy scroll górnego paska (6 pozycji) zostaje w MVP; bottom nav (Czat /
+  Plan / Wyniki) — świadomie odłożone (wariant B audytu UX 2026-08-16).

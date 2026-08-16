@@ -91,10 +91,10 @@ export function ChatInput({
   }
 
   return (
-    <div className="shrink-0 border-t bg-background p-4">
+    <div className="shrink-0 border-t bg-background px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 sm:p-4">
       <Popover open={isAutocompleteOpen}>
         <PopoverAnchor asChild>
-          <div className="flex gap-2">
+          <div className="flex items-end gap-2">
             <Textarea
               ref={textareaRef}
               value={value}
@@ -105,16 +105,16 @@ export function ChatInput({
               onKeyDown={handleKeyDown}
               placeholder="Napisz wiadomość..."
               rows={1}
-              className="min-h-10 flex-1 resize-none"
+              className="min-h-11 flex-1 resize-none text-base md:text-sm"
               disabled={disabled || isStreaming}
             />
             {isStreaming ? (
-              <Button type="button" variant="destructive" onClick={onStop}>
+              <Button type="button" variant="destructive" className="min-h-11" onClick={onStop}>
                 <Square className="mr-1 h-3.5 w-3.5 fill-current" />
                 Zatrzymaj
               </Button>
             ) : (
-              <Button type="button" onClick={handleSubmit} disabled={disabled || !value.trim()}>
+              <Button type="button" className="min-h-11" onClick={handleSubmit} disabled={disabled || !value.trim()}>
                 Wyślij
               </Button>
             )}

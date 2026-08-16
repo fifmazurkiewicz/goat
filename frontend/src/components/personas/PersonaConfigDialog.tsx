@@ -42,7 +42,7 @@ export function PersonaConfigDialog({ persona, onOpenChange, onEdit }: PersonaCo
             <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Twoje dane, które widzi ta persona
             </div>
-            <div className="mt-2 grid grid-cols-3 gap-3 text-sm">
+            <div className="mt-2 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
               <div>
                 <div className="text-[11px] text-muted-foreground">Wzrost</div>
                 <div className="tabular-nums">{userProfile?.height_cm ? `${userProfile.height_cm} cm` : "—"}</div>

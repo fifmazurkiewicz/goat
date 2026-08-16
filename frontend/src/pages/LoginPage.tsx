@@ -29,7 +29,7 @@ export default function LoginPage() {
 
   if (!isInitialized) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+      <div className="flex min-h-dvh items-center justify-center text-sm text-muted-foreground">
         Ładowanie…
       </div>
     );
@@ -54,7 +54,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="flex min-h-dvh items-start justify-center bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))] sm:items-center">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle>goat</CardTitle>

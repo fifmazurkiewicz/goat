@@ -77,7 +77,7 @@ export function PersonaSessionDrawer({
           <p className="text-sm text-muted-foreground">Brak rozmów — zacznij nową poniżej.</p>
         ) : null}
       </div>
-      <Button type="button" variant="ghost" className="shrink-0 justify-start px-0" onClick={onNewSession}>
+      <Button type="button" variant="ghost" className="min-h-11 shrink-0 justify-start px-0" onClick={onNewSession}>
         <Plus className="mr-1 h-4 w-4" /> Nowa rozmowa
       </Button>
     </div>

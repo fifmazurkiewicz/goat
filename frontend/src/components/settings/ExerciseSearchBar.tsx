@@ -40,7 +40,7 @@ export function ExerciseSearchBar({
             type="button"
             onClick={() => onCategoryChange(category)}
             className={cn(
-              "shrink-0 whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+              "shrink-0 whitespace-nowrap rounded-full border px-3 py-2 text-sm font-medium min-h-11 transition-colors",
               activeCategory === category ? "bg-primary text-primary-foreground" : "hover:bg-accent"
             )}
           >

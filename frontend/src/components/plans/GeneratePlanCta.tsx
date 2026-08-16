@@ -40,13 +40,19 @@ export function GeneratePlanCta({ startDate }: GeneratePlanCtaProps) {
           na cały tydzień lub miesiąc.
         </CardDescription>
       </CardHeader>
-      <CardContent className="flex gap-2">
-        <Button type="button" onClick={() => handleGenerate("week")} disabled={isGenerating || generatePlan.isPending}>
+      <CardContent className="flex flex-col gap-2 sm:flex-row">
+        <Button
+          type="button"
+          className="min-h-11 w-full sm:w-auto"
+          onClick={() => handleGenerate("week")}
+          disabled={isGenerating || generatePlan.isPending}
+        >
           Wygeneruj plan tygodnia
         </Button>
         <Button
           type="button"
           variant="secondary"
+          className="min-h-11 w-full sm:w-auto"
           onClick={() => handleGenerate("month")}
           disabled={isGenerating || generatePlan.isPending}
         >

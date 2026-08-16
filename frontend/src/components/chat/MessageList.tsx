@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { useLayoutEffect, useMemo, useRef } from "react";
 
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { StreamingStatusLine } from "@/components/chat/StreamingStatusLine";
@@ -22,14 +21,12 @@ interface MessageListProps {
 }
 
 /**
- * `MessageList` (dumb, wirtualizowana przy długiej historii — `@tanstack/react-virtual`,
- * docs/technical/frontend.md sekcja 4). `aria-live="polite"` na kontenerze streamującej
- * wiadomości, nie na całej liście. Historia: tylko `user`/`assistant` z treścią —
- * `role=tool` zostaje w API dla LLM, nie w UI. Status streamu: jedna linia (podmiana),
- * widoczna tylko gdy brak tokenów.
+ * `MessageList` — historia w DOM (typowa sesja coachingu nie wymaga wirtualizacji).
+ * Kotwica na dole (`chat-history-end`) pokazuje ostatnie wiadomości od razu.
+ * `aria-live="polite"` tylko na streamującej wiadomości.
  */
 export function MessageList({ messages, personaLabelFor, streaming }: MessageListProps) {
-  const parentRef = useRef<HTMLDivElement>(null);
+  const endRef = useRef<HTMLDivElement>(null);
 
   const rows = useMemo<Row[]>(() => {
     const visible = visibleChatMessages(messages);
@@ -67,55 +64,30 @@ export function MessageList({ messages, personaLabelFor, streaming }: MessageLis
     return [...chatRows, ...streamingRows];
   }, [messages, personaLabelFor, streaming]);
 
-  const virtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 88,
-    overscan: 8,
-  });
-
-  useEffect(() => {
-    if (rows.length === 0) return;
-    virtualizer.scrollToIndex(rows.length - 1, { align: "end" });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    endRef.current?.scrollIntoView?.({ block: "end" });
   }, [rows.length, streaming?.content, streaming?.statusLabel]);
 
   return (
-    <div ref={parentRef} className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
-      <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
-        {virtualizer.getVirtualItems().map((virtualRow) => {
-          const row = rows[virtualRow.index];
-          return (
-            <div
-              key={row.key}
-              data-index={virtualRow.index}
-              ref={virtualizer.measureElement}
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                width: "100%",
-                transform: `translateY(${virtualRow.start}px)`,
-              }}
-              className="flex flex-col pb-4"
-            >
-              {row.kind === "chat" && <MessageBubble message={row.message} personaLabel={row.personaLabel} />}
-              {row.kind === "streaming-tool" && <ToolResultChip {...row.event} />}
-              {row.kind === "streaming-status" && <StreamingStatusLine label={row.label} />}
-              {row.kind === "streaming-text" && (
-                <div aria-live="polite">
-                  <MessageBubble message={{ role: "assistant", content: row.content }} personaLabel={row.personaLabel} />
-                </div>
-              )}
+    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 sm:px-6">
+      {rows.map((row) => (
+        <div key={row.key} className="pb-4">
+          {row.kind === "chat" && <MessageBubble message={row.message} personaLabel={row.personaLabel} />}
+          {row.kind === "streaming-tool" && <ToolResultChip {...row.event} />}
+          {row.kind === "streaming-status" && <StreamingStatusLine label={row.label} />}
+          {row.kind === "streaming-text" && (
+            <div aria-live="polite">
+              <MessageBubble message={{ role: "assistant", content: row.content }} personaLabel={row.personaLabel} />
             </div>
-          );
-        })}
-      </div>
+          )}
+        </div>
+      ))}
       {rows.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
           Napisz pierwszą wiadomość, żeby zacząć rozmowę.
         </p>
       ) : null}
+      <div ref={endRef} data-testid="chat-history-end" className="h-px w-full shrink-0" aria-hidden />
     </div>
   );
 }

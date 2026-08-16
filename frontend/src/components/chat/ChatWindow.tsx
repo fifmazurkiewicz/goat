@@ -17,13 +17,14 @@ interface ChatWindowProps {
   session: ChatSession;
   personas: Persona[];
   onOpenDrawer?: () => void;
+  onNewSession?: () => void;
 }
 
 /**
  * `ChatWindow` (smart) — JEDYNE miejsce otwierające/zamykające SSE (`useChatStream`),
  * docs/technical/frontend.md sekcja 4.
  */
-export function ChatWindow({ session, personas, onOpenDrawer }: ChatWindowProps) {
+export function ChatWindow({ session, personas, onOpenDrawer, onNewSession }: ChatWindowProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const autoSendDoneRef = useRef(false);
@@ -67,7 +68,12 @@ export function ChatWindow({ session, personas, onOpenDrawer }: ChatWindowProps)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <ChatHeader session={session} persona={activePersona} onOpenDrawer={onOpenDrawer} />
+      <ChatHeader
+        session={session}
+        persona={activePersona}
+        onOpenDrawer={onOpenDrawer}
+        onNewSession={onNewSession}
+      />
 
       {isLoading ? (
         <div className="min-h-0 flex-1 overflow-y-auto p-6 text-sm text-muted-foreground">Ładowanie historii…</div>

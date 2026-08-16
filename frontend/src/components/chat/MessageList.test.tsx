@@ -1,23 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 
 import { MessageList } from "@/components/chat/MessageList";
 import { TEAM_LEAD_DISPLAY_LABEL } from "@/lib/team-lead";
 import type { ChatMessage } from "@/types/api";
-
-vi.mock("@tanstack/react-virtual", () => ({
-  useVirtualizer: ({ count }: { count: number }) => ({
-    getVirtualItems: () =>
-      Array.from({ length: count }, (_, index) => ({
-        index,
-        key: index,
-        start: index * 88,
-      })),
-    getTotalSize: () => count * 88,
-    measureElement: vi.fn(),
-    scrollToIndex: vi.fn(),
-  }),
-}));
 
 const goatMessage: ChatMessage = {
   id: "goat-1",
@@ -31,6 +17,10 @@ const goatMessage: ChatMessage = {
 };
 
 describe("MessageList", () => {
+  beforeEach(() => {
+    HTMLElement.prototype.scrollIntoView = vi.fn();
+  });
+
   it("historia: assistant bez persona_id dostaje etykietę Goata", () => {
     render(
       <MessageList
@@ -58,6 +48,19 @@ describe("MessageList", () => {
       />
     );
     expect(screen.getByText("Goat · Kierownik Zespołu analizuje…")).toBeInTheDocument();
+  });
+
+  it("po załadowaniu historii kotwiczy widok na dole (ostatnia wiadomość)", () => {
+    const older: ChatMessage = { ...goatMessage, id: "older", content: "Stara wiadomość." };
+    const latest: ChatMessage = { ...goatMessage, id: "latest", content: "Najnowsza wiadomość." };
+
+    render(
+      <MessageList messages={[older, latest]} personaLabelFor={() => TEAM_LEAD_DISPLAY_LABEL} streaming={null} />
+    );
+
+    expect(screen.getByText("Najnowsza wiadomość.")).toBeInTheDocument();
+    expect(screen.getByTestId("chat-history-end")).toBeInTheDocument();
+    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
   });
 
   it("streaming: tokeny + personaLabel → bubble z nagłówkiem Goata", () => {

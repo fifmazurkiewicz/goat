@@ -290,11 +290,11 @@ export function UserProfileForm() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="sticky bottom-0 z-10 mt-4 flex flex-wrap items-center justify-between gap-3 border-t bg-card pt-3 pb-[max(0.25rem,env(safe-area-inset-bottom))]">
           <div className="text-xs text-muted-foreground">
             {updatedLabel ? `Ostatnia aktualizacja: ${updatedLabel}` : "Profil jeszcze nie zapisany"}
           </div>
-          <Button type="button" onClick={() => void handleSave()} disabled={!isDirty || updateProfile.isPending}>
+          <Button type="button" className="min-h-11" onClick={() => void handleSave()} disabled={!isDirty || updateProfile.isPending}>
             {updateProfile.isPending ? "Zapisywanie…" : "Zapisz profil"}
           </Button>
         </div>

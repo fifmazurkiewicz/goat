@@ -13,7 +13,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
  */
 export default function OnboardingPage() {
   return (
-    <div className="container py-10">
+    <div className="container py-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:py-10">
       <Card>
         <CardHeader>
           <CardTitle>Onboarding</CardTitle>

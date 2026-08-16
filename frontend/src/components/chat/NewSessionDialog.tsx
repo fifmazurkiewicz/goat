@@ -46,7 +46,7 @@ export function NewSessionDialog({ open, onOpenChange, personas, onCreated }: Ne
       open={open}
       onOpenChange={onOpenChange}
       title="Nowa rozmowa"
-      description="Wybierz ogólną rozmowę (odpowie właściwy trener) albo konkretną personę."
+      description="Rozmawiasz z Goat; trenerzy pracują za kulisami. Wybierz personę, żeby pisać bezpośrednio."
       footer={
         <>
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
@@ -69,7 +69,7 @@ export function NewSessionDialog({ open, onOpenChange, personas, onCreated }: Ne
         >
           <div className="font-medium">Ogólna rozmowa</div>
           <div className="text-xs text-muted-foreground">
-            System sam wybierze, kto z Twoich trenerów odpowie na dany temat.
+            Rozmawiasz z Goat. Trenerzy za kulisami; /imię — bezpośrednio z personą.
           </div>
         </button>
         {activePersonas.map((persona) => (

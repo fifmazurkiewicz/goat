@@ -42,7 +42,7 @@ export function ExerciseDetailDialog({ exercise, onOpenChange }: ExerciseDetailD
               </Badge>
             ))}
           </div>
-          <AspectRatio ratio={16 / 9} className="overflow-hidden rounded-md bg-muted">
+          <AspectRatio ratio={16 / 9} className="max-h-40 overflow-hidden rounded-md bg-muted sm:max-h-none">
             {exercise.photo_path ? (
               <img src={exercise.photo_path} alt={exercise.name} className="h-full w-full object-cover" />
             ) : (

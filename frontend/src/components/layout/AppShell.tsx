@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Moon, ShieldAlert, Sun } from "lucide-react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,9 @@ import { useAccount } from "@/hooks/useAccount";
 import { usePlanGenerationPolling, usePlanGenerationSync } from "@/hooks/usePlans";
 import { useChatTurnRunner } from "@/hooks/useChatTurnRunner";
 import { useUsage } from "@/hooks/useUsage";
+import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
 import { ChatTurnBanner } from "@/components/chat/ChatTurnBanner";
+import { isChatPath } from "@/lib/layout";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useThemeStore } from "@/store/useThemeStore";
@@ -30,6 +32,8 @@ const NAV_ITEMS = [
  * poziomie shellu i zasila `useUsageLimitsStore`. `GET /account` ustawia `isAdmin`.
  */
 export function AppShell() {
+  const location = useLocation();
+  const chatMode = isChatPath(location.pathname);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated());
   const isAdmin = useAuthStore((state) => state.isAdmin);
   const setIsAdmin = useAuthStore((state) => state.setIsAdmin);
@@ -37,6 +41,8 @@ export function AppShell() {
   const toggleTheme = useThemeStore((state) => state.toggleTheme);
   const isNearLimit = useUsageLimitsStore((state) => state.isNearLimit);
   const limits = useUsageLimitsStore((state) => state.limits);
+
+  useVisualViewportHeight();
 
   const { data: account } = useAccount();
 
@@ -56,23 +62,26 @@ export function AppShell() {
   useChatTurnRunner();
 
   return (
-    <div className="flex h-svh flex-col overflow-hidden bg-background">
-      <header className="shrink-0 border-b">
-        <div className="container flex h-14 items-center justify-between gap-4">
+    <div
+      className="flex h-dvh flex-col overflow-hidden bg-background"
+      style={{ height: "var(--app-height, 100dvh)" }}
+    >
+      <header className="shrink-0 border-b pt-[env(safe-area-inset-top)]">
+        <div className="flex h-12 items-center gap-2 px-3 sm:container sm:h-14 sm:justify-between sm:gap-4">
           <NavLink
             to="/chat"
-            className="shrink-0 font-semibold text-foreground transition-colors hover:opacity-80"
+            className="inline-flex min-h-11 shrink-0 items-center font-semibold text-foreground transition-colors hover:opacity-80"
           >
             Coach
           </NavLink>
-          <nav className="flex flex-1 gap-4 overflow-x-auto text-sm">
+          <nav className="flex min-h-11 min-w-0 flex-1 items-center gap-1 overflow-x-auto text-sm [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:gap-3">
             {NAV_ITEMS.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
                   cn(
-                    "shrink-0 whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground",
+                    "inline-flex min-h-11 shrink-0 items-center whitespace-nowrap px-2 text-muted-foreground transition-colors hover:text-foreground",
                     isActive && "font-medium text-foreground"
                   )
                 }
@@ -85,7 +94,7 @@ export function AppShell() {
                 to="/admin"
                 className={({ isActive }) =>
                   cn(
-                    "flex shrink-0 items-center gap-1 whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground",
+                    "inline-flex min-h-11 shrink-0 items-center gap-1 whitespace-nowrap px-2 text-muted-foreground transition-colors hover:text-foreground",
                     isActive && "font-medium text-foreground"
                   )
                 }
@@ -94,9 +103,9 @@ export function AppShell() {
               </NavLink>
             ) : null}
           </nav>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1 sm:gap-2">
             {limits ? (
-              <Badge variant={isNearLimit ? "destructive" : "secondary"} className="tabular-nums">
+              <Badge variant={isNearLimit ? "destructive" : "secondary"} className="hidden tabular-nums sm:inline-flex">
                 ${limits.cost_usd_used.toFixed(2)} / ${limits.usage_budget_usd.toFixed(0)}
               </Badge>
             ) : null}
@@ -104,6 +113,7 @@ export function AppShell() {
               type="button"
               variant="ghost"
               size="icon"
+              className="min-h-11 min-w-11"
               onClick={toggleTheme}
               aria-label={theme === "dark" ? "Przełącz na motyw jasny" : "Przełącz na motyw ciemny"}
             >
@@ -112,8 +122,15 @@ export function AppShell() {
           </div>
         </div>
       </header>
-      <ChatTurnBanner />
-      <main className="min-h-0 flex-1 overflow-y-auto">
+      <div className="shrink-0">
+        <ChatTurnBanner />
+      </div>
+      <main
+        className={cn(
+          "min-h-0 flex-1",
+          chatMode ? "flex flex-col overflow-hidden" : "overflow-y-auto"
+        )}
+      >
         <Outlet />
       </main>
     </div>
