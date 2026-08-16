@@ -27,26 +27,22 @@ from app.core.dependencies import get_moderation_service, get_pricing_cache
 from app.core.exceptions import AppError, ConflictError, NotFoundError, ValidationError
 from app.domain.chat.context_builder import ContextBuilder
 from app.domain.chat.plan_tools import ChatPlanToolsService
+from app.domain.chat.routing import parse_multi_slash_command
 from app.domain.chat.team_lead import (
-    ConsultationPlan,
-    TeamLeadService,
-    TeamLeadSpeaker,
+    MAX_CONSULTS_PER_TURN,
     TEAM_LEAD_DISPLAY_LABEL,
-    build_consultation_user_message,
-    build_plan_only_consultation,
-    consultation_to_routing,
-    format_goat_relay,
-    is_direct_persona_invocation,
-    is_plan_coordination_only,
+    TeamLeadSpeaker,
+    build_goat_turn_prompt,
+    goat_consult_status_message,
     persona_display_label,
-    user_requests_plan_rebuild,
+    resolve_persona_by_slug,
 )
-from app.domain.jobs.runner import enqueue_chat_title_async
 from app.domain.chat.tools import (
     TEAM_LEAD_CHAT_TOOL_NAMES,
     get_team_lead_plan_tools,
     get_trainer_chat_tools,
 )
+from app.domain.jobs.runner import enqueue_chat_title_async
 from app.domain.results.metrics_cache import allowed_metrics_cache
 from app.domain.results.service import ResultsService
 from app.domain.usage.service import UsageLimitService
@@ -55,8 +51,8 @@ from app.llm.tool_calling import ToolCallBuffer
 from app.models.schemas import LogResultArgs, UserProfileOut, UserProfileUpdate
 from app.repositories.chat_repo import ChatRepo
 from app.repositories.personas_repo import PersonasRepo
-from app.repositories.profiles_repo import ProfilesRepo
 from app.repositories.plans_repo import PlansRepo
+from app.repositories.profiles_repo import ProfilesRepo
 from app.repositories.results_repo import ResultsRepo
 from app.repositories.templates_repo import PersonaTemplatesRepo
 from app.repositories.usage_limits_repo import UsageLimitsRepo
@@ -70,6 +66,11 @@ def _title_from_message(text: str, *, max_len: int = 60) -> str:
     if len(cleaned) <= max_len:
         return cleaned
     return cleaned[: max_len - 1].rstrip() + "…"
+
+
+def should_run_goat_turn(message: str, active_personas: list[Any]) -> bool:
+    """Sesja general bez `/slug` — mówi wyłącznie Goat (GWT-1); slash → False (GWT-5)."""
+    return parse_multi_slash_command(message, active_personas) is None
 
 
 class LLMClientProtocol(Protocol):
@@ -136,63 +137,6 @@ def _persist_persona_id(persona: Any) -> str | None:
     return None if getattr(persona, "type", None) == "team_lead" else persona.id
 
 
-def _chunk_text_for_stream(text: str, chunk_size: int = 28) -> list[str]:
-    if not text:
-        return []
-    return [text[i : i + chunk_size] for i in range(0, len(text), chunk_size)]
-
-
-async def _relay_trainer_response_via_goat(
-    *,
-    claims: dict[str, Any],
-    session_id: str,
-    queue: asyncio.Queue[dict[str, Any]],
-    trainer_label: str,
-    trainer_text: str | None,
-    index: int,
-    total: int,
-) -> None:
-    relay = format_goat_relay(
-        trainer_label=trainer_label,
-        trainer_text=trainer_text or "",
-        index=index,
-        total=total,
-    )
-    if not relay.strip():
-        return
-
-    await _emit(
-        queue,
-        "persona_turn_start",
-        {"persona_id": None, "persona_label": TEAM_LEAD_DISPLAY_LABEL},
-    )
-    await _emit_persona_status(queue, persona=TeamLeadSpeaker(), phase="writing")
-    for chunk in _chunk_text_for_stream(relay):
-        await _emit(queue, "token", {"text": chunk})
-
-    async with rls_connection(claims) as conn:
-        chat_repo = ChatRepo(conn)
-        await chat_repo.insert_assistant_message(
-            session_id=session_id,
-            content=relay,
-            tool_calls=None,
-            persona_id=None,
-        )
-        await chat_repo.touch_session(session_id)
-
-    await _emit(
-        queue,
-        "persona_turn_end",
-        {"persona_id": None, "persona_label": TEAM_LEAD_DISPLAY_LABEL},
-    )
-
-
-async def _emit_team_phase(
-    queue: asyncio.Queue[dict[str, Any]], *, phase: str, message: str
-) -> None:
-    await _emit(queue, "team_phase", {"phase": phase, "message": message})
-
-
 def _tool_result_event_payload(name: str, response_content: str) -> dict[str, Any]:
     """Kontrakt FE (`tool_name`/`summary`/`success`) — nie surowy JSON tool response."""
     summary = "Wykonano narzędzie"
@@ -241,6 +185,14 @@ def _tool_result_event_payload(name: str, response_content: str) -> dict[str, An
                 + (f" (job {job_id[:8]}…)" if job_id else "")
             )
             success = parsed.get("status") == "ok"
+        elif name == "consult_persona":
+            if parsed.get("error"):
+                summary = str(parsed["error"])
+                success = False
+            else:
+                label = str(parsed.get("persona_label") or parsed.get("slug") or "")
+                summary = f"Skonsultowano: {label}" if label else "Skonsultowano trenera"
+                success = parsed.get("status") == "ok"
         elif response_content:
             summary = response_content[:80] + ("…" if len(response_content) > 80 else "")
     payload: dict[str, Any] = {"tool_name": name, "summary": summary, "success": success}
@@ -261,6 +213,10 @@ class ChatOrchestrator:
     def __init__(self, llm_client: LLMClientProtocol, claims: dict[str, Any]) -> None:
         self._llm_client = llm_client
         self._claims = claims
+        self._consult_roster: list[Any] | None = None
+        self._consult_count: int = 0
+        self._consult_session_id: str | None = None
+        self._consult_user_queue: asyncio.Queue[dict[str, Any]] | None = None
 
     async def handle_message(
         self,
@@ -275,6 +231,9 @@ class ChatOrchestrator:
         allowed_persona_ids: list[str] | None = None,
         client_visible: bool = True,
         status_label: str | None = None,
+        emit_sse: bool = True,
+        persist_messages: bool = True,
+        consult_roster: list[Any] | None = None,
     ) -> tuple[bool, str | None]:
         """Obsługuje jedną turę persony. Zwraca `(sukces, treść odpowiedzi assistant)`."""
         try:
@@ -289,21 +248,26 @@ class ChatOrchestrator:
                 allowed_persona_ids=allowed_persona_ids,
                 client_visible=client_visible,
                 status_label=status_label,
+                emit_sse=emit_sse,
+                persist_messages=persist_messages,
+                consult_roster=consult_roster,
             )
         except asyncio.CancelledError:
             raise
         except AppError as exc:
-            await _emit(queue, "error", {"code": exc.code, "message": exc.message})
-            await queue.put({"event": "done", "data": "{}"})
+            if emit_sse:
+                await _emit(queue, "error", {"code": exc.code, "message": exc.message})
+                await queue.put({"event": "done", "data": "{}"})
             return False, None
         except Exception as exc:  # noqa: BLE001 — top-level safety net dla producer taska
             logger.error("chat_orchestrator_unexpected_error", error=str(exc), exc_info=exc)
-            await _emit(
-                queue,
-                "error",
-                {"code": "internal_error", "message": "Wystąpił nieoczekiwany błąd czatu."},
-            )
-            await queue.put({"event": "done", "data": "{}"})
+            if emit_sse:
+                await _emit(
+                    queue,
+                    "error",
+                    {"code": "internal_error", "message": "Wystąpił nieoczekiwany błąd czatu."},
+                )
+                await queue.put({"event": "done", "data": "{}"})
             return False, None
 
     async def _handle_message_inner(
@@ -319,7 +283,14 @@ class ChatOrchestrator:
         allowed_persona_ids: list[str] | None = None,
         client_visible: bool = True,
         status_label: str | None = None,
+        emit_sse: bool = True,
+        persist_messages: bool = True,
+        consult_roster: list[Any] | None = None,
     ) -> tuple[bool, str | None]:
+        if consult_roster is not None:
+            self._consult_roster = consult_roster
+            self._consult_session_id = session_id
+            self._consult_user_queue = queue
         # Warstwa C (security.md §1) — świadomie fail-open: `check_chat_message` już
         # zaloguje trafienie do `moderation_events` (do przeglądu), ale NIE blokujemy tu
         # samej wiadomości. Preambuł platformy (warstwa A) + odporność samego modelu na
@@ -381,12 +352,13 @@ class ChatOrchestrator:
         ]
         chat_model = settings.openrouter_chat_model
 
-        await _emit_persona_status(
-            queue,
-            persona=persona,
-            phase="thinking",
-            label=status_label,
-        )
+        if emit_sse:
+            await _emit_persona_status(
+                queue,
+                persona=persona,
+                phase="thinking",
+                label=status_label,
+            )
         emitted_writing_status = False
 
         for round_index in range(settings.chat_max_tool_rounds):
@@ -420,11 +392,12 @@ class ChatOrchestrator:
                 if delta.get("content"):
                     if not emitted_writing_status:
                         emitted_writing_status = True
-                        await _emit_persona_status(
-                            queue, persona=persona, phase="writing", label=status_label
-                        )
+                        if emit_sse:
+                            await _emit_persona_status(
+                                queue, persona=persona, phase="writing", label=status_label
+                            )
                     content_buffer.append(delta["content"])
-                    if client_visible:
+                    if emit_sse and client_visible:
                         await _emit(queue, "token", {"text": delta["content"]})
 
                 for tool_call_delta in delta.get("tool_calls") or []:
@@ -433,21 +406,27 @@ class ChatOrchestrator:
                     buffer.accumulate(tool_call_delta)
                     if not emitted_tool_call_start and buffer.name:
                         emitted_tool_call_start = True
-                        await _emit(
-                            queue,
-                            "tool_call_start",
-                            {
-                                "name": buffer.name,
-                                "persona_id": None if status_label else _persist_persona_id(persona),
-                            },
-                        )
-                        await _emit_persona_status(
-                            queue,
-                            persona=persona,
-                            phase="tool",
-                            tool_name=buffer.name,
-                            label=status_label,
-                        )
+                        if emit_sse:
+                            await _emit(
+                                queue,
+                                "tool_call_start",
+                                {
+                                    "name": buffer.name,
+                                    "persona_id": (
+                                        None
+                                        if status_label
+                                        else _persist_persona_id(persona)
+                                    ),
+                                },
+                            )
+                            if buffer.name != "consult_persona":
+                                await _emit_persona_status(
+                                    queue,
+                                    persona=persona,
+                                    phase="tool",
+                                    tool_name=buffer.name,
+                                    label=status_label,
+                                )
 
             actual_cost = await self._reconcile_round_cost(
                 user_id=user_id,
@@ -480,6 +459,8 @@ class ChatOrchestrator:
                     tool_calls_payload=tool_calls_payload,
                     queue=queue,
                     allowed_persona_ids=allowed_persona_ids,
+                    persist_messages=persist_messages,
+                    emit_sse=emit_sse,
                 )
                 messages.extend(tool_response_messages)
 
@@ -488,10 +469,11 @@ class ChatOrchestrator:
                 continue
 
             # finish_reason == 'stop' (albo brak dalszych tool calls) -> koniec tury.
-            await _emit_persona_status(
-                queue, persona=persona, phase="wrapping_up", label=status_label
-            )
-            if client_visible:
+            if emit_sse:
+                await _emit_persona_status(
+                    queue, persona=persona, phase="wrapping_up", label=status_label
+                )
+            if persist_messages and client_visible:
                 async with rls_connection(self._claims) as conn:
                     chat_repo = ChatRepo(conn)
                     await chat_repo.insert_assistant_message(
@@ -502,9 +484,11 @@ class ChatOrchestrator:
                     )
                     await chat_repo.touch_session(session_id)
 
-            await _emit_persona_status(queue, persona=persona, phase="done", label=status_label)
+            if emit_sse:
+                await _emit_persona_status(queue, persona=persona, phase="done", label=status_label)
             if emit_done:
-                await _emit(queue, "turn_complete", {})
+                if emit_sse:
+                    await _emit(queue, "turn_complete", {})
                 await queue.put({"event": "done", "data": "{}"})
             return True, assistant_content
 
@@ -512,15 +496,16 @@ class ChatOrchestrator:
         # pętlom (security.md §4), NIE oczekiwana ścieżka normalnego użycia (ADR-6:
         # log_result batch sprawia że 3-5 rund wystarcza na realistyczne scenariusze).
         logger.warning("chat_max_tool_rounds_reached", session_id=session_id)
-        await _emit(
-            queue,
-            "error",
-            {
-                "code": "max_rounds_exceeded",
-                "message": "Osiągnięto limit rund narzędzi w tej turze. Spróbuj sformułować "
-                "prośbę w jednej wiadomości.",
-            },
-        )
+        if emit_sse:
+            await _emit(
+                queue,
+                "error",
+                {
+                    "code": "max_rounds_exceeded",
+                    "message": "Osiągnięto limit rund narzędzi w tej turze. Spróbuj sformułować "
+                    "prośbę w jednej wiadomości.",
+                },
+            )
         await queue.put({"event": "done", "data": "{}"})
         return False, None
 
@@ -584,53 +569,75 @@ class ChatOrchestrator:
         tool_calls_payload: list[dict[str, Any]],
         queue: asyncio.Queue[dict[str, Any]],
         allowed_persona_ids: list[str] | None = None,
+        persist_messages: bool = True,
+        emit_sse: bool = True,
     ) -> list[dict[str, Any]]:
-        async with rls_connection(self._claims) as conn:
-            chat_repo = ChatRepo(conn)
-            await chat_repo.insert_assistant_message(
-                session_id=session_id,
-                content=assistant_content,
-                tool_calls=tool_calls_payload,
-                persona_id=_persist_persona_id(persona),
-            )
+        if persist_messages:
+            async with rls_connection(self._claims) as conn:
+                await ChatRepo(conn).insert_assistant_message(
+                    session_id=session_id,
+                    content=assistant_content,
+                    tool_calls=tool_calls_payload,
+                    persona_id=_persist_persona_id(persona),
+                )
 
-            results_service = ResultsService(ResultsRepo(conn), allowed_metrics_cache)
-            user_profile_repo = UserProfileRepo(conn)
-            plan_tools = ChatPlanToolsService(conn, claims=self._claims)
+        tool_response_messages: list[dict[str, Any]] = []
+        for call in tool_calls_payload:
+            name = call["function"]["name"]
+            raw_arguments = call["function"]["arguments"]
+            tool_call_id = call["id"]
 
-            tool_response_messages: list[dict[str, Any]] = []
-            for call in tool_calls_payload:
-                name = call["function"]["name"]
-                raw_arguments = call["function"]["arguments"]
-                tool_call_id = call["id"]
-
+            if name == "consult_persona":
+                # Nested LLM (30–90s) must not hold the parent RLS transaction.
                 response_content = await self._run_single_tool(
                     name=name,
                     raw_arguments=raw_arguments,
                     user_id=user_id,
                     persona=persona,
-                    results_service=results_service,
-                    user_profile_repo=user_profile_repo,
-                    plan_tools=plan_tools,
+                    results_service=None,
+                    user_profile_repo=None,
+                    plan_tools=None,
                     allowed_persona_ids=allowed_persona_ids,
                 )
+            else:
+                async with rls_connection(self._claims) as conn:
+                    response_content = await self._run_single_tool(
+                        name=name,
+                        raw_arguments=raw_arguments,
+                        user_id=user_id,
+                        persona=persona,
+                        results_service=ResultsService(ResultsRepo(conn), allowed_metrics_cache),
+                        user_profile_repo=UserProfileRepo(conn),
+                        plan_tools=ChatPlanToolsService(conn, claims=self._claims),
+                        allowed_persona_ids=allowed_persona_ids,
+                    )
+                    if persist_messages:
+                        await ChatRepo(conn).insert_tool_message(
+                            session_id=session_id,
+                            tool_call_id=tool_call_id,
+                            content=response_content,
+                            persona_id=_persist_persona_id(persona),
+                        )
 
-                await chat_repo.insert_tool_message(
-                    session_id=session_id,
-                    tool_call_id=tool_call_id,
-                    content=response_content,
-                    persona_id=_persist_persona_id(persona),
-                )
+            if persist_messages and name == "consult_persona":
+                async with rls_connection(self._claims) as conn:
+                    await ChatRepo(conn).insert_tool_message(
+                        session_id=session_id,
+                        tool_call_id=tool_call_id,
+                        content=response_content,
+                        persona_id=_persist_persona_id(persona),
+                    )
+            if emit_sse:
                 await _emit(
                     queue,
                     "tool_result",
                     _tool_result_event_payload(name, response_content),
                 )
-                tool_response_messages.append(
-                    {"role": "tool", "tool_call_id": tool_call_id, "content": response_content}
-                )
+            tool_response_messages.append(
+                {"role": "tool", "tool_call_id": tool_call_id, "content": response_content}
+            )
 
-            return tool_response_messages
+        return tool_response_messages
 
     async def _run_single_tool(
         self,
@@ -639,18 +646,29 @@ class ChatOrchestrator:
         raw_arguments: str,
         user_id: str,
         persona: Any,
-        results_service: ResultsService,
-        user_profile_repo: UserProfileRepo,
-        plan_tools: ChatPlanToolsService,
+        results_service: ResultsService | None = None,
+        user_profile_repo: UserProfileRepo | None = None,
+        plan_tools: ChatPlanToolsService | None = None,
         allowed_persona_ids: list[str] | None = None,
     ) -> str:
         """Błąd walidacji (JSON niepoprawny / Pydantic) wraca jako tool response, NIGDY
         wyjątek serwera (security.md §3) — niezaufany input mimo że pochodzi z modelu."""
+        if name == "consult_persona":
+            if getattr(persona, "type", None) != "team_lead":
+                return json.dumps(
+                    {"error": "consult_persona dostępne tylko dla Goata."},
+                    ensure_ascii=False,
+                )
+            return await self._consult_persona(raw_arguments=raw_arguments, user_id=user_id)
+
         if getattr(persona, "type", None) == "team_lead" and name not in TEAM_LEAD_CHAT_TOOL_NAMES:
             return json.dumps(
                 {"error": "Narzędzie niedostępne dla Kierownika Zespołu (Goat)."},
                 ensure_ascii=False,
             )
+
+        if results_service is None or user_profile_repo is None or plan_tools is None:
+            return json.dumps({"error": f"Brak kontekstu DB dla narzędzia {name!r}."})
 
         persona_id = persona.id
         try:
@@ -737,6 +755,68 @@ class ChatOrchestrator:
 
         return json.dumps({"error": f"Nieznane narzędzie: {name!r}"})
 
+    async def _consult_persona(self, *, raw_arguments: str, user_id: str) -> str:
+        roster = self._consult_roster or []
+        if self._consult_count >= MAX_CONSULTS_PER_TURN:
+            return json.dumps(
+                {"error": f"Limit {MAX_CONSULTS_PER_TURN} konsultacji w tej turze."},
+                ensure_ascii=False,
+            )
+        try:
+            arguments = json.loads(raw_arguments) if raw_arguments else {}
+        except json.JSONDecodeError as exc:
+            return json.dumps({"error": f"Nieprawidłowy JSON argumentów: {exc}"})
+        slug = str(arguments.get("slug") or "").strip()
+        question = str(arguments.get("question") or "").strip()
+        if not slug or not question:
+            return json.dumps({"error": "Wymagane slug i question."}, ensure_ascii=False)
+        target = resolve_persona_by_slug(slug, roster)
+        if target is None:
+            return json.dumps(
+                {"error": f"Brak aktywnej persony o slugu {slug!r}."},
+                ensure_ascii=False,
+            )
+        self._consult_count += 1
+        status = goat_consult_status_message(target)
+        user_queue = self._consult_user_queue
+        if user_queue is not None:
+            await _emit_persona_status(
+                user_queue,
+                persona=TeamLeadSpeaker(),
+                phase="tool",
+                message=status,
+                tool_name="consult_persona",
+            )
+        sink: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        ok, answer = await self.handle_message(
+            user_id=user_id,
+            session_id=self._consult_session_id or "",
+            session_type="general",
+            persona=target,
+            user_message=question,
+            queue=sink,
+            emit_done=False,
+            client_visible=False,
+            emit_sse=False,
+            persist_messages=False,
+            allowed_persona_ids=[p.id for p in roster] if roster else None,
+        )
+        if not ok or not (answer or "").strip():
+            return json.dumps(
+                {"error": "Nie udało się skonsultować trenera.", "slug": slug},
+                ensure_ascii=False,
+            )
+        label = persona_display_label(target)
+        return json.dumps(
+            {
+                "status": "ok",
+                "slug": target.slug,
+                "persona_label": label,
+                "answer": answer.strip(),
+            },
+            ensure_ascii=False,
+        )
+
 
 async def run_chat_turn(
     *,
@@ -820,6 +900,9 @@ async def _run_chat_turn_body(
     retry: bool,
     llm_client: Any,
 ) -> None:
+    goat_turn = False
+    active_personas: list[Any] = []
+
     async with rls_connection(claims) as conn:
         chat_repo = ChatRepo(conn)
         session = await chat_repo.get_session(session_id)
@@ -830,7 +913,9 @@ async def _run_chat_turn_body(
 
         session_type = session.session_type
         personas_by_id: dict[str, Any] = {}
-        consultation: ConsultationPlan | None = None
+        persona_ids: list[str] = []
+        content = user_message
+        invoked_via: str | None = None
 
         if session_type == "general":
             active_personas = await personas_repo.list_active_for_user(user_id)
@@ -840,38 +925,15 @@ async def _run_chat_turn_body(
                     "rozpoczęciem ogólnej rozmowy."
                 )
             personas_by_id = {p.id: p for p in active_personas}
-            plan_only = build_plan_only_consultation(
-                message=user_message, active_personas=active_personas
-            )
-            if plan_only is not None:
-                consultation = plan_only
-                await _emit_team_phase(
-                    queue, phase="planning", message="Goat przygotowuje harmonizację planu…"
-                )
-                await _emit_team_phase(
-                    queue, phase="delegating", message=consultation.status_message
-                )
+            slash_match = parse_multi_slash_command(user_message, active_personas)
+            if slash_match is None:
+                goat_turn = True
+                content = user_message
+                invoked_via = None
             else:
-                await _emit_team_phase(
-                    queue, phase="planning", message="Kierownik analizuje pytanie i dobiera trenerów…"
-                )
-                team_lead = TeamLeadService(
-                    llm_client,
-                    chat_model=settings.openrouter_chat_model,
-                    chat_repo=chat_repo,
-                )
-                consultation = await team_lead.plan_consultation(
-                    message=user_message,
-                    active_personas=active_personas,
-                    session_id=session_id,
-                )
-                await _emit_team_phase(
-                    queue, phase="delegating", message=consultation.status_message
-                )
-            routing = consultation_to_routing(consultation)
-            persona_ids = list(routing.persona_ids)
-            content = routing.content
-            invoked_via: str | None = routing.invoked_via
+                matched, content = slash_match
+                persona_ids = [p.id for p in matched]
+                invoked_via = "multi_slash" if len(matched) > 1 else "slash_command"
         else:
             persona = await personas_repo.get_visible(session.persona_id)  # type: ignore[arg-type]
             if persona is None:
@@ -905,22 +967,25 @@ async def _run_chat_turn_body(
             else:
                 await chat_repo.set_title_if_empty(session_id, _title_from_message(content))
 
-    if session_type == "general" and consultation is not None:
-        await _emit(queue, "team_status", {"message": consultation.status_message})
-
-    active_ids = list(personas_by_id.keys()) if session_type == "general" else None
     orchestrator = ChatOrchestrator(llm_client, claims)
-    prior_summaries: list[tuple[str, str]] = []
+    active_ids = list(personas_by_id.keys()) if session_type == "general" else None
 
-    plan_turn_handled = False
-    if session_type == "general" and user_requests_plan_rebuild(content):
-        goat = TeamLeadSpeaker()
+    if goat_turn:
+        goat = TeamLeadSpeaker(
+            system_prompt=build_goat_turn_prompt(
+                active_personas=active_personas, user_message=content
+            )
+        )
+        orchestrator._consult_roster = list(active_personas)
+        orchestrator._consult_count = 0
+        orchestrator._consult_session_id = session_id
+        orchestrator._consult_user_queue = queue
         await _emit(
             queue,
             "persona_turn_start",
             {"persona_id": None, "persona_label": TEAM_LEAD_DISPLAY_LABEL},
         )
-        plan_turn_handled, _ = await orchestrator.handle_message(
+        ok, _ = await orchestrator.handle_message(
             user_id=user_id,
             session_id=session_id,
             session_type="general",
@@ -929,92 +994,50 @@ async def _run_chat_turn_body(
             queue=queue,
             emit_done=False,
             allowed_persona_ids=active_ids,
+            client_visible=True,
+            emit_sse=True,
+            persist_messages=True,
+            consult_roster=list(active_personas),
         )
         await _emit(
             queue,
             "persona_turn_end",
             {"persona_id": None, "persona_label": TEAM_LEAD_DISPLAY_LABEL},
         )
-        if not plan_turn_handled:
-            return
-        if is_plan_coordination_only(content):
+        if ok:
+            await _emit(queue, "turn_complete", {})
             await queue.put({"event": "done", "data": "{}"})
-            return
+        return
 
-    direct_persona = is_direct_persona_invocation(invoked_via)
-    total_trainers = len(persona_ids)
-
-    for index, persona_id in enumerate(persona_ids):
+    for persona_id in persona_ids:
         persona = personas_by_id.get(persona_id)
         if persona is None:
             raise NotFoundError(f"Persona {persona_id!r} z routingu nie istnieje.")
 
-        turn_message = content
-        if session_type == "general" and consultation is not None:
-            turn_message = build_consultation_user_message(
-                user_content=content,
-                team_brief=consultation.team_brief,
-                persona_brief=consultation.per_persona_briefs.get(persona_id),
-                prior_summaries=prior_summaries,
-            )
-        if plan_turn_handled:
-            turn_message += (
-                "\n\n[NOTATKA KIEROWNIKA] Goat uruchomił już generowanie planu w zakładce Plany — "
-                "nie wołaj rebuild_plan; odpowiedz tylko ze swojego zakresu trenera."
-            )
-
         display_label = persona_display_label(persona)
-        backstage = session_type == "general" and not direct_persona
-
-        if backstage:
-            await _emit(
-                queue,
-                "team_status",
-                {"message": f"Goat konsultuje {display_label}…"},
-            )
-        else:
-            await _emit(
-                queue,
-                "persona_turn_start",
-                {"persona_id": persona.id, "persona_label": display_label},
-            )
-
-        ok, assistant_text = await orchestrator.handle_message(
+        await _emit(
+            queue,
+            "persona_turn_start",
+            {"persona_id": persona.id, "persona_label": display_label},
+        )
+        ok, _ = await orchestrator.handle_message(
             user_id=user_id,
             session_id=session_id,
             session_type=session_type,
             persona=persona,
-            user_message=turn_message,
+            user_message=content,
             queue=queue,
             emit_done=False,
             allowed_persona_ids=active_ids,
-            client_visible=not backstage,
-            status_label=TEAM_LEAD_DISPLAY_LABEL if backstage else None,
+            client_visible=True,
         )
-        if assistant_text and assistant_text.strip():
-            summary = assistant_text.strip()
-            if len(summary) > 280:
-                summary = summary[:277] + "…"
-            prior_summaries.append((persona.name, summary))
         if not ok:
             return
-
-        if backstage:
-            await _relay_trainer_response_via_goat(
-                claims=claims,
-                session_id=session_id,
-                queue=queue,
-                trainer_label=display_label,
-                trainer_text=assistant_text,
-                index=index,
-                total=total_trainers,
-            )
-        else:
-            await _emit(
-                queue,
-                "persona_turn_end",
-                {"persona_id": persona.id, "persona_label": display_label},
-            )
+        await _emit(
+            queue,
+            "persona_turn_end",
+            {"persona_id": persona.id, "persona_label": display_label},
+        )
 
     await _emit(queue, "turn_complete", {})
     await queue.put({"event": "done", "data": "{}"})

@@ -211,6 +211,35 @@ REBUILD_PLAN_TOOL_SCHEMA: dict[str, Any] = {
     },
 }
 
+CONSULT_PERSONA_TOOL_SCHEMA: dict[str, Any] = {
+    "type": "function",
+    "function": {
+        "name": "consult_persona",
+        "description": (
+            "Dopytaj jednego aktywnego trenera usera (za kulisami). Wołaj gdy potrzebujesz "
+            "szczegółu z JEGO zakresu. Motoryka/plyometria/bieganie/skok → slug trenera "
+            "motor_coach; dieta/makro → dietitian; siła/hipertrofia → personal_trainer. "
+            "Nie wołaj złej roli. Po wyniku odpowiedz userowi SAM jako Goat — nie cytuj "
+            "trenera w całości."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "slug": {
+                    "type": "string",
+                    "description": "Slug aktywnej persony z rosteru.",
+                },
+                "question": {
+                    "type": "string",
+                    "description": "Konkretne pytanie / brief do trenera.",
+                },
+            },
+            "required": ["slug", "question"],
+            "additionalProperties": False,
+        },
+    },
+}
+
 
 def get_chat_tools() -> list[dict[str, Any]]:
     """Narzędzia dostępne dla `chat_model` w KAŻDEJ rozmowie (persona i general)."""
@@ -232,13 +261,17 @@ def get_trainer_chat_tools() -> list[dict[str, Any]]:
     ]
 
 
-TEAM_LEAD_CHAT_TOOL_NAMES = frozenset({"get_plan", "rebuild_plan", "update_user_profile"})
+TEAM_LEAD_CHAT_TOOL_NAMES = frozenset(
+    {"get_plan", "rebuild_plan", "update_user_profile", "consult_persona"}
+)
 
 
 def get_team_lead_plan_tools() -> list[dict[str, Any]]:
     """Goat (kierownik) — plan + profil usera; bez log_result i upsert_plan_items."""
     return [
-        t for t in get_chat_tools() if t.get("function", {}).get("name") in TEAM_LEAD_CHAT_TOOL_NAMES
+        t
+        for t in [*get_chat_tools(), CONSULT_PERSONA_TOOL_SCHEMA]
+        if t.get("function", {}).get("name") in TEAM_LEAD_CHAT_TOOL_NAMES
     ]
 
 

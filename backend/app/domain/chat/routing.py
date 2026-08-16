@@ -1,8 +1,9 @@
 """Parsowanie slash / wspólne typy routingu sesji `general` (ADR-13).
 
-**Produkcja:** `TeamLeadService` (`team_lead.py`) — ADR-17.
+**Produkcja:** tura Goata (`TeamLeadSpeaker` + `consult_persona`) albo slash
+(`parse_multi_slash_command`) — ADR-17. Nie `plan_consultation`.
 
-`ChatRoutingService` — **deprecated** (zastąpiony przez `TeamLeadService`); moduł
+`ChatRoutingService` — **deprecated** (zastąpiony przez turę Goata + slash); moduł
 zachowuje `parse_multi_slash_command`, `RoutingResult`, `PersonaLike`.
 """
 
@@ -111,7 +112,7 @@ def _normalize_persona_ids(raw_ids: list[str], allowlist: list[str]) -> list[str
 
 
 class ChatRoutingService:
-    """Deprecated — użyj `TeamLeadService.plan_consultation` (ADR-17).
+    """Deprecated — produkcja to tura Goata + slash, nie `plan_consultation` (ADR-17).
 
     Zachowany dla testów regresji ADR-13; nie wołany z orchestratora.
     """
@@ -124,7 +125,7 @@ class ChatRoutingService:
         chat_model: str,
     ) -> None:
         warnings.warn(
-            "ChatRoutingService jest deprecated — produkcja używa TeamLeadService (ADR-17).",
+            "ChatRoutingService jest deprecated — produkcja: tura Goata + slash (ADR-17).",
             DeprecationWarning,
             stacklevel=2,
         )

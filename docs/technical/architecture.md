@@ -95,39 +95,25 @@ async def chat_stream_endpoint(request: Request, ...):
 
 **Frontend SSE eventy (kontrakt):** `token`, `tool_call_start`, `tool_result`, `done`, `error`, oraz `persona_turn_start` (patrz niżej) — zdefiniowane jako współdzielony JSON Schema/Pydantic model, żeby frontend i backend nie rozjechały się na nazwach pól.
 
-### 3a. "Ogólna rozmowa" — auto-routing i wywołanie persony komendą `/slug` (ADR-13)
+### 3a. "Ogólna rozmowa" — Goat + `/slug` (ADR-13 / ADR-17)
 
-Obok sesji `persona` (1:1, opisanej wyżej — bez zmian w jej logice) istnieje sesja `general`
-(`chat_sessions.session_type='general'`, `persona_id IS NULL`). W sesji `general` backend
-**najpierw koordynuje turę przez Kierownika Zespołu (Goat, ADR-17)**, potem deleguje do 1..N
-trenerów sekwencyjnie (wszyscy aktywni, max 5 per konto):
+Obok sesji `persona` (1:1) istnieje sesja `general` (`session_type='general'`, `persona_id IS NULL`).
 
-1. **`TeamLeadService.plan_consultation`** — wybór person + brief per trener:
-   - **Parsowanie `/slug` / multi-slash** — deterministyczne, zero LLM (`parse_multi_slash_command`).
-   - **Dokładnie jedna aktywna persona** — bez LLM kierownika.
-   - **≥2 aktywne persony, brak slashy** — jedno wywołanie `chat_model` z `json_schema`
-     (`persona_ids[]`, `team_brief`, `per_persona_briefs`, `status_message`).
-   - Emitowane: `team_phase` (`planning` → `delegating`), `team_status`.
-2. **Opcjonalna tura Goata (widoczna w UI)** — gdy `user_requests_plan_rebuild(content)`:
-   - `TeamLeadSpeaker` woła `rebuild_plan`; etykieta SSE/DB: **„Goat · Kierownik Zespołu”**,
-     `persona_id IS NULL`.
-   - Gdy `is_plan_coordination_only` — po Goacie samo `done` (trenerzy pominięci).
-3. **Pętla trenerów** — każda persona przez `ChatOrchestrator.handle_message` z
-   `build_consultation_user_message` (brief + rekomendacje poprzednich w tej turze).
-   Narzędzia: `get_trainer_chat_tools()` — **bez** `rebuild_plan`.
-4. Backend emituje `persona_turn_start {persona_id, persona_label}` przed tokenami **każdej**
-   tury (Goat: `persona_id=null`); `done` **raz** na końcu tury usera.
-5. `ContextBuilder` filtruje historię per `persona_id` trenera (Goat: pełna historia sesji
-   `general` bez filtra persona).
+1. **Bez slashy (2026-08-16):** jedna tura `TeamLeadSpeaker` — user widzi tylko Goata
+   (`persona_id=null`). Ekspert: tool `consult_persona` (slug z rosteru aktywnych person
+   **tego usera**, w tym `custom`; nested `client_visible=false`, bez widocznej wiadomości
+   trenera). Status: `Goat konsultuje z {etykieta}…`. Cap 5 consultów / turę.
+2. **Slash / multi-slash:** `parse_multi_slash_command` — persona(y) bezpośrednio; Goat nie
+   startuje.
+3. **Plan:** Goat woła `rebuild_plan` w swojej turze.
+4. `ContextBuilder`: Goat — pełna historia sesji `general`; trener w consult — kontekst profilu /
+   planu / wyników (historia 1:1 nie jest wymagana w v1).
+5. `done` raz na końcu tury usera.
 
-Szczegóły: `docs/technical/team-lead.md`. Legacy `ChatRoutingService` (`routing.py`) nie jest
-wołany z orchestratora — do deprecacji (P2).
+Szczegóły: `docs/technical/team-lead.md`. Spec: `docs/superpowers/specs/2026-08-16-goat-consult-persona-design.md`.
 
-**Aktualizacja (2026-08-04):** routing może zwrócić wiele `persona_ids` (klasyfikator Goat lub
-multi-slash `/a /b treść`). Świadomie odrzucone: równoległe / przeplatane tokeny.
-
-Narzędzia czatu: trenerzy — `get_plan`, `upsert_plan_items`, `log_result`, profil; Goat —
-`get_plan`, `rebuild_plan`, `update_user_profile` (pipeline 3-etapowy).
+Narzędzia: Goat — `get_plan`, `rebuild_plan`, `update_user_profile`, `consult_persona`; trenerzy —
+`get_plan`, `upsert_plan_items`, `log_result`, profil (**bez** `rebuild_plan` / `consult_persona`).
 
 ## 4. Generowanie planu — pipeline (decyzja: priorytet to SYNCHRONIZACJA między personami)
 

@@ -258,39 +258,58 @@ OpenRoutera i utrzymywania cache'u cen modeli.
 
 ## ADR-17: Kierownik Zespołu (Goat) — koordynacja sesji `general`
 
-**Status:** zaakceptowane (wdrożone 2026-08-04).
+**Status:** zaakceptowane (wdrożone 2026-08-04; **nowelizowane 2026-08-16**).
 
 **Kontekst:** W sesji `general` (ADR-13) klasyfikator routingu wybierał persony, ale każda
-odpowiadała w izolacji — bez briefu kierownika i bez podsumowań poprzednich trenerów w tej samej
-turze. Trenerzy nie widzą historii innych person (`ContextBuilder` filtruje po `persona_id`).
-User oczekuje spójnej odpowiedzi zespołu; operacje na planie mają być zsynchronizowane między
-rolami (ADR-2), nie rozproszone między trenerami (wcześniej dietetyk uruchamiał `rebuild_plan`).
+odpowiadała w izolacji — bez briefu kierownika. Potem (2026-08-04) Goat robił relay cytatów
+trenerów (`format_goat_relay`) — feeling „odzywa się dietetyk” przy pytaniu o motorykę.
+User oczekuje rozmowy **z kierownikiem**; eksperci tylko na żądanie Goata albo przez `/slug`.
 
 **Decyzja:**
 
-- **Goat** — systemowa rola (`TeamLeadService`, `TeamLeadSpeaker`, prompt w kodzie). Nie jest
-  personą usera w DB ani w galerii onboardingu.
-- **Przed delegacją** (sesja `general`, brak slashy, ≥2 aktywne persony): jedno wywołanie
-  `chat_model` z `json_schema` zwraca `persona_ids[]`, `team_brief`, `per_persona_briefs`,
-  `status_message`. Trenerzy dostają segmenty `[BRIEF…]` i `[REKOMENDACJE…]` (niewidoczne w UI).
-- **Bypass deterministyczny** (bez LLM kierownika): `/slug`, multi-slash, dokładnie jedna aktywna
-  persona — zachowanie zgodne z ADR-13 dla wyboru person.
-- **Widoczność (2026-08-04):** W sesji `general` user rozmawia **wyłącznie z Goat** — trenerzy
-  konsultowani za kulisami (`client_visible=False`), Goat przekazuje odpowiedź (`format_goat_relay`,
-  `persona_id=null`). **Wyjątek:** `/slug` / multi-slash — user widzi wybraną personę bezpośrednio.
-  Przy prośbie o plan tygodnia/miesiąca Goat woła `rebuild_plan` i potwierdza. Gdy prośba dotyczy
-  wyłącznie planu (`is_plan_coordination_only`), tura kończy się po Goacie — bez kolejnych trenerów.
-- **Narzędzia:** Goat — `get_plan`, `rebuild_plan`; trenerzy — reszta **bez** `rebuild_plan`
-  (`get_trainer_chat_tools`).
+- **Goat** — systemowa rola (`TeamLeadSpeaker`, prompt w kodzie). Nie jest personą usera w DB.
+- **Widoczność (2026-08-16):** W `general` bez slashy **jedna tura** `TeamLeadSpeaker`
+  (`persona_id=null`). Specjalista: tool **`consult_persona`** (slug z rosteru aktywnych person
+  **tego usera** — w tym `custom`; backstage, bez widocznej wiadomości trenera). Status UX:
+  `Goat konsultuje z {etykieta}…`. Roundtable = N consultów + **jeden** bubble Goata.
+- **Wyjątek:** `/slug` / multi-slash / sesja `persona` — user widzi personę bezpośrednio; Goat
+  nie startuje.
+- **Plan:** Goat woła `rebuild_plan` w swojej turze (bez osobnej pętli trenerów jako mówców).
+- **Narzędzia:** Goat — `get_plan`, `rebuild_plan`, `update_user_profile`, `consult_persona`
+  (max 5/turę); trenerzy — reszta **bez** `rebuild_plan` i `consult_persona`.
 - **Granice ról:** `[ZAKRES ROLI]` (`persona_scope.py`) + overlay safety (migracja `0009`).
 - **Kontekst:** `ContextBuilder` dokleja `[PLAN TRENINGOWY]` i `[OSTATNIE WYNIKI UŻYTKOWNIKA]`.
-- **SSE:** `team_phase`, `team_status`, `persona_status`, `persona_turn_end`, `turn_complete`;
-  `persona_id: null` dla Goata w `persona_turn_start` / persistencji.
-- **Tura w tle:** `chat_sessions.turn_in_progress`; disconnect SSE nie anuluje orkiestratora;
-  FE: globalny `useChatTurnRunner` w AppShell.
+- **SSE:** `persona_status` / `tool_result` dla consult z etykietą Goata; `persona_id: null`.
+- **Tura w tle:** `chat_sessions.turn_in_progress`; FE: `useChatTurnRunner` w AppShell.
 
-**Konsekwencje:** +1 wywołanie LLM na turę `general` (planning/consultation). ADR-13 pozostaje
-źródłem prawdy dla modelu sesji, multi-reply (max 3, sekwencyjnie) i filtrowania historii.
-Dokumentacja kanoniczna: `docs/technical/team-lead.md`. Audyt: `docs/technical/audits/2026-08-04-goat-team-lead-audit.md`.
+**Konsekwencje:** 0..N dodatkowych wywołań LLM tylko gdy Goat woła `consult_persona` (nie zawsze
++1 klasyfikator JSON). ADR-13 pozostaje źródłem prawdy dla modelu sesji i `/slug`.
+Dokumentacja: `docs/technical/team-lead.md`. Spec: `docs/superpowers/specs/2026-08-16-goat-consult-persona-design.md`.
 
-**Supersedes:** fragment design spec „kierownik niewidoczny” → widoczny przy operacjach na planie.
+**Supersedes (2026-08-16):** `format_goat_relay`, `TeamLeadService.plan_consultation` jako wybór
+mówcy, bypass „1 aktywna persona = tura tej persony”, design „kierownik niewidoczny”.
+
+---
+
+## ADR-18: Mobile viewport — `dvh` + visualViewport, bez page-scroll na czacie
+
+**Status:** zaakceptowane (2026-08-16).
+
+**Kontekst:** Na telefonach Android/iOS historia czatu nie była widoczna od razu. `h-svh` +
+`main overflow-y-auto` + trzy poziomy `overflow-hidden` zjadały wysokość `MessageList`.
+Wirtualizacja (`estimateSize: 88`) i `scrollToIndex` w `useEffect` startowały od złego
+offsetu. Brak `viewport-fit=cover` i `env(safe-area-inset-*)`.
+
+**Decyzja:**
+
+- Shell: `h-dvh` + CSS var `--app-height` z `window.visualViewport` (klawiatura kurczy layout).
+- Na `/chat` i `/chat/:id` `main` = `overflow-hidden flex flex-col`; inne trasy zostają
+  `overflow-y-auto`.
+- Historia: kotwica na dole (`scrollIntoView`), bez wirtualizacji w MVP.
+- Composer i strony: safe area; touch target ≥44px.
+- Bottom nav (Czat / Plan / Wyniki) — odłożone; nie dopieszczamy 6-linkowego paska jako
+  „docelowej” IA na telefon.
+
+**Konsekwencje:** czat nie scrolluje całej strony; inne ekrany scrollują w `main`. Bottom
+nav to osobna zmiana IA (kolejny sprint).
+

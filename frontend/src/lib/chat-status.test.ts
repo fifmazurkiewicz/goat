@@ -7,6 +7,7 @@ import {
   resolveToolName,
   TEAM_STATUS_DEFAULT,
   PREPARING_STATUS,
+  toolChipLabel,
 } from "@/lib/chat-status";
 
 describe("chat-status", () => {
@@ -29,6 +30,13 @@ describe("chat-status", () => {
 
   it("personaToolStatus: nieznany tool + brak persony", () => {
     expect(personaToolStatus(null, "future_tool")).toBe("Wykonuje akcję…");
+  });
+
+  it("consult_persona: akcja i chip", () => {
+    expect(personaToolStatus("Goat · Kierownik Zespołu", "consult_persona")).toBe(
+      "Goat · Kierownik Zespołu konsultuje…"
+    );
+    expect(toolChipLabel("consult_persona")).toBe("Konsultacja");
   });
 
   it("resolveToolName: tool_name lub name z BE", () => {

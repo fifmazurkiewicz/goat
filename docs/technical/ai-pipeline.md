@@ -67,23 +67,21 @@ Fallback lista min. 2 dostawców dla `chat_model` (np. `[anthropic/claude-haiku-
 
 Orientacyjny koszt: ~$0.003/wiadomość czatu, ~$0.15-0.20/generację planu tygodniowego dla 5 person (3-etapowy pipeline).
 
-## 1a. Koordynacja Kierownika Zespołu — Goat (ADR-17)
+## 1a. Koordynacja Kierownika Zespołu — Goat (ADR-17, nowelizacja 2026-08-16)
 
-Produkcja używa **`TeamLeadService`** (`team_lead.py`), nie bezpośrednio `ChatRoutingService`
-(legacy — do deprecacji). Kanon: [team-lead.md](./team-lead.md).
+Produkcja: **jedna tura `TeamLeadSpeaker`** w `general` bez slashy + tool `consult_persona`
+(roster = aktywne persony **tego usera**). Slash omija Goata. Kanon: [team-lead.md](./team-lead.md).
 
 | Krok | Opis |
 |------|------|
-| Bypass | `/slug`, multi-slash, 1 aktywna persona — deterministycznie, bez LLM |
-| Plan-only | `build_plan_only_consultation` — pomija LLM gdy `is_plan_coordination_only` |
-| Konsultacja LLM | ≥2 persony, brak slashy — `json_schema`: `persona_ids[]`, briefy, `status_message` |
-| Tura Goata | `user_requests_plan_rebuild` → widoczny „Goat · Kierownik Zespołu”, `rebuild_plan` |
-| Trenerzy | `get_trainer_chat_tools()` — **bez** `rebuild_plan` |
+| Bez slashy | Tylko Goat (`persona_id=null`); ekspert przez `consult_persona` (backstage) |
+| Slash / multi-slash | Persona bezpośrednio — Goat nie startuje |
+| Plan | Goat woła `rebuild_plan` w swojej turze |
+| Narzędzia Goata | `get_plan`, `rebuild_plan`, `update_user_profile`, `consult_persona` (max 5) |
+| Trenerzy | `get_trainer_chat_tools()` — **bez** `rebuild_plan` / `consult_persona` |
 
-**Fallback przy błędzie LLM konsultacji:** ostatnio odpowiadająca persona w sesji (ADR-13),
-inaczej pierwsza aktywna.
-
-**Golden cases** routingu: pytanie o dietę → dietetyk; plan-only → tylko Goat.
+**Golden cases:** pytanie o motorykę → Goat + ewentualnie `consult_persona` na slug `motor_coach`
+z rosteru (nie bubble dietetyka); własna persona (np. pływanie) też w rosterze; plan → `rebuild_plan`.
 
 ## 1b. Koszt LLM i budżet USD (ADR-16)
 

@@ -9,6 +9,7 @@ export const TOOL_ACTION_LABELS: Record<string, string> = {
   get_plan: "przegląda plan",
   upsert_plan_items: "zapisuje w Plany",
   rebuild_plan: "uzgadnia plan między trenerami",
+  consult_persona: "konsultuje",
 };
 
 export const ROUTING_STATUS = "Goat dobiera trenerów…";
@@ -28,6 +29,7 @@ export function toolChipLabel(toolName: string): string {
     get_plan: "Plan",
     upsert_plan_items: "Plany",
     rebuild_plan: "Przebudowa planu",
+    consult_persona: "Konsultacja",
   };
   return labels[toolName] ?? "Akcja";
 }
