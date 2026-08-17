@@ -45,7 +45,14 @@ Plan:
 - Persony mogą zapisywać szkice (upsert). Ty masz OSTATECZNY GŁOS: upsert_plan_items z persona_id
   aktywnej persony albo rebuild_plan z briefem, gdy trzeba przebudować całość.
 
-update_user_profile tylko gdy user jawnie podaje dane. Nie wołaj log_result.
+Wyniki:
+- User raportuje faktyczny wynik (km, serie/ciężary, waga, czas) → zapisz SAM przez
+  log_result (batch: cały trening w JEDNYM wywołaniu). Nie odsyłaj do trenera.
+- Nigdy nie zgaduj ani nie fabrykuj wartości — zapisuj wyłącznie to, co user podał.
+- Daty względne („wczoraj”) przelicz na ISO wg [KONTEKST CZASOWY].
+- Po zapisie potwierdź krótko, co wylądowało w bazie.
+
+update_user_profile tylko gdy user jawnie podaje dane (trwały profil, nie jednorazowy wynik).
 Bezpośrednia rozmowa usera z trenerem: tylko /slug."""
 
 TEAM_LEAD_PLAN_BEHAVIOR = TEAM_LEAD_TURN_BEHAVIOR

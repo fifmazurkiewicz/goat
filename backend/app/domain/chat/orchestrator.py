@@ -137,6 +137,15 @@ def _persist_persona_id(persona: Any) -> str | None:
     return None if getattr(persona, "type", None) == "team_lead" else persona.id
 
 
+def _result_source_persona_id(persona: Any) -> str | None:
+    """`results.source_persona_id` dla wpisu z `log_result`.
+
+    Goat nie jest rekordem w `personas` (jego `id` to sentinel `__team_lead__`), a kolumna ma
+    FK na `personas(id)` — wpisy kierownika idą z `NULL` (kolumna jest nullable).
+    """
+    return None if getattr(persona, "type", None) == "team_lead" else persona.id
+
+
 def _tool_result_event_payload(name: str, response_content: str) -> dict[str, Any]:
     """Kontrakt FE (`tool_name`/`summary`/`success`) — nie surowy JSON tool response."""
     summary = "Wykonano narzędzie"
@@ -694,7 +703,9 @@ class ChatOrchestrator:
                 for entry in parsed.entries
             ]
             outcomes = await results_service.log_batch_from_agent(
-                user_id=user_id, source_persona_id=persona_id, entries=entries
+                user_id=user_id,
+                source_persona_id=_result_source_persona_id(persona),
+                entries=entries,
             )
             return json.dumps(
                 {

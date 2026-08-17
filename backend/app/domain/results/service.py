@@ -101,11 +101,13 @@ class ResultsService:
         await self._results_repo.delete(result_id, user_id)
 
     async def log_batch_from_agent(
-        self, *, user_id: str, source_persona_id: str, entries: list[dict[str, Any]]
+        self, *, user_id: str, source_persona_id: str | None, entries: list[dict[str, Any]]
     ) -> list[LogResultEntryOutcome]:
         """`log_result` tool (ai-pipeline.md sekcja 2, ADR-6) — walidacja PER ENTRY,
         częściowy sukces (3/5 przechodzi, 2 wracają jako błąd w tym samym tool response,
-        NIE wyjątek — security.md sekcja 3)."""
+        NIE wyjątek — security.md sekcja 3).
+
+        `source_persona_id=None` = zapis Goata (kierownik nie jest rekordem w `personas`)."""
         outcomes: list[LogResultEntryOutcome] = []
         for index, entry in enumerate(entries):
             try:

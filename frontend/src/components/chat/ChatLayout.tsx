@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { MessageSquarePlus, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
+import { ChatSessionsScreen } from "@/components/chat/ChatSessionsScreen";
 import { ChatWindow } from "@/components/chat/ChatWindow";
 import { NewSessionDialog } from "@/components/chat/NewSessionDialog";
 import { PersonaSessionDrawer } from "@/components/chat/PersonaSessionDrawer";
@@ -11,6 +12,7 @@ import { useChatSessions, useDeleteChatSession, useUpdateChatSession } from "@/h
 import { useLocalStorageState } from "@/hooks/useLocalStorageState";
 import { useIsMobile } from "@/hooks/useMediaQuery";
 import { usePersonas } from "@/hooks/usePersonas";
+import { latestSessionId } from "@/lib/chat-session";
 
 interface ChatLayoutProps {
   sessionId: string | undefined;
@@ -20,6 +22,10 @@ interface ChatLayoutProps {
  * `ChatLayout` (smart) — drawer open/closed (localStorage), URL sync sessionId
  * (docs/technical/frontend.md sekcja 4). Wysokość = `flex-1 min-h-0` w AppShell (`h-dvh`);
  * scroll tylko w MessageList / liście sesji — input „Wyślij” zawsze widoczny.
+ *
+ * Mobile (spec 2026-08-17): `/chat` bez `:sessionId` = ekran listy rozmów; przy pierwszym
+ * wejściu do appki auto-skok do najnowszej rozmowy (potem można wrócić na listę bez
+ * ponownego redirectu).
  */
 export function ChatLayout({ sessionId }: ChatLayoutProps) {
   const navigate = useNavigate();
@@ -27,6 +33,7 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useLocalStorageState("coach.chat.drawerOpen", true);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isNewSessionOpen, setIsNewSessionOpen] = useState(false);
+  const didAutoOpenRef = useRef(false);
 
   const { data: sessions } = useChatSessions();
   const updateSession = useUpdateChatSession();
@@ -34,6 +41,15 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
   const { data: personasData } = usePersonas();
   const personas = personasData?.items ?? [];
   const activeSession = sessions?.find((s) => s.id === sessionId);
+
+  // GWT-1: jednorazowe auto-wejście w ostatnią rozmowę (tylko mobile — na desktopie lista
+  // jest stale widoczna, więc redirect byłby zaskoczeniem).
+  useEffect(() => {
+    if (!isMobile || sessionId || didAutoOpenRef.current || !sessions) return;
+    const latest = latestSessionId(sessions);
+    didAutoOpenRef.current = true;
+    if (latest) navigate(`/chat/${latest}`, { replace: true });
+  }, [isMobile, sessionId, sessions, navigate]);
 
   function handleSelectSession(id: string) {
     navigate(`/chat/${id}`);
@@ -43,22 +59,26 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
   function handleDeleteSession(id: string) {
     deleteSession.mutate(id, {
       onSuccess: () => {
-        if (sessionId === id) navigate("/chat");
+        if (sessionId === id) {
+          // Po usunięciu user ma zostać na liście, nie zostać wciągnięty w inną rozmowę.
+          didAutoOpenRef.current = true;
+          navigate("/chat");
+        }
       },
     });
   }
 
-  const drawer = (
-    <PersonaSessionDrawer
-      sessions={sessions ?? []}
-      personas={personas}
-      activeSessionId={sessionId}
-      onSelectSession={handleSelectSession}
-      onNewSession={() => setIsNewSessionOpen(true)}
-      onRenameSession={(id, title) => updateSession.mutate({ sessionId: id, title })}
-      onDeleteSession={handleDeleteSession}
-    />
-  );
+  const drawerProps = {
+    sessions: sessions ?? [],
+    personas,
+    activeSessionId: sessionId,
+    onSelectSession: handleSelectSession,
+    onNewSession: () => setIsNewSessionOpen(true),
+    onRenameSession: (id: string, title: string) => updateSession.mutate({ sessionId: id, title }),
+    onDeleteSession: handleDeleteSession,
+  };
+
+  const drawer = <PersonaSessionDrawer {...drawerProps} />;
 
   return (
     <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -95,6 +115,8 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
             onOpenDrawer={isMobile ? () => setIsMobileDrawerOpen(true) : undefined}
             onNewSession={isMobile ? () => setIsNewSessionOpen(true) : undefined}
           />
+        ) : isMobile ? (
+          <ChatSessionsScreen {...drawerProps} />
         ) : (
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 overflow-y-auto p-6 text-center">
             <p className="text-muted-foreground">Wybierz rozmowę z listy albo zacznij nową.</p>

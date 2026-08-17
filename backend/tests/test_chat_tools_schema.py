@@ -39,7 +39,14 @@ def test_get_team_lead_plan_tools_includes_consult_persona() -> None:
         "update_user_profile",
         "consult_persona",
         "upsert_plan_items",
+        "log_result",
     }
+
+
+def test_team_lead_can_log_results() -> None:
+    """Goat zapisuje wyniki zaraportowane w sesji `general` (spec 2026-08-17)."""
+    names = {t["function"]["name"] for t in get_team_lead_plan_tools()}
+    assert "log_result" in names
 
 
 def test_trainer_tools_exclude_consult_persona() -> None:
@@ -70,7 +77,11 @@ def test_rebuild_plan_schema_accepts_optional_user_brief() -> None:
 def test_trainer_and_team_lead_tool_sets_disjoint_except_shared() -> None:
     trainer = {t["function"]["name"] for t in get_trainer_chat_tools()}
     goat = {t["function"]["name"] for t in get_team_lead_plan_tools()}
-    assert trainer & goat == {"get_plan", "update_user_profile", "upsert_plan_items"}
+    assert trainer & goat == {
+        "get_plan",
+        "update_user_profile",
+        "upsert_plan_items",
+        "log_result",
+    }
     assert "rebuild_plan" in goat and "rebuild_plan" not in trainer
     assert "consult_persona" in goat and "consult_persona" not in trainer
-    assert "log_result" in trainer and "log_result" not in goat

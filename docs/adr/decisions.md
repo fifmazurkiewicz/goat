@@ -72,6 +72,8 @@
 
 **Konsekwencje:** limit rund tool-callingu (3-5) staje się czystym bezpiecznikiem przeciw pętlom, nie realnym ograniczeniem normalnej ścieżki (np. logowanie całego treningu).
 
+**Nowelizacja 2026-08-17:** `log_result` dostaje również **Goat** (wcześniej tylko trenerzy). W sesji `general` user raportuje wynik kierownikowi, a po ograniczeniu `consult_persona` do rzadkich przypadków nie było komu zapisać. Wpisy Goata idą z `source_persona_id=NULL` (sentinel `__team_lead__` nie jest rekordem w `personas`, kolumna ma FK). Spec: [2026-08-17-mobile-history-and-goat-log-result-design.md](../superpowers/specs/2026-08-17-mobile-history-and-goat-log-result-design.md).
+
 ---
 
 ## ADR-7: Bez rolling summary czatu w MVP

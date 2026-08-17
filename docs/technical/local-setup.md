@@ -184,11 +184,29 @@ API: `http://localhost:8000`
 
 Gdy zechcesz `DATABASE_URL` na `localhost` (Auth może zostać w Supabase Cloud):
 
-1. Postgres 16 lokalnie → `CREATE DATABASE coach_dev;`
+1. Postgres 16 lokalnie → `CREATE DATABASE goat;`
 2. Stub `auth` (jak w CI `.github/workflows/ci.yml`) — `pgcrypto` + `auth.users` + `auth.uid()`.
-3. `psql -f supabase/migrations/0001_init.sql` potem `0002_exercise_catalog.sql`.
-4. `DATABASE_URL=postgresql+asyncpg://postgres:...@localhost:5432/coach_dev`
-5. Po pierwszym Google login wstaw UUID z JWT (`sub`) do lokalnego `auth.users` (FK).
+3. **Rola `service_role` (NOLOGIN)** — w Supabase istnieje od razu, w czystym Postgresie nie; bez niej `app/main.py:lifespan` pada na `SET LOCAL ROLE service_role` (`role "service_role" does not exist`). Migracja `0001` jej **nie** tworzy (używa tylko w `GRANT`ach).
+4. `psql -f supabase/migrations/0001_init.sql` potem `0002_exercise_catalog.sql` i kolejne (`0007`–`0011`).
+5. `DATABASE_URL=postgresql+asyncpg://postgres:...@localhost:5432/goat`
+6. Po pierwszym Google login wstaw UUID z JWT (`sub`) do lokalnego `auth.users` (FK).
+
+Kroki 2-3 (bootstrap przed migracjami, `psql`):
+
+```sql
+create extension if not exists pgcrypto;
+create schema if not exists auth;
+create table if not exists auth.users (
+  id uuid primary key default gen_random_uuid(),
+  email text
+);
+-- Odwzorowanie auth.uid() z Supabase, żeby polityki RLS dały się utworzyć lokalnie.
+create or replace function auth.uid() returns uuid as $$
+  select nullif(current_setting('request.jwt.claims', true)::json->>'sub', '')::uuid
+$$ language sql stable;
+-- Wymagane przez backend (SET LOCAL ROLE) i GRANT-y w migracjach.
+create role service_role nologin;
+```
 
 Szczegóły nie są potrzebne przy pierwszym setupie — wróć tu dopiero gdy świadomie przełączysz DB.
 

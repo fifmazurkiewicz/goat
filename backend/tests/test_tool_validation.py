@@ -119,6 +119,30 @@ async def test_log_batch_unknown_metric_falls_back_to_custom() -> None:
     assert repo.created[0]["is_custom"] is True
 
 
+async def test_log_batch_accepts_null_source_persona_for_team_lead() -> None:
+    """Goat (`team_lead`) nie ma UUID persony — wpis idzie z `source_persona_id=NULL`
+    (spec 2026-08-17; kolumna nullable w `0001_init.sql`)."""
+    repo = _FakeResultsRepo()
+    service = ResultsService(repo, _metrics_cache())
+
+    outcomes = await service.log_batch_from_agent(
+        user_id="u1",
+        source_persona_id=None,
+        entries=[
+            {
+                "category": "strength",
+                "metric": "weight_kg",
+                "value": 80,
+                "logged_date": date(2026, 1, 1),
+            }
+        ],
+    )
+
+    assert outcomes[0].ok is True
+    assert repo.created[0]["source_persona_id"] is None
+    assert repo.created[0]["source"] == "agent"
+
+
 async def test_log_batch_missing_field_reported_as_error_not_exception() -> None:
     repo = _FakeResultsRepo()
     service = ResultsService(repo, _metrics_cache())

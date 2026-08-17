@@ -82,6 +82,8 @@ ChatLayout (smart) — drawer open/closed (localStorage), URL sync sessionId;
 │                    Composer: `env(safe-area-inset-bottom)` + min. 44px.
 ├─ PersonaSessionDrawer (smart) — collapsible od startu (Sheet z shadcn na mobile)
 │  └─ SessionListItem (dumb) — avatar/kolor persony (silne kodowanie wizualne, nie tylko tekst)
+├─ ChatSessionsScreen (dumb) — MOBILE: `/chat` bez `:sessionId` = pełnoekranowa lista rozmów
+│  (ten sam drawer bez `Sheet`); desktop zostaje przy empty state „Wybierz rozmowę”
 ├─ ChatHeader (dumb) — tytuł sesji; na mobile hamburger + „Nowa rozmowa”; bez copy /slug
 ├─ ChatWindow (smart) — stan czatu; SSE przez globalny `useChatTurnRunner` w AppShell (tura w tle)
 │  ├─ MessageList (dumb) — kotwica na dole (`chat-history-end`); bez wirtualizacji (MVP)
@@ -101,7 +103,21 @@ ChatLayout (smart) — drawer open/closed (localStorage), URL sync sessionId;
 │     składnia `/slug` bez podpowiedzi jest praktycznie nieodkrywalna dla nietechnicznego usera
 ```
 
-### 4a. Nowa sesja — wybór trybu
+### 4a. Wejście na `/chat` — mobile vs desktop (od 2026-08-17)
+
+| Kontekst | Zachowanie |
+|---|---|
+| Mobile, `/chat` bez sesji, pierwsze wejście do appki, są rozmowy | `navigate(/chat/<najnowsza>, {replace:true})` — `latestSessionId()` wg `updated_at` |
+| Mobile, `/chat` po powrocie z rozmowy (lub po usunięciu sesji) | `ChatSessionsScreen` — lista rozmów; **bez** ponownego redirectu (guard `useRef`) |
+| Mobile, brak rozmów | lista z „Brak rozmów” + CTA „Nowa rozmowa” |
+| Desktop | jak dotąd: stały drawer + empty state, zero redirectów |
+
+Wcześniej lista na mobile żyła wyłącznie w zamkniętym `Sheet`, którego trigger (hamburger) był
+w `ChatHeader` renderowanym tylko przy aktywnej sesji — user musiał utworzyć nową rozmowę, żeby
+zobaczyć historię. Spec:
+[2026-08-17](../superpowers/specs/2026-08-17-mobile-history-and-goat-log-result-design.md).
+
+### 4b. Nowa sesja — wybór trybu
 
 "+ Nowa rozmowa" otwiera krótki wybór: "Ogólna rozmowa" (auto-routing, `persona_id: null`) vs
 wybór konkretnej persony z listy aktywnych (1:1, jak dotychczas) — `POST /chat/sessions {persona_id}`.

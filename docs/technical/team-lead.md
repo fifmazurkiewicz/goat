@@ -62,8 +62,21 @@ Jedna tura SSE: `persona_turn_start` tylko dla Goata (`persona_id: null`). Zagni
 
 | Rola | Narzędzia |
 |------|-----------|
-| **Goat** | `get_plan`, `rebuild_plan`, `update_user_profile`, **`consult_persona`**, **`upsert_plan_items`** (dowolna aktywna persona; wymagane `persona_id` w entry) — **bez** `log_result` |
+| **Goat** | `get_plan`, `rebuild_plan`, `update_user_profile`, **`consult_persona`**, **`upsert_plan_items`** (dowolna aktywna persona; wymagane `persona_id` w entry), **`log_result`** (`source_persona_id=NULL`) |
 | **Trenerzy** | `log_result`, `update_user_profile`, `get_plan`, `upsert_plan_items` (swoje) — **bez** `rebuild_plan` / `consult_persona` |
+
+### Zapis wyników przez Goata (od 2026-08-17)
+
+User raportuje trening w sesji `general` Goatowi, nie trenerowi — więc Goat zapisuje sam przez
+`log_result`, bez pośrednictwa `consult_persona` (spec
+[2026-08-17](../superpowers/specs/2026-08-17-mobile-history-and-goat-log-result-design.md)).
+Wcześniej `log_result` było dla niego zablokowane, a po ograniczeniu consultów wyniki nie
+zapisywały się wcale.
+
+`results.source_persona_id = NULL` dla wpisów Goata — kierownik nie jest rekordem w `personas`
+(jego `id` to sentinel `__team_lead__`), a kolumna ma FK na `personas(id)`. Funkcja
+`_result_source_persona_id()` w orchestratorze mapuje personę na wartość kolumny; trenerzy
+zapisują dalej z własnym UUID.
 
 **Limit:** max 5 wywołań `consult_persona` na turę Goata.
 

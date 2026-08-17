@@ -33,7 +33,7 @@ Częściowa aktualizacja (tylko podane pola), walidacja zakresów jak w tabeli `
 | Jednorazowy wynik treningu („dziś 5 km”) | **nie** — `log_result` |
 | User odmawia podania danych | **nie** — kontynuuj rozmowę |
 
-Dostęp: **trenerzy** (każda persona) oraz **Goat** (gdy user poda dane profilu w tej samej turze, np. przy prośbie o plan). Goat **nie** ma `log_result`.
+Dostęp: **trenerzy** (każda persona) oraz **Goat** (gdy user poda dane profilu w tej samej turze, np. przy prośbie o plan). Goat ma również `log_result` — od 2026-08-17 zapisuje zaraportowane wyniki sam, z `source_persona_id=NULL` (patrz sekcja 2 i [team-lead.md](team-lead.md)).
 
 **Intake instruction — dopytywanie na starcie rozmowy.** `ContextBuilder` (architecture.md sekcja 5) sprawdza kompletność `user_profile` (krytyczne pola: `height_cm`, `weight_kg`, `date_of_birth`, `activity_level`, `primary_goal`) przed zbudowaniem system promptu. Jeśli brakuje — dokleja do promptu dynamiczną instrukcję (NIE część preambułu platformy, osobny, generowany segment).
 
@@ -106,6 +106,8 @@ samego joba do tej samej puli.
 **Decyzja:** `log_result(entries: list[{category, metric, value, unit, date, notes}])`, nie pojedynczy wpis. Trening z 5 ćwiczeniami = 1 wywołanie narzędzia = 1 runda, niezależnie od tego czy model sam zdecyduje się zbatchować wywołania (nie jest to gwarantowane zachowanie — modele często wywołują narzędzia sekwencyjnie nawet gdy niezależne). Walidacja per-entry, częściowy sukces możliwy (3/5 przechodzi, 2 wracają jako błąd do modelu w tym samym tool response, nie failuje cały batch).
 
 Walidacja przez `allowed_metrics` (cache in-memory, ładowana na starcie appki — hot-path w trakcie streamingu) z fallbackiem `is_custom=true`.
+
+**Dostęp:** trenerzy (`source_persona_id` = UUID persony) oraz Goat (`source_persona_id=NULL`, od 2026-08-17 — ADR-6 nowelizacja). Wartość kolumny wyznacza `_result_source_persona_id()` w `ChatOrchestrator`.
 
 ## 3. Kontekst czatu — token budget
 

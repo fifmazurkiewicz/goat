@@ -272,12 +272,23 @@ def get_trainer_chat_tools() -> list[dict[str, Any]]:
 
 
 TEAM_LEAD_CHAT_TOOL_NAMES = frozenset(
-    {"get_plan", "rebuild_plan", "update_user_profile", "consult_persona", "upsert_plan_items"}
+    {
+        "get_plan",
+        "rebuild_plan",
+        "update_user_profile",
+        "consult_persona",
+        "upsert_plan_items",
+        "log_result",
+    }
 )
 
 
 def get_team_lead_plan_tools() -> list[dict[str, Any]]:
-    """Goat (kierownik) — plan (w tym upsert dowolnej persony) + profil; bez log_result."""
+    """Goat (kierownik) — plan (upsert dowolnej persony), profil oraz `log_result`.
+
+    Wyniki zaraportowane w sesji `general` trafiają do Goata, nie do trenera — zapisuje je
+    sam z `source_persona_id=NULL` (spec 2026-08-17, nowelizacja ADR-17).
+    """
     return [
         t
         for t in [*get_chat_tools(), CONSULT_PERSONA_TOOL_SCHEMA]

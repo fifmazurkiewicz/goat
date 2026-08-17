@@ -113,7 +113,7 @@ Obok sesji `persona` (1:1) istnieje sesja `general` (`session_type='general'`, `
 Szczegóły: `docs/technical/team-lead.md`. Spec: `docs/superpowers/specs/2026-08-16-goat-consult-persona-design.md`.
 
 Narzędzia: Goat — `get_plan`, `rebuild_plan`, `update_user_profile`, `consult_persona`; trenerzy —
-`get_plan`, `upsert_plan_items`, `log_result`, profil (**bez** `rebuild_plan` / `consult_persona`).
+`get_plan`, `upsert_plan_items`, `log_result`, profil (**bez** `rebuild_plan` / `consult_persona`). Goat ma te same narzędzia plus `rebuild_plan` i `consult_persona`; jego `log_result` zapisuje z `source_persona_id=NULL` (patrz [team-lead.md](team-lead.md)).
 
 ## 4. Generowanie planu — pipeline (decyzja: priorytet to SYNCHRONIZACJA między personami)
 
