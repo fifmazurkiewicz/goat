@@ -28,7 +28,7 @@ const personas: Persona[] = [
 ];
 
 const breakdownDone: PlanGenerationJobPersonaBreakdown[] = [
-  { persona_id: "p1", status: "done", last_error: null },
+  { persona_id: "p1", status: "done", retry_count: 0, last_error: null },
 ];
 
 describe("PlanGenerationPersonaProgress", () => {
