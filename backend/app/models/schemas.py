@@ -31,7 +31,7 @@ class TemplateOverrides(BaseModel):
     columns: list[str] = Field(min_length=1, max_length=8)
 
     @model_validator(mode="after")
-    def _nonempty_unique_columns(self) -> "TemplateOverrides":
+    def _nonempty_unique_columns(self) -> TemplateOverrides:
         cleaned = [c.strip() for c in self.columns]
         if any(not c for c in cleaned):
             raise ValueError("Nazwy kolumn nie mogą być puste.")
@@ -63,7 +63,7 @@ class PersonaCreate(PersonaBase):
     template_overrides: TemplateOverrides | None = None
 
     @model_validator(mode="after")
-    def _custom_requires_category(self) -> "PersonaCreate":
+    def _custom_requires_category(self) -> PersonaCreate:
         if self.type == "custom" and not self.custom_result_category:
             raise ValueError("custom_result_category jest wymagane dla type='custom'.")
         return self
@@ -438,6 +438,9 @@ class ChatMessageOut(BaseModel):
     session_id: str
     role: ChatRole
     content: str | None = None
+    # Widoczność konsultacji (2026-08-22): FE paruje `role='tool'` z wywołaniami
+    # `consult_persona` w poprzedzającej wiadomości Goata po tool_call_id.
+    tool_calls: dict[str, Any] | list[dict[str, Any]] | None = None
     persona_id: str | None = None
     invoked_via: InvokedVia | None = None
     created_at: datetime
