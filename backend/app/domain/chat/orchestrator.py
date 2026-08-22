@@ -598,6 +598,9 @@ class ChatOrchestrator:
 
             if name == "consult_persona":
                 # Nested LLM (30–90s) must not hold the parent RLS transaction.
+                # Sekwencyjne await = FIFO kolejność eventów (persona_status → tool_result
+                # → consult_detail → tokeny syntezy); przy ewentualnej przyszłej
+                # paralelizacji roundtable trzeba zagwarantować porządek jawnie.
                 response_content = await self._run_single_tool(
                     name=name,
                     raw_arguments=raw_arguments,
@@ -642,6 +645,26 @@ class ChatOrchestrator:
                     "tool_result",
                     _tool_result_event_payload(name, response_content),
                 )
+                if name == "consult_persona":
+                    # Widoczność konsultacji (2026-08-22): dedykowany event z pytaniem
+                    # i pełną odpowiedzią trenera — tylko przy status ok; kontrakt
+                    # `tool_result` (summary/success) pozostaje nietknięty.
+                    try:
+                        consult = json.loads(response_content) if response_content else {}
+                    except json.JSONDecodeError:
+                        consult = {}
+                    if isinstance(consult, dict) and consult.get("status") == "ok":
+                        await _emit(
+                            queue,
+                            "consult_detail",
+                            {
+                                "tool_call_id": tool_call_id,
+                                "slug": consult.get("slug"),
+                                "persona_label": consult.get("persona_label"),
+                                "question": consult.get("question", ""),
+                                "answer": consult.get("answer", ""),
+                            },
+                        )
             tool_response_messages.append(
                 {"role": "tool", "tool_call_id": tool_call_id, "content": response_content}
             )
@@ -851,6 +874,7 @@ class ChatOrchestrator:
                 "status": "ok",
                 "slug": target.slug,
                 "persona_label": label,
+                "question": question,
                 "answer": answer.strip(),
             },
             ensure_ascii=False,

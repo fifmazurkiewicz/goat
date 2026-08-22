@@ -93,7 +93,7 @@ async def chat_stream_endpoint(request: Request, ...):
 
 **Cancellation:** Przycisk **Zatrzymaj** → `POST /chat/sessions/{id}/cancel` (`cancel_turn` w `turn_registry`) + `AbortController` na FE zamyka SSE i anuluje `orchestrator_task` — przerywa też `httpx.AsyncClient.stream`. Samo rozłączenie SSE (nawigacja poza czat) **nie** anuluje tury — generowanie może kontynuować w tle (`turn_in_progress`). Orkiestrator nie może łapać `asyncio.CancelledError` szerokim `except Exception`.
 
-**Frontend SSE eventy (kontrakt):** `token`, `tool_call_start`, `tool_result`, `done`, `error`, oraz `persona_turn_start` (patrz niżej) — zdefiniowane jako współdzielony JSON Schema/Pydantic model, żeby frontend i backend nie rozjechały się na nazwach pól.
+**Frontend SSE eventy (kontrakt):** `token`, `tool_call_start`, `tool_result`, `consult_detail` (2026-08-22, tylko Goat/`consult_persona` — payload `{tool_call_id, slug, persona_label, question, answer}`; FE renderuje rozwijany podgląd konsultacji pod wiadomością Goata), `done`, `error`, oraz `persona_turn_start` (patrz niżej) — zdefiniowane jako współdzielony JSON Schema/Pydantic model, żeby frontend i backend nie rozjechały się na nazwach pól.
 
 ### 3a. "Ogólna rozmowa" — Goat + `/slug` (ADR-13 / ADR-17)
 

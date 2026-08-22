@@ -4,6 +4,7 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PullToRefresh } from "@/components/layout/PullToRefresh";
 import { useAccount } from "@/hooks/useAccount";
 import { usePlanGenerationPolling, usePlanGenerationSync } from "@/hooks/usePlans";
 import { useChatTurnRunner } from "@/hooks/useChatTurnRunner";
@@ -140,7 +141,9 @@ export function AppShell() {
           chatMode ? "flex flex-col overflow-hidden" : "overflow-y-auto"
         )}
       >
-        <Outlet />
+        <PullToRefresh>
+          <Outlet />
+        </PullToRefresh>
       </main>
     </div>
   );

@@ -97,6 +97,10 @@ ChatLayout (smart) — drawer open/closed (localStorage), URL sync sessionId;
 │  │  │  pierwszym `token`. Start: general → „Dobieram trenera…”, persona → „Przygotowuję…”.
 │  │  └─ ToolResultChip (dumb) — inline chip z `tool_result` (pola `tool_name`/`summary`/`success`)
 │  │     w czasie rzeczywistym; po odświeżeniu historii chip znika (wynik widać w `/results` / profilu)
+│  │  └─ ConsultDetails (dumb, 2026-08-22) — rozwijany podgląd konsultacji Goata pod jego
+│  │     wiadomością: `{personaLabel, question, answer}` z `consultDetails`; live z SSE
+│  │     `consult_detail`, historia z parowania `tool_calls`↔`role='tool'` (`visibleChatMessages`);
+│  │     domyślnie zwinięte; nie jest to osobna wiadomość trenera (ADR-17 nietknięty)
 │  └─ ChatInput (dumb) — disabled podczas streamu i przy 429; w sesji 'general' nasłuchuje na
 │     wpisanie "/" na starcie treści → PersonaSlashAutocomplete (dropdown z avatarem + nazwą
 │     aktywnych person, filtrowany po dalszym wpisywaniu; Enter/klik wstawia `/{slug} `) — surowa
@@ -220,3 +224,10 @@ Sekcje 4-5 adresują mobile dla `/chat` i `/plans` explicite. Dla pozostałych s
   `ResponsiveDialog`: jeden scroll, footer `shrink-0` + safe area.
 - **Nawigacja:** poziomy scroll górnego paska (6 pozycji) zostaje w MVP; bottom nav (Czat /
   Plan / Wyniki) — świadomie odłożone (wariant B audytu UX 2026-08-16).
+- **Pull-to-refresh (2026-08-22):** gest „pociągnięcie w dół" odświeża dane na WSZYSTKICH
+  ekranach (mobile, dotyk tylko — `pointerType === "touch"`). `PullToRefresh` w AppShell
+  wokół `<Outlet />` + `usePullToRefresh` (próg 72 px, tłumienie dystansu, detekcja
+  „scrollera na górze" po łańcuchu przodków). Soft refresh = `queryClient.invalidateQueries()`
+  (bez twardego reload, stream SSE nie ginie). `overscroll-behavior-y: none` na html/body
+  wyłącza natywny PTR Chrome Android. Spec:
+  [2026-08-22-pull-to-refresh-design.md](../superpowers/specs/2026-08-22-pull-to-refresh-design.md).

@@ -44,6 +44,7 @@ describe("MessageList", () => {
           personaLabel: TEAM_LEAD_DISPLAY_LABEL,
           statusLabel: "Goat · Kierownik Zespołu analizuje…",
           toolResults: [],
+          consultDetails: [],
         }}
       />
     );
@@ -74,6 +75,7 @@ describe("MessageList", () => {
           personaLabel: TEAM_LEAD_DISPLAY_LABEL,
           statusLabel: "",
           toolResults: [],
+          consultDetails: [],
         }}
       />
     );

@@ -22,7 +22,7 @@ import { finalizeStreamingTurn } from "@/hooks/useChatStream.impl";
 import { useRefreshUsage } from "@/hooks/useUsage";
 import { useChatTurnStore, type StreamingAssistantMessage } from "@/store/useChatTurnStore";
 import { usePlanGenerationStore } from "@/store/usePlanGenerationStore";
-import type { ChatMessage } from "@/types/api";
+import type { ChatMessage, ConsultDetail } from "@/types/api";
 import type { ChatStreamToolResultEvent } from "@/types/chat-stream";
 
 const PLAN_TOOL_NAMES = new Set(["get_plan", "upsert_plan_items", "rebuild_plan"]);
@@ -33,6 +33,7 @@ const emptyStreaming = (statusLabel: string | null = null): StreamingAssistantMe
   personaLabel: null,
   statusLabel,
   toolResults: [],
+  consultDetails: [],
 });
 
 /**
@@ -88,6 +89,7 @@ export function useChatTurnRunner() {
     let personaLabel: string | null = null;
     let personaId: string | null = null;
     let toolResults: ChatStreamToolResultEvent[] = [];
+    let consultDetails: ConsultDetail[] = [];
     let turnActive = false;
     let planToolsTouched = false;
     let raf: number | null = null;
@@ -101,6 +103,7 @@ export function useChatTurnRunner() {
           personaLabel,
           statusLabel: null,
           toolResults: [...toolResults],
+          consultDetails: [...consultDetails],
         },
       });
     };
@@ -151,6 +154,7 @@ export function useChatTurnRunner() {
                   personaLabel: event.persona_label,
                   statusLabel: event.message,
                   toolResults: [...toolResults],
+                  consultDetails: [...consultDetails],
                 },
               });
               break;
@@ -162,6 +166,7 @@ export function useChatTurnRunner() {
                   personaLabel: event.persona_label,
                   statusLabel: `${event.persona_label} zakończył(a) odpowiedź`,
                   toolResults: [...toolResults],
+                  consultDetails: [...consultDetails],
                 },
               });
               break;
@@ -172,11 +177,13 @@ export function useChatTurnRunner() {
                   content: pendingContent,
                   personaId,
                   toolResults,
+                  consultDetails,
                 });
               }
               turnActive = true;
               pendingContent = "";
               toolResults = [];
+              consultDetails = [];
               personaId = event.persona_id;
               personaLabel = event.persona_label;
               setStreamingState({
@@ -186,6 +193,7 @@ export function useChatTurnRunner() {
                   personaLabel: event.persona_label,
                   statusLabel: personaThinkingStatus(event.persona_label),
                   toolResults: [],
+                  consultDetails: [],
                 },
               });
               break;
@@ -204,6 +212,27 @@ export function useChatTurnRunner() {
                   personaLabel,
                   statusLabel: personaToolStatus(personaLabel, toolName),
                   toolResults: [...toolResults],
+                  consultDetails: [...consultDetails],
+                },
+              });
+              break;
+            }
+            case "consult_detail": {
+              const detail: ConsultDetail = {
+                toolCallId: event.tool_call_id,
+                personaLabel: event.persona_label,
+                question: event.question,
+                answer: event.answer,
+              };
+              consultDetails = [...consultDetails, detail];
+              setStreamingState({
+                streaming: {
+                  content: pendingContent,
+                  personaId,
+                  personaLabel,
+                  statusLabel: null,
+                  toolResults: [...toolResults],
+                  consultDetails,
                 },
               });
               break;
@@ -221,6 +250,7 @@ export function useChatTurnRunner() {
                   personaLabel,
                   statusLabel: personaThinkingStatus(personaLabel),
                   toolResults,
+                  consultDetails: [...consultDetails],
                 },
               });
               void queryClient.invalidateQueries({ queryKey: ["results"] });
@@ -241,6 +271,7 @@ export function useChatTurnRunner() {
                   personaLabel,
                   statusLabel: "Zespół zakończył odpowiedź",
                   toolResults: [...toolResults],
+                  consultDetails: [...consultDetails],
                 },
               });
               break;
@@ -269,11 +300,12 @@ export function useChatTurnRunner() {
       } finally {
         syncFlush();
         const userStopped = controller.signal.aborted;
-        if (turnActive && (pendingContent.trim() || toolResults.length > 0)) {
+        if (turnActive && (pendingContent.trim() || toolResults.length > 0 || consultDetails.length > 0)) {
           finalizeStreamingTurn(queryClient, sessionId, {
             content: pendingContent,
             personaId,
             toolResults,
+            consultDetails,
           });
         }
         setStreamingState({ isStreaming: false, streaming: null });

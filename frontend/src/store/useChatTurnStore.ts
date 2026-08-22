@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import { stopChatTurn } from "@/lib/chat-turn-control";
+import type { ConsultDetail } from "@/types/api";
 import type { ChatStreamToolResultEvent } from "@/types/chat-stream";
 
 export interface StreamingAssistantMessage {
@@ -9,6 +10,7 @@ export interface StreamingAssistantMessage {
   personaLabel: string | null;
   statusLabel: string | null;
   toolResults: ChatStreamToolResultEvent[];
+  consultDetails: ConsultDetail[];
 }
 
 export interface ChatStreamError {
