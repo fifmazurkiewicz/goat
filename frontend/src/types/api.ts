@@ -113,6 +113,15 @@ export interface ChatSession {
 // mogą pochodzić od różnych person.
 export type InvokedVia = "auto_routed" | "slash_command" | "multi_slash" | null;
 
+/** Jedna konsultacja Goata (`consult_persona`) — podgląd pytania i odpowiedzi trenera. */
+export interface ConsultDetail {
+  /** `tool_call_id` wywołania — dedup live vs historia. */
+  toolCallId: string;
+  personaLabel: string;
+  question: string;
+  answer: string;
+}
+
 export interface ChatMessage {
   id: string;
   session_id: string;
@@ -122,6 +131,8 @@ export interface ChatMessage {
   persona_id: string | null;
   invoked_via: InvokedVia;
   created_at: string;
+  /** Konsultacje przypisane do tej wiadomości Goata (historia + live); FE-only, nie z API. */
+  consultDetails?: ConsultDetail[];
 }
 
 export type ResultCategory =

@@ -23,6 +23,15 @@ export interface ChatStreamToolResultEvent {
   job_id?: string;
 }
 
+export interface ChatStreamConsultDetailEvent {
+  type: "consult_detail";
+  tool_call_id: string;
+  slug: string;
+  persona_label: string;
+  question: string;
+  answer: string;
+}
+
 export interface ChatStreamDoneEvent {
   type: "done";
   message_id?: string;
@@ -80,6 +89,7 @@ export type ChatStreamEvent =
   | ChatStreamTokenEvent
   | ChatStreamToolCallStartEvent
   | ChatStreamToolResultEvent
+  | ChatStreamConsultDetailEvent
   | ChatStreamPersonaTurnStartEvent
   | ChatStreamPersonaStatusEvent
   | ChatStreamTeamPhaseEvent

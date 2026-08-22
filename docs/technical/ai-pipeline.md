@@ -80,6 +80,11 @@ Produkcja: **jedna tura `TeamLeadSpeaker`** w `general` bez slashy + tool `consu
 | Narzędzia Goata | `get_plan`, `rebuild_plan`, `update_user_profile`, `consult_persona` (max 5) |
 | Trenerzy | `get_trainer_chat_tools()` — **bez** `rebuild_plan` / `consult_persona` |
 
+**ADDED 2026-08-22:** udana konsultacja emituje dodatkowo SSE event `consult_detail`
+(`{tool_call_id, slug, persona_label, question, answer}`) i tool response niesie `question` —
+FE pokazuje rozwijany podgląd „co trener odpowiedział Goatowi" pod wiadomością Goata
+(spec [2026-08-22-goat-consult-transparency-design.md](../superpowers/specs/2026-08-22-goat-consult-transparency-design.md)).
+
 **Golden cases:** pytanie o motorykę → Goat + ewentualnie `consult_persona` na slug `motor_coach`
 z rosteru (nie bubble dietetyka); własna persona (np. pływanie) też w rosterze; plan → `rebuild_plan`.
 

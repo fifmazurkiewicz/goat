@@ -114,7 +114,23 @@ Wiadomości Goata w DB: `role=assistant`, `persona_id=NULL`.
 {"event": "persona_turn_start", "data": {"persona_id": null, "persona_label": "Goat · Kierownik Zespołu"}}
 {"event": "persona_status", "data": {"persona_id": null, "persona_label": "Goat · Kierownik Zespołu", "phase": "tool", "message": "Goat konsultuje z Bartek · Trener motoryczny…", "tool_name": "consult_persona"}}
 {"event": "tool_result", "data": {"tool_name": "consult_persona", "summary": "Skonsultowano: Bartek · Trener motoryczny", "success": true}}
+{"event": "consult_detail", "data": {"tool_call_id": "call-1", "slug": "motoryka", "persona_label": "Bartek · Trener motoryczny", "question": "jak poprawić skok?", "answer": "Plyometria 2x tydzień."}}
 ```
+
+## Widoczność konsultacji (ADDED 2026-08-22)
+
+Spec: [2026-08-22-goat-consult-transparency-design.md](../superpowers/specs/2026-08-22-goat-consult-transparency-design.md).
+User może **podejrzeć** pytanie Goata i odpowiedź trenera z `consult_persona` — rozwijany panel (`ConsultDetails`) pod wiadomością Goata, **domyślnie zwinięty**. Nie zmienia to modelu „kto mówi" (ADR-17): trener nie ma własnej bąbelkowej wiadomości.
+
+| Warstwa | Mechanizm |
+|---------|-----------|
+| Backend tool response | `_consult_persona` zwraca JSON z `question` + `answer` (+ `persona_label`) → persystowane jak dotąd w `role='tool'` |
+| Backend SSE | nowy event `consult_detail` (payload wyżej), emitowany tylko przy `status=ok`, obok `tool_result`; wymaga `tool_call_id` przekazanego do `_consult_persona` |
+| FE live | `useChatTurnRunner` akumuluje `consult_detail` per turę; finalizacja dopina `consultDetails` do wiadomości Goata w cache (dedup po `tool_call_id`) |
+| FE historia | `visibleChatMessages` paruje `assistant.tool_calls` (`consult_persona`) ↔ `role='tool'` po `tool_call_id` (trzymany w `chat_messages.tool_calls.tool_call_id`); błędy/malformed JSON pomijane |
+| FE UI | `frontend/src/components/chat/ConsultDetails.tsx` — Accordion, tap target ≥ 44px, styl „podglądu źródła" |
+
+Stare wpisy historii bez `question` w JSON renderują się z pustym pytaniem.
 
 ## Sesja `persona` (1:1)
 

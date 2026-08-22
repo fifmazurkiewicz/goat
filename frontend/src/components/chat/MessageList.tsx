@@ -1,5 +1,6 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 
+import { ConsultDetails } from "@/components/chat/ConsultDetails";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { StreamingStatusLine } from "@/components/chat/StreamingStatusLine";
 import { ToolResultChip } from "@/components/chat/ToolResultChip";
@@ -12,7 +13,7 @@ type Row =
   | { kind: "chat"; key: string; message: ChatMessage; personaLabel: string | null }
   | { kind: "streaming-tool"; key: string; event: ChatStreamToolResultEvent }
   | { kind: "streaming-status"; key: string; label: string }
-  | { kind: "streaming-text"; key: string; content: string; personaLabel: string | null };
+  | { kind: "streaming-text"; key: string; content: string; personaLabel: string | null; consultDetails?: StreamingAssistantMessage["consultDetails"] };
 
 interface MessageListProps {
   messages: ChatMessage[];
@@ -58,6 +59,7 @@ export function MessageList({ messages, personaLabelFor, streaming }: MessageLis
         key: "streaming-text",
         content: streaming.content,
         personaLabel: streaming.personaLabel,
+        consultDetails: streaming.consultDetails,
       });
     }
 
@@ -72,12 +74,22 @@ export function MessageList({ messages, personaLabelFor, streaming }: MessageLis
     <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 sm:px-6">
       {rows.map((row) => (
         <div key={row.key} className="pb-4">
-          {row.kind === "chat" && <MessageBubble message={row.message} personaLabel={row.personaLabel} />}
+          {row.kind === "chat" && (
+            <>
+              <MessageBubble message={row.message} personaLabel={row.personaLabel} />
+              {row.message.consultDetails?.length ? (
+                <ConsultDetails details={row.message.consultDetails} className="mt-1" />
+              ) : null}
+            </>
+          )}
           {row.kind === "streaming-tool" && <ToolResultChip {...row.event} />}
           {row.kind === "streaming-status" && <StreamingStatusLine label={row.label} />}
           {row.kind === "streaming-text" && (
             <div aria-live="polite">
               <MessageBubble message={{ role: "assistant", content: row.content }} personaLabel={row.personaLabel} />
+              {row.consultDetails?.length ? (
+                <ConsultDetails details={row.consultDetails} className="mt-1" />
+              ) : null}
             </div>
           )}
         </div>

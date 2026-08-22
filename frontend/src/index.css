@@ -78,5 +78,8 @@
   #root {
     height: 100%;
     overflow: hidden;
+    /* Wyłącza natywny pull-to-refresh Chrome Android — konkurowałby z własnym
+       wskaźnikiem PTR (spec 2026-08-22-pull-to-refresh-design.md). */
+    overscroll-behavior-y: none;
   }
 }

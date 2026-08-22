@@ -197,7 +197,7 @@ async def test_consult_persona_runs_outside_parent_rls_connection(
         async def insert_tool_message(self, **_kwargs: object) -> None:
             timeline.append("insert_tool")
 
-    async def fake_consult(*, raw_arguments: str, user_id: str) -> str:
+    async def fake_consult(*, raw_arguments: str, user_id: str, **_kwargs: object) -> str:
         timeline.append("consult")
         assert held["depth"] == 0
         return json.dumps(
@@ -257,7 +257,7 @@ async def test_consult_execute_skips_persist_and_sse_when_flags_false(
         async def insert_tool_message(self, **_kwargs: object) -> None:
             inserts["tool"] += 1
 
-    async def fake_consult(*, raw_arguments: str, user_id: str) -> str:
+    async def fake_consult(*, raw_arguments: str, user_id: str, **_kwargs: object) -> str:
         assert held["depth"] == 0
         return json.dumps({"status": "ok", "slug": "x", "persona_label": "X", "answer": "a"})
 
