@@ -13,7 +13,8 @@ Kroki:
        SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
      Bez supabase-py (zgodnie z regułą backendu). Bez tej flagi skrypt nie potrzebuje
      żadnych sekretów.
-  4. Generacja SQL: chunkowane multi-row INSERT-y; `photo_path` = publiczny URL Storage.
+  4. Generacja SQL: chunkowane multi-row INSERT-y; `photo_path` = ścieżka w buckecie
+     (`free-exercise-db/<Id>/0.jpg`), nie pełny URL projektu.
 
 Re-import (odświeżenie treści z nowszej wersji datasetu):
     DELETE FROM exercises WHERE source = 'free_exercise_db';
@@ -219,12 +220,13 @@ def upload_photos(rows: list[dict[str, object]], client: httpx.Client) -> None:
     print(f"[zdjęcia] gotowe: {uploaded}/{len(rows)}")
 
 
-def generate_sql(rows: list[dict[str, object]], photo_base_url: str) -> str:
+def generate_sql(rows: list[dict[str, object]]) -> str:
     header = f"""-- Wygenerowany seed: import free-exercise-db ({SOURCE_REPO}, Unlicense).
 -- Generator: scripts/import_free_exercise_db.py; pin SHA datasetu: {SOURCE_COMMIT_SHA}
 -- NIE EDYTUJ RĘCZNIE — treść regenerowalna (re-import: DELETE WHERE source='free_exercise_db', potem rerun).
 -- Uruchomić po 0012_exercise_catalog_source_nullable.sql. Idempotentny (ON CONFLICT DO NOTHING);
 -- ręcznie kuratorowane wpisy (source='manual') pozostają nietknięte.
+-- photo_path = ścieżka w buckecie exercise-photos (nie pełny URL — API/FE składa publiczny adres).
 
 insert into public.exercises
   (slug, name, name_en, persona_type, level, categories, short_description, detail_full, common_mistakes, photo_path, source)
@@ -236,7 +238,7 @@ values
         chunk = rows[start : start + CHUNK_SIZE]
         values = []
         for row in chunk:
-            photo_path = f"{photo_base_url}/{row['storage_path']}"
+            photo_path = str(row["storage_path"])
             values.append(
                 "  ({}, {}, {}, 'motor_coach', {}, {}, {}, {}, NULL, {}, 'free_exercise_db')".format(
                     sql_literal(str(row["slug"])),
@@ -272,10 +274,9 @@ def main() -> None:
         if args.upload_photos:
             upload_photos(rows, client)
 
-        photo_base_url = os.environ.get("SUPABASE_URL", "").rstrip("/") or "https://PLACEHOLDER.supabase.co"
-        sql = generate_sql(rows, f"{photo_base_url}/storage/v1/object/public/{BUCKET}")
+        sql = generate_sql(rows)
 
-    OUTPUT_PATH.write_text(sql, encoding="utf-8")
+    OUTPUT_PATH.write_text(sql, encoding="utf-8", newline="\n")
     size_kb = OUTPUT_PATH.stat().st_size / 1024
     print(f"[sql] {OUTPUT_PATH.relative_to(REPO_ROOT)} ({size_kb:.0f} KB)")
 

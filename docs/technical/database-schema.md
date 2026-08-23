@@ -232,7 +232,7 @@ exercises (
   short_description text,
   detail_full text,            -- "Wykonanie" (numerowane kroki dla importu)
   common_mistakes text,        -- "Częste błędy"; NULL dla importu z free-exercise-db
-  photo_path text,             -- publiczny URL Supabase Storage (bucket 'exercise-photos'), nullable
+  photo_path text,             -- ścieżka w buckecie 'exercise-photos' (np. free-exercise-db/<Id>/0.jpg); API składa publiczny URL
   source text default 'manual',-- 'manual' | 'free_exercise_db' (0012)
   created_at timestamptz default now()
 )

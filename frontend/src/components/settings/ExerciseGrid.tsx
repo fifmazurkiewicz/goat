@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { exercisePhotoSrc } from "@/lib/exercise-photo";
 import type { Exercise } from "@/types/api";
 
 interface ExerciseGridProps {
@@ -28,7 +29,9 @@ export function ExerciseGrid({ exercises }: ExerciseGridProps) {
 
   return (
     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-      {exercises.map((exercise) => (
+      {exercises.map((exercise) => {
+        const photoSrc = exercisePhotoSrc(exercise.photo_path);
+        return (
         <Link
           key={exercise.id}
           to={`/exercises/${exercise.slug}`}
@@ -36,9 +39,9 @@ export function ExerciseGrid({ exercises }: ExerciseGridProps) {
         >
           <Card className="h-full cursor-pointer overflow-hidden p-0 transition-colors hover:bg-accent/40">
             <AspectRatio ratio={3 / 2} className="bg-muted">
-              {exercise.photo_path ? (
+              {photoSrc ? (
                 <img
-                  src={exercise.photo_path}
+                  src={photoSrc}
                   alt={exercise.name}
                   loading="lazy"
                   decoding="async"
@@ -68,7 +71,8 @@ export function ExerciseGrid({ exercises }: ExerciseGridProps) {
             </div>
           </Card>
         </Link>
-      ))}
+        );
+      })}
     </div>
   );
 }

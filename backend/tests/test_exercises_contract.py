@@ -14,6 +14,7 @@ from unittest.mock import MagicMock
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from app.api.routers.exercises import public_photo_url
 from app.main import app
 
 
@@ -29,7 +30,7 @@ def _exercise_row(*, slug: str, common_mistakes: str | None) -> MagicMock:
     row.short_description = "Krótki opis."
     row.detail_full = "Instrukcja wykonania."
     row.common_mistakes = common_mistakes
-    row.photo_path = None
+    row.photo_path = "free-exercise-db/Barbell_Squat/0.jpg"
     return row
 
 
@@ -78,5 +79,14 @@ async def test_exercises_endpoint_serializes_null_common_mistakes(_patched) -> N
     assert imported["common_mistakes"] is None
     assert imported["name"] == "Przysiad ze sztangą"
     assert imported["name_en"] == "Barbell Squat"
+    assert str(imported["photo_path"]).endswith("free-exercise-db/Barbell_Squat/0.jpg")
     manual = next(e for e in exercises if e["slug"] == "serw-krotki-technika")
     assert manual["common_mistakes"] == "Zbyt duży zamach."
+
+
+def test_public_photo_url_keeps_absolute_and_prefixes_relative() -> None:
+    assert public_photo_url(None) is None
+    assert public_photo_url("https://cdn.example/a.jpg") == "https://cdn.example/a.jpg"
+    relative = public_photo_url("free-exercise-db/Barbell_Squat/0.jpg")
+    assert relative is not None
+    assert relative.endswith("free-exercise-db/Barbell_Squat/0.jpg")

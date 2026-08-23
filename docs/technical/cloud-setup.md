@@ -115,8 +115,8 @@ Jeśli baza ma stare tabele / połowiczny seed — **najpierw wipe**, potem świ
 6. Kolejne migracje (każda w osobnej query, **Run**): `0009_persona_role_boundaries.sql`,
    `0010_drop_personas_chat_model.sql`, `0011_invoked_via_multi_slash.sql`,
    `0012_exercise_catalog_source_nullable.sql`,
-   **`0013_exercise_catalog_seed_free_exercise_db.sql`** (duży ~1 MB, wygenerowany — import
-   868 ćwiczeń PL ze zdjęciami; patrz sekcja Storage niżej).
+   **`0013_exercise_catalog_seed_free_exercise_db.sql`** (duży ~0,9 MB, wygenerowany — import
+   868 ćwiczeń PL; `photo_path` = ścieżka w buckecie, nie pełny URL).
 7. Table Editor — powinny być m.in.:
    - `profiles`, `personas`, `persona_templates`, `plan_templates`, `allowed_metrics`
    - `user_profile`, `chat_sessions`, `chat_messages`, `results`

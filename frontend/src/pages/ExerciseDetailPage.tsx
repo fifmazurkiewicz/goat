@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useExercises } from "@/hooks/useExercises";
+import { exercisePhotoSrc } from "@/lib/exercise-photo";
 import { PAGE_SHELL_CLASS, PAGE_TITLE_CLASS } from "@/lib/layout";
 
 const LEVEL_LABELS: Record<string, string> = {
@@ -52,6 +53,8 @@ export default function ExerciseDetailPage() {
     );
   }
 
+  const photoSrc = exercisePhotoSrc(exercise.photo_path);
+
   return (
     <div className={`${PAGE_SHELL_CLASS} max-w-3xl`}>
       <Button variant="ghost" size="sm" asChild className="-ml-2 mb-4">
@@ -72,9 +75,9 @@ export default function ExerciseDetailPage() {
       </div>
 
       <AspectRatio ratio={3 / 2} className="mt-5 overflow-hidden rounded-md bg-muted">
-        {exercise.photo_path ? (
+        {photoSrc ? (
           <img
-            src={exercise.photo_path}
+            src={photoSrc}
             alt={exercise.name}
             loading="lazy"
             decoding="async"
