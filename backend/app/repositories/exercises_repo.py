@@ -14,7 +14,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 _COLUMNS = (
-    "id, slug, name, persona_type, level, categories, short_description, "
+    "id, slug, name, name_en, persona_type, level, categories, short_description, "
     "detail_full, common_mistakes, photo_path"
 )
 
@@ -24,12 +24,13 @@ class ExerciseRow:
     id: str
     slug: str
     name: str
+    name_en: str | None
     persona_type: str
     level: str
     categories: list[str]
     short_description: str
     detail_full: str
-    common_mistakes: str
+    common_mistakes: str | None
     photo_path: str | None
 
 

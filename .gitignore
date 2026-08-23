@@ -167,6 +167,9 @@ frontend/.env*.local
 # Lokalny stan hooków Cursora (nie jest kodem projektu)
 .cursor/hooks/state/
 
+# Cache skryptu importu free-exercise-db (scripts/import_free_exercise_db.py)
+.tmp/
+
 # Spyder project settings
 .spyderproject
 .spyproject

@@ -216,21 +216,24 @@ create unique index one_active_job_per_user
 -- uwaga: unikalność per-user (nie per-plan) wymaga join z `plans` przy insert -- rozważyć trigger
 -- BEFORE INSERT sprawdzający istnienie aktywnego jobu dla user_id z plans.
 
--- ============ KATALOG ĆWICZEŃ (ADR-14) ============
+-- ============ KATALOG ĆWICZEŃ (ADR-14, nowelizacja 2026-08-23) ============
 -- Treść referencyjna (jak persona_templates/plan_templates), seedowana migracją,
 -- read-only dla usera. Powiązana z typem persony (widoczna w /settings dla person
 -- typu motor_coach/badminton_coach — patrz frontend.md).
+-- Skala po imporcie free-exercise-db: ~873 pozycje (868 importowanych + ręczne badminton_coach).
 exercises (
   id uuid PK,
   slug text unique,
-  name text,
+  name text,                   -- PL (tłumaczenie LLM w seedzie 0013)
+  name_en text,                -- oryginał EN — matcher klikalnych nazw w planach
   persona_type text,           -- personas.type, dla którego ćwiczenie jest widoczne
   level text,                  -- 'beginner'|'intermediate'|'advanced'
-  categories text[],           -- np. ['Nogi','Plecy'] — mała, znana z góry lista, bez tabeli słownikowej
+  categories text[],           -- PL etykiety (mięśnie + typ treningu), bez tabeli słownikowej
   short_description text,
-  detail_full text,            -- "Wykonanie"
-  common_mistakes text,        -- "Częste błędy"
-  photo_path text,             -- ścieżka w Supabase Storage (bucket publiczny 'exercise-photos'), nullable
+  detail_full text,            -- "Wykonanie" (numerowane kroki dla importu)
+  common_mistakes text,        -- "Częste błędy"; NULL dla importu z free-exercise-db
+  photo_path text,             -- publiczny URL Supabase Storage (bucket 'exercise-photos'), nullable
+  source text default 'manual',-- 'manual' | 'free_exercise_db' (0012)
   created_at timestamptz default now()
 )
 

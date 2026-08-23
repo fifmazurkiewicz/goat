@@ -47,7 +47,7 @@ Gdybyś startował od zera tylko lokalnie (bez deployu):
 2. Supabase → **SQL** → **New query**.
 3. Wklej **całą** treść `0001_init.sql` → **Run** (musi przejść bez błędu).
 4. Nowa query → wklej **całą** treść `0002_exercise_catalog.sql` → **Run**.
-5. Kolejne migracje (jeśli jeszcze nie były na projekcie): `0007_running_metrics_strength.sql`, `0008_background_jobs.sql`, `0009_persona_role_boundaries.sql`, `0010_drop_personas_chat_model.sql`, `0011_invoked_via_multi_slash.sql` — każda w osobnej query, **Run**.
+5. Kolejne migracje (jeśli jeszcze nie były na projekcie): `0007_running_metrics_strength.sql`, `0008_background_jobs.sql`, `0009_persona_role_boundaries.sql`, `0010_drop_personas_chat_model.sql`, `0011_invoked_via_multi_slash.sql`, `0012_exercise_catalog_source_nullable.sql`, `0013_exercise_catalog_seed_free_exercise_db.sql` — każda w osobnej query, **Run**. `0013` jest duży (~1 MB) i wygenerowany — patrz niżej „Import katalogu ćwiczeń".
 6. **Table Editor** — powinny być m.in.:
    - `profiles`, `personas`, `persona_templates`, `plan_templates`, `allowed_metrics`
    - `chat_sessions`, `chat_messages`, `results`, `plans`, `plan_items`
@@ -177,6 +177,27 @@ API: `http://localhost:8000`
 4. **Ogólna rozmowa** → „Generuj zharmonizowany plan na sierpień” → **Goat · Kierownik Zespołu** (nie dietetyk); wynik w zakładce Plany.
 5. (Opcjonalnie) wygeneruj plan tygodniowy → status joba `success` / `partial_success`.
 6. Sprawdź `/results` i `/settings`.
+
+---
+
+## E2. Import katalogu ćwiczeń (free-exercise-db)
+
+Katalog seedowany jest migracją **`0013`** (wygenerowanym plikiem w repo — nie uruchamiaj importu, żeby mieć dane). Skrypt regenerujesz tylko przy aktualizacji datasetu:
+
+```powershell
+# 1. Pobierz dataset + wygeneruj 0013 (bez sekretów, bez bazy)
+cd backend; uv run python ../scripts/import_free_exercise_db.py
+
+# 2. (opcjonalnie) Tłumaczenia PL przez LLM — wymaga prawdziwego OPENROUTER_API_KEY
+uv run python ../scripts/translate_exercises.py        # cache: .tmp/free-exercise-db-translations.json
+uv run python ../scripts/import_free_exercise_db.py    # regeneracja 0013 z PL
+
+# 3. (opcjonalnie) Zdjęcia do Supabase Storage — wymaga SUPABASE_URL + SERVICE_ROLE_KEY
+uv run python ../scripts/import_free_exercise_db.py --upload-photos
+```
+
+Po regeneracji: commit `0013_*.sql`, potem Run w SQL Editor (lokalnie i na cloudzie).
+Re-import istniejących danych: `DELETE FROM exercises WHERE source='free_exercise_db';` → rerun `0013`.
 
 ---
 

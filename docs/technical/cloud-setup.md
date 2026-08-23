@@ -112,7 +112,12 @@ Jeśli baza ma stare tabele / połowiczny seed — **najpierw wipe**, potem świ
 5. **Obowiązkowo przed deployem backendu z `main` (2026-08-04+):** New query →
    `0008_background_jobs.sql` → **Run** — bez tego API startuje, ale joby w tle (tytuły LLM,
    harmonizacja po upsert) nie działają; po poprawce startupu brak migracji nie blokuje health.
-6. Table Editor — powinny być m.in.:
+6. Kolejne migracje (każda w osobnej query, **Run**): `0009_persona_role_boundaries.sql`,
+   `0010_drop_personas_chat_model.sql`, `0011_invoked_via_multi_slash.sql`,
+   `0012_exercise_catalog_source_nullable.sql`,
+   **`0013_exercise_catalog_seed_free_exercise_db.sql`** (duży ~1 MB, wygenerowany — import
+   868 ćwiczeń PL ze zdjęciami; patrz sekcja Storage niżej).
+7. Table Editor — powinny być m.in.:
    - `profiles`, `personas`, `persona_templates`, `plan_templates`, `allowed_metrics`
    - `user_profile`, `chat_sessions`, `chat_messages`, `results`
    - `plans`, `plan_items`, `plan_generation_jobs`, `plan_generation_job_personas`
@@ -162,6 +167,19 @@ https://<ref>.supabase.co/auth/v1/.well-known/jwks.json
 ```
 
 To jest `SUPABASE_JWKS_URL`.
+
+---
+
+## Krok 5b — Supabase Storage: bucket `exercise-photos`
+
+Zdjęcia katalogu ćwiczeń (import free-exercise-db) żyją w Storage — re-init bazy **nie czyści** Storage:
+
+1. Supabase → **Storage** → **New bucket**.
+2. Name: `exercise-photos` | Public bucket: **TAK** (`<img src>` nie wysyła JWT — bez publicznego odczytu zdjęcia się nie renderują).
+3. Polityki: **żadnych** INSERT/UPDATE/DELETE dla `authenticated`/`anon` (domyślny deny) — upload wyłącznie kluczem service role, lokalnie ze skryptu.
+4. Upload: `cd backend; uv run python ../scripts/import_free_exercise_db.py --upload-photos`
+   (wymaga `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` w env; ~868 plików JPG, ~50–100 MB).
+   Re-upload pod tymi samymi ścieżkami jest bezpieczny (overwrite tej samej treści).
 
 ---
 

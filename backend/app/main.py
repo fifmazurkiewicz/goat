@@ -12,6 +12,7 @@ from contextlib import asynccontextmanager
 import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from app.api.routers import (
     account,
@@ -84,6 +85,11 @@ app.add_middleware(
 )
 
 app.add_middleware(RequestIDMiddleware)
+
+# Ostatni dodany = najbardziej zewnętrzny — kompresuje wszystkie odpowiedzi (katalog
+# ćwiczeń ~0,7 MB JSON po imporcie free-exercise-db). Smoke test streamu SSE po deployu:
+# gzip owija też czat; gdyby buforował eventy, wykluczyć ścieżkę streamu.
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 register_exception_handlers(app)
 

@@ -365,14 +365,14 @@ export interface Exercise {
   id: string;
   slug: string;
   name: string;
+  name_en?: string | null;
   persona_type: PersonaType;
   level: ExerciseLevel;
   categories: string[];
   short_description: string;
   detail_full: string;
-  common_mistakes: string;
+  common_mistakes: string | null;
   photo_path: string | null;
-  created_at: string;
 }
 
 export interface ApiErrorBody {

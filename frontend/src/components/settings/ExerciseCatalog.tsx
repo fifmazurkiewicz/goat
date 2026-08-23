@@ -1,22 +1,22 @@
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
-import { ExerciseDetailDialog } from "@/components/settings/ExerciseDetailDialog";
 import { ExerciseGrid } from "@/components/settings/ExerciseGrid";
 import { ExerciseSearchBar } from "@/components/settings/ExerciseSearchBar";
 import { useExercises } from "@/hooks/useExercises";
-import type { Exercise } from "@/types/api";
 
 /**
- * Katalog ćwiczeń (ADR-14) — pozostaje w zakładce Ustawienia (decyzja usera wbrew
- * alternatywnej rekomendacji). Filtrowanie po kategorii/query PO STRONIE KLIENTA
- * (docs/technical/frontend.md sekcja 7a).
+ * Katalog ćwiczeń (ADR-14) — pozostaje w zakładce Ustawienia. Filtrowanie po
+ * kategorii/query PO STRONIE KLIENTA (docs/technical/frontend.md sekcja 7a);
+ * karta prowadzi do strony `/exercises/:slug` (dialog usunięty 2026-08-23).
  */
 export function ExerciseCatalog() {
   const { data: exercises, isLoading } = useExercises();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
-  const [openExercise, setOpenExercise] = useState<Exercise | null>(null);
+  // ~870 kart po imporcie free-exercise-db — odroczone filtrowanie, żeby wpisywanie
+  // nie re-koncylidowało siatki przy każdym klawiszu (słabsze mobile).
+  const deferredQuery = useDeferredValue(query);
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -25,23 +25,25 @@ export function ExerciseCatalog() {
   }, [exercises]);
 
   const filtered = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
+    const normalizedQuery = deferredQuery.trim().toLowerCase();
     return (exercises ?? []).filter((ex) => {
       const matchesCategory = category === "all" || ex.categories.includes(category);
       const matchesQuery =
         !normalizedQuery ||
         ex.name.toLowerCase().includes(normalizedQuery) ||
+        ex.name_en?.toLowerCase().includes(normalizedQuery) ||
         ex.categories.some((c) => c.toLowerCase().includes(normalizedQuery));
       return matchesCategory && matchesQuery;
     });
-  }, [exercises, query, category]);
+  }, [exercises, deferredQuery, category]);
 
   return (
     <section>
       <h2 className="text-xl font-semibold">Katalog ćwiczeń</h2>
       <p className="mt-1 max-w-[70ch] text-sm text-muted-foreground">
         Widoczny dla person typu trener motoryczny i trener badmintona — opisy wykonania najpopularniejszych
-        ćwiczeń, ze zdjęciem poglądowym.
+        ćwiczeń, ze zdjęciem poglądowym. Większość pozycji pochodzi z otwartego katalogu free-exercise-db
+        (opisy przetłumaczone na polski).
       </p>
 
       <div className="mt-4">
@@ -62,11 +64,9 @@ export function ExerciseCatalog() {
             ))}
           </div>
         ) : (
-          <ExerciseGrid exercises={filtered} onOpen={setOpenExercise} />
+          <ExerciseGrid exercises={filtered} />
         )}
       </div>
-
-      <ExerciseDetailDialog exercise={openExercise} onOpenChange={(open) => !open && setOpenExercise(null)} />
     </section>
   );
 }

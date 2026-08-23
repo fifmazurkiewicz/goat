@@ -11,6 +11,7 @@ import { useAuthStore } from "@/store/useAuthStore";
 
 import AdminPage from "@/pages/AdminPage";
 import ChatPage from "@/pages/ChatPage";
+import ExerciseDetailPage from "@/pages/ExerciseDetailPage";
 import LoginPage from "@/pages/LoginPage";
 import OnboardingPage from "@/pages/OnboardingPage";
 import PersonasPage from "@/pages/PersonasPage";
@@ -38,6 +39,7 @@ const router = createBrowserRouter([
       { path: "/chat", element: <ChatPage /> },
       { path: "/chat/:sessionId", element: <ChatPage /> },
       { path: "/plans", element: <PlansPage /> },
+      { path: "/exercises/:slug", element: <ExerciseDetailPage /> },
       { path: "/results", element: <ResultsPage /> },
       { path: "/profile", element: <ProfilePage /> },
       { path: "/settings", element: <SettingsPage /> },

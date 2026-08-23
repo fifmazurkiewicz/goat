@@ -1,5 +1,15 @@
+import { useMemo } from "react";
+
 import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface ExerciseSearchBarProps {
   query: string;
@@ -9,9 +19,21 @@ interface ExerciseSearchBarProps {
   onCategoryChange: (category: string) => void;
 }
 
+const TRAINING_TYPES = new Set([
+  "Cardio",
+  "Plyometryka",
+  "Rozciąganie",
+  "Siłowe",
+  "Strongman",
+  "Trójbój",
+  "Podnoszenie ciężarów",
+]);
+
 /**
- * Filter-chipy kategorii `overflow-x-auto` na mobile (NIE `flex-wrap` — zajmuje zbyt
- * dużo wysokości ekranu przed treścią), docs/technical/frontend.md sekcja 7a.
+ * Kategoria jako `Select` z grupowaniem (Partie mięśniowe / Typ treningu) — przy ~24
+ * kategoriach po imporcie free-exercise-db chipy `overflow-x-auto` byłyby nieodkrywalne
+ * poza viewportem (spójnie z wyborem `Select` dla gotowców persony).
+ * Nazwy i opisy importu są po polsku; `name_en` nadal działa w wyszukiwarce.
  */
 export function ExerciseSearchBar({
   query,
@@ -20,6 +42,14 @@ export function ExerciseSearchBar({
   activeCategory,
   onCategoryChange,
 }: ExerciseSearchBarProps) {
+  const { muscles, trainingTypes } = useMemo(() => {
+    const sorted = [...categories].sort((a, b) => a.localeCompare(b, "pl"));
+    return {
+      muscles: sorted.filter((c) => !TRAINING_TYPES.has(c)),
+      trainingTypes: sorted.filter((c) => TRAINING_TYPES.has(c)),
+    };
+  }, [categories]);
+
   return (
     <div className="space-y-3">
       <div className="max-w-sm space-y-1.5">
@@ -28,25 +58,40 @@ export function ExerciseSearchBar({
         </label>
         <Input
           id="exercise-search"
-          placeholder="np. biceps, przysiad, sprint 10m"
+          placeholder="np. przysiad, klatka, squat"
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
         />
       </div>
-      <div className="flex gap-2 overflow-x-auto pb-1">
-        {["all", ...categories].map((category) => (
-          <button
-            key={category}
-            type="button"
-            onClick={() => onCategoryChange(category)}
-            className={cn(
-              "shrink-0 whitespace-nowrap rounded-full border px-3 py-2 text-sm font-medium min-h-11 transition-colors",
-              activeCategory === category ? "bg-primary text-primary-foreground" : "hover:bg-accent"
+      <div className="max-w-xs">
+        <Select value={activeCategory} onValueChange={onCategoryChange}>
+          <SelectTrigger aria-label="Filtr kategorii">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Wszystkie kategorie</SelectItem>
+            {muscles.length > 0 && (
+              <SelectGroup>
+                <SelectLabel>Partie mięśniowe</SelectLabel>
+                {muscles.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             )}
-          >
-            {category === "all" ? "Wszystkie" : category}
-          </button>
-        ))}
+            {trainingTypes.length > 0 && (
+              <SelectGroup>
+                <SelectLabel>Typ treningu</SelectLabel>
+                {trainingTypes.map((category) => (
+                  <SelectItem key={category} value={category}>
+                    {category}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            )}
+          </SelectContent>
+        </Select>
       </div>
     </div>
   );

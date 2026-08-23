@@ -206,6 +206,34 @@ zaproponowanej w audycie UX, tj. osobnej trasy linkowanej z `/plans`/konfiguracj
 usera (treść zarządzana wyłącznie przez migracje/seed, jak pozostałe "gotowce"). Edytowalność przez
 admina/użytkownika — świadomie odłożona, wymaga osobnej decyzji gdy pojawi się taka potrzeba.
 
+**Nowelizacja (2026-08-23, import free-exercise-db):** skala katalogu rośnie z 5 do ~873 pozycji
+([yuhonas/free-exercise-db](https://github.com/yuhonas/free-exercise-db), licencja **Unlicense** —
+domena publiczna, bez atrybucji; wcześniejszy pomysł hasaneyldrm/openGym odrzucony licencyjnie).
+Zmiany względem pierwotnej decyzji:
+
+- `common_mistakes` **nullable** (migracja `0012`) — dataset nie zawiera tej treści; nie zmyślamy
+  porad technicznych. Ręcznie kuratorowane wpisy zachowują wartość.
+- Nowa kolumna **`source`** (`'manual'` | `'free_exercise_db'`) — provenance + ochrona ręcznych
+  wpisów przy re-importach (`ON CONFLICT (slug) DO NOTHING` nigdy ich nie nadpisze).
+- Import = **skrypt-generator** (`scripts/import_free_exercise_db.py`) → wygenerowany seed
+  `0013_*.sql` w repo (nie „dodawane ręcznie przy seedowaniu" i nie INSERT prosto do bazy —
+  artefakt w git jest jedyną prawdą, działa lokalnie i na cloudzie przez SQL Editor).
+  Zdjęcia (pierwsze z dwóch) uploaduje ten sam skrypt do bucketa `exercise-photos`
+  (service role z env, bez supabase-py). Re-import: `DELETE WHERE source='free_exercise_db'` + rerun.
+- **Duplikaty EN/PL świadome:** ręczne PL wpisy `przysiad-ze-sztanga` / `wyciskanie-sztangi-lezac` /
+  `martwy-ciag` **usunięte** w `0012` (decyzja usera) — zostają EN odpowiedniki z datasetu.
+  Wpisy `badminton_coach` nietknięte (dataset ich nie pokrywa).
+- Treść importowana **po polsku** (nowelizacja 2026-08-23, decyzja usera): nazwa + krótki opis +
+  kroki wykonania tłumaczone LLM **przy generacji seeda** (offline, cache `.tmp/`, skrypt
+  `scripts/translate_exercises.py` przez OpenRouter) — zero wywołań LLM w runtime; oryginał EN
+  zostaje w `name_en` (dopasowanie klikalnych linków z planów). Filtr kategorii w UI: Select z
+  grupowaniem (nie chipy). Szczegóły ćwiczenia: wspólna strona `/exercises/:slug` (dialog usunięty),
+  klikalna też z tabel planów przez `lib/exercise-matcher.ts`. Skala ~870 pozycji nie
+  wymaga paginacji: `loading="lazy"` na `<img>`, gzip na API, filtr klient-side z `useDeferredValue`.
+- Założenie „katalog rzędu kilkudziesięciu pozycji — brak potrzeby paginacji/detail-fetch"
+  przestaje być prawdziwe co do skali, ale decyzja o braku paginacji zostaje potwierdzona
+  (lazy images + gzip; split lista/detale odłożony do momentu realnego problemu).
+
 ---
 
 ## ADR-15: `/settings` — ustawienia konta (nick, motyw) jako nowa trasa

@@ -157,28 +157,33 @@ React Hook Form + Zod (`zodResolver`). Sekcje: podstawowe dane / **„Jak ma si�
 
 Edytor kolumn: UI trzyma listę `{ name }[]` w formularzu; przy zapisie mapuje na kontrakt API `template_overrides: { columns: string[] }` (zgodnie z `resolve_persona_columns` w backendzie). Lista edytowalna przez `useFieldArray` (nazwa + ↑/↓ + usuń + "+ Dodaj kolumnę"). Walidacja Zod: min. 1 kolumna, max ~8, unikalne nazwy, `custom_result_category` wymagane warunkowo (`superRefine`) dla `type==='custom'`. Przy błędach walidacji — toast + komunikaty przy polach (w tym przycisk submit nie może „milczeć”).
 
-## 7a. `/settings` — konto, motyw, katalog ćwiczeń (ADR-14, ADR-15)
+## 7a. `/settings` — konto, motyw, katalog ćwiczeń (ADR-14, ADR-15; nowelizacja 2026-08-23)
 
 ```
 SettingsPage (smart)
 ├─ AccountSettingsCard (dumb) — nick (input + przycisk „Zapisz nick”, PATCH /api/v1/account)
 │  + przełącznik motywu jasny/ciemny (`useThemeStore`, tylko localStorage, ADR-15);
 │  `is_admin` z GET /account → `useAuthStore` (zakładka Admin w shellu)
-└─ ExerciseCatalog (smart)
-   ├─ ExerciseSearchBar (dumb) — pole szukania + filter-chipy kategorii, `overflow-x-auto`
-   │  na mobile (NIE flex-wrap — wrap zajmuje zbyt dużo wysokości ekranu przed treścią)
-   ├─ ExerciseGrid (dumb) — `grid-cols-1` <768px / `grid-cols-3` desktop, karta ze zdjęciem
-   │  (`AspectRatio` shadcn, placeholder gdy `photo_path` NULL), nazwą, poziomem, kategoriami,
-   │  opisem skróconym (`line-clamp-2`, nie pełny `text-align: justify` na mobile — nieczytelne
-   │  w wąskiej karcie)
-   └─ ExerciseDetailDialog (dumb, `Sheet` na mobile / `Dialog` desktop) — zdjęcie pełne,
-      "Wykonanie" (`detail_full`), "Częste błędy" (`common_mistakes`)
+└─ ExerciseCatalog (smart) — ~873 pozycje po imporcie free-exercise-db (Unlicense),
+   treść PL (tłumaczenie LLM przy generacji seeda 0013), `name_en` dla matcherów
+   ├─ ExerciseSearchBar (dumb) — pole szukania (PL i EN przez `name_en`) + Select
+   │  kategorii z grupowaniem (Partie mięśniowe / Typ treningu — chipy nie skalują się
+   │  do ~24 kategorii)
+   └─ ExerciseGrid (dumb) — karta = Link do `/exercises/:slug` (dialog usunięty),
+      `grid-cols-1` <768px / `grid-cols-3` desktop, zdjęcie `loading="lazy"` +
+      `decoding="async"`, ratio 3:2 (źródło 850×567), opis `line-clamp-2`
 ```
+
+**Strona szczegółów `/exercises/:slug`** (`ExerciseDetailPage`) — wspólna dla katalogu
+i klikalnych nazw w planach (`PlanItemTable` linkuje pierwszą kolumnę dopasowaną przez
+`lib/exercise-matcher.ts`: normalizacja PL/EN + fallback contains). Dane z cache
+`useExercises` (staleTime 1 h) — bez osobnego endpointu detail.
 
 Dane z `GET /exercises` (TanStack Query, `staleTime` długi — treść referencyjna zmienia się
 wyłącznie przy deployu nowej migracji) — filtrowanie po kategorii/query robione **po stronie
-klienta** (katalog rzędu kilkudziesięciu pozycji, brak potrzeby round-tripu przy każdej zmianie
-filtra).
+klienta**: przy ~870 pozycjach nadal tanie (`useMemo` + `useDeferredValue`); payload listy
+(~0,7 MB surowego JSON, PL instrukcje) kompresuje `GZipMiddleware`. Warunek braku paginacji:
+lazy-loading obrazów + gzip; split lista/detale odłożony do momentu realnego problemu.
 
 ## 8. Typy — `openapi-typescript` od startu
 

@@ -6,8 +6,9 @@ import type { Exercise } from "@/types/api";
 /**
  * `GET /exercises` (ADR-14) — treść referencyjna, `staleTime` długi (zmienia się
  * wyłącznie przy deployu nowej migracji). Filtrowanie po kategorii/query robione
- * PO STRONIE KLIENTA (docs/technical/frontend.md sekcja 7a) — katalog rzędu
- * kilkudziesięciu pozycji, brak potrzeby round-tripu przy każdej zmianie filtra.
+ * PO STRONIE KLIENTA (docs/technical/frontend.md sekcja 7a) — po imporcie
+ * free-exercise-db ~870 pozycji; filtr useMemo + `useDeferredValue` broni się bez
+ * round-tripu, payload ogranicza GZipMiddleware po stronie API.
  */
 export function useExercises() {
   return useQuery({

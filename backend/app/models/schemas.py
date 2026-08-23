@@ -327,12 +327,13 @@ class ExerciseOut(BaseModel):
     id: str
     slug: str
     name: str
+    name_en: str | None = None
     persona_type: PersonaType
     level: ExerciseLevel
     categories: list[str]
     short_description: str
     detail_full: str
-    common_mistakes: str
+    common_mistakes: str | None = None
     photo_path: str | None = None
 
 
