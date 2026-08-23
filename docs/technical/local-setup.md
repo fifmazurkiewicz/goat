@@ -212,6 +212,54 @@ Szczegóły nie są potrzebne przy pierwszym setupie — wróć tu dopiero gdy �
 
 ---
 
+## G. Graft — mapa kodu dla agenta (ADR-20)
+
+Lokalny graf kontekstu ([NanoNets/Graft](https://github.com/nanonets/graft)). **Nie jest częścią runtime** — nie trzeba go do `uvicorn` / `npm run dev` / deployu. Agent używa go zamiast ślepego grepa.
+
+### G1. Pierwszy raz (ta maszyna / to repo)
+
+```powershell
+npx @nanonets/graft init --agents cursor --dry-run
+npx @nanonets/graft init --agents cursor
+npx @nanonets/graft telemetry disable
+npx @nanonets/graft build
+```
+
+`init --agents cursor` zapisuje tylko:
+
+| Plik | Commitować? |
+|---|---|
+| `.cursor/rules/graft.mdc` | tak (wiring) |
+| `.cursor/mcp.json` | tak (MCP, bez sekretów) |
+| `graft/` | **nie** — cache; `graft build` dopisuje `/graft/` do `.gitignore` |
+
+Restart Cursora, żeby MCP się załadował.
+
+### G2. Kiedy `graft build`
+
+| Kiedy | Komenda |
+|---|---|
+| Start sesji, gdy graf odstaje od kodu | `npx @nanonets/graft check` → przy exit 1: `npx @nanonets/graft build` |
+| Po merżu / dużym refaktorze / wielu plikach | `npx @nanonets/graft build` |
+| `ask` / `callers` wyglądają nieaktualnie | `npx @nanonets/graft build` |
+
+Nie po każdej linijce — zwykłe odpytania odświeżają strukturę same (~3 ms, $0).
+
+### G3. Opcjonalnie `--deep` (LLM)
+
+Tylko świadomie. Klucz **lokalnie** (nie w czacie, nie w commicie). Placeholdery:
+
+| Zmienna | Przykład |
+|---|---|
+| `GRAFT_PROVIDER` | `openai` (wire format OpenAI-compatible) |
+| `GRAFT_BASE_URL` | `https://openrouter.ai/api/v1` |
+| `GRAFT_API_KEY` | ustaw lokalnie |
+| `GRAFT_MODEL` | model z OpenRoutera |
+
+Potem: `npx @nanonets/graft build --deep`.
+
+---
+
 ## Checklist (pierwszy raz)
 
 | # | Krok | OK? |
@@ -227,3 +275,4 @@ Szczegóły nie są potrzebne przy pierwszym setupie — wróć tu dopiero gdy �
 | 9 | `uv run uvicorn` na :8000 | |
 | 10 | `npm run dev` na :3000 | |
 | 11 | Health + login email/hasło + persona + czat | |
+| 12 | (opcjonalnie, tooling) Graft: `init --agents cursor` + `telemetry disable` + `build` — §G | |

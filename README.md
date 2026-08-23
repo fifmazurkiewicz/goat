@@ -21,7 +21,7 @@ Pełna specyfikacja techniczna, decyzje architektoniczne i plan implementacji �
 - [`docs/technical/frontend.md`](docs/technical/frontend.md) — architektura frontendu, routing, state management, SSE klient
 - [`docs/technical/devops.md`](docs/technical/devops.md) — deploy, CI/CD, migracje, sekrety, koszty
 - [`docs/technical/cloud-setup.md`](docs/technical/cloud-setup.md) — setup chmury (Supabase / Render / Vercel / Cloudflare) — **aktualna ścieżka**
-- [`docs/technical/local-setup.md`](docs/technical/local-setup.md) — lokalny loop (później)
+- [`docs/technical/local-setup.md`](docs/technical/local-setup.md) — lokalny loop + Graft (§G, ADR-20)
 - [`docs/adr/decisions.md`](docs/adr/decisions.md) — log kluczowych decyzji architektonicznych (ADR)
 
 ## Status

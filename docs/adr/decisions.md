@@ -340,3 +340,23 @@ overlaya, `refetchInterval` i keep-alive — Render ma móc usnąć po 15 min.
 **Konsekwencje:** sonda nie jest heartbeatem. Lokalnie lampka się nie pokazuje. Spec:
 `docs/superpowers/specs/2026-08-16-api-status-lamp-design.md`.
 
+---
+
+## ADR-20: Graft jako lokalna mapa kodu dla agenta (nie runtime)
+
+**Status:** zaakceptowane (2026-08-23).
+
+**Kontekst:** każda nowa rozmowa z agentem startuje na zimno i płaci koszt eksploracji repo (grep, otwieranie plików). [Graft](https://github.com/nanonets/graft) buduje raz lokalny graf (tree-sitter, bez LLM) i serwuje go agentowi przez CLI / MCP.
+
+**Decyzja:**
+
+- Graft jest **toolingiem deweloperskim** — zero wpływu na backend, frontend, Supabase, Vercel, Render, CI.
+- Domyślnie warstwa **structural** (`graft build`, $0, bez klucza). `--deep` (LLM) tylko świadomie, klucz wyłącznie lokalnie.
+- Graf `graft/` = lokalny cache jak `node_modules` — **w `.gitignore`**, nigdy w commicie. Teammate / nowa maszyna: `graft build`.
+- Commitowany jest tylko wiring Cursora: `.cursor/rules/graft.mdc`, `.cursor/mcp.json`.
+- Telemetria wyłączona (`graft telemetry disable`).
+- `graft build` okresowo: start sesji przy dryfie (`graft check`), po merżu / dużym refaktorze, gdy wyniki `ask`/`callers` wyglądają nieaktualnie — nie po każdej linijce.
+- Zasada globalna (wszystkie repo, greenfield i brownfield): `~/.cursor/rules/graft.mdc`.
+
+**Konsekwencje:** nowa sesja Cursora wymaga restartu, żeby załadować MCP. Setup krok po kroku: [`local-setup.md`](../technical/local-setup.md) §G.
+

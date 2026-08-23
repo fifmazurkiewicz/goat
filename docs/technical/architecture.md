@@ -210,3 +210,8 @@ userów), `UsageLimitService` egzekwuje **jawny budżet w dolarach per konto**
   wykorzystana/limit, data odnowienia okresu) — `frontend.md` sekcja 10.
 - Panel admina (`GET /admin/users`) pokazuje `cost_usd_used`/`usage_budget_usd` wprost jako kwotę,
   **bez** etykiet "Free"/"Pro" (odrzucone jako mylące — sugerują subskrypcję, której MVP nie ma).
+
+## 10. Graft — poza runtime (ADR-20)
+
+Lokalny graf kontekstu dla coding agentów (`graft/`). Nie wchodzi w request path, CI ani deploy.
+Setup i kiedy odpalać `graft build`: [`local-setup.md`](local-setup.md) §G. Decyzja: [`../adr/decisions.md`](../adr/decisions.md#adr-20-graft-jako-lokalna-mapa-kodu-dla-agenta-nie-runtime).

@@ -54,7 +54,7 @@ Pełna checklista w [`local-setup.md`](local-setup.md). Zasada: projekt musi da�
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_BASE_URL` | Vercel + `frontend/.env.local` | Publiczne, bezpieczne w bundlu (chronione przez RLS) |
 | `APP_VERSION` | opcjonalnie Render/Vercel build | Nadpisuje `backend/VERSION` (semver); domyślnie plik w repo |
 
-Zasady: `SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`, `DATABASE_URL`, `SUPABASE_ACCESS_TOKEN` (CLI) — nigdy do repo/frontendu. `.gitignore` obejmuje `.env`, `.env.*` poza `!.env.example`, `frontend/.env.local`.
+Zasady: `SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`, `DATABASE_URL`, `SUPABASE_ACCESS_TOKEN` (CLI) — nigdy do repo/frontendu. `.gitignore` obejmuje `.env`, `.env.*` poza `!.env.example`, `frontend/.env.local`, oraz **`/graft/`** (lokalny cache Grafta — ADR-20; nie CI, nie deploy).
 
 ### Wersjonowanie semver (panel Admin)
 
