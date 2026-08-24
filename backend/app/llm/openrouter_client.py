@@ -1,7 +1,7 @@
-"""Transport HTTP do OpenRoutera — `httpx.AsyncClient`, patrz docs/technical/ai-pipeline.md.
+"""HTTP transport to OpenRouter — `httpx.AsyncClient`, see docs/technical/ai-pipeline.md.
 
-Modele domyślne konfigurowane przez env (`OPENROUTER_CHAT_MODEL`/`OPENROUTER_PLANNER_MODEL`,
-`app/core/config.py`), NIGDY hardkodowane w tym module.
+Default models configured via env (`OPENROUTER_CHAT_MODEL`/`OPENROUTER_PLANNER_MODEL`,
+`app/core/config.py`), NEVER hardcoded in this module.
 """
 
 from __future__ import annotations
@@ -25,13 +25,12 @@ OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
 
 class OpenRouterClient:
-    """Cienki wrapper `httpx.AsyncClient` nad OpenRouterem (chat completions + streaming).
+    """Thin `httpx.AsyncClient` wrapper over OpenRouter (chat completions + streaming).
 
-    `tenacity` retry+backoff stosowany WYŁĄCZNIE przed pierwszym bajtem odpowiedzi
-    streamu (ai-pipeline.md sekcja 7) — streamu nie da się bezpiecznie powtórzyć po
-    wysłaniu części tokenów do klienta SSE. Dla wywołań non-streaming (`complete_json`,
-    `get_models`) retry obejmuje całe wywołanie — bezpieczne, bo nic nie wyciekło jeszcze
-    do klienta końcowego.
+    `tenacity` retry+backoff applies ONLY before the first byte of a stream response
+    (ai-pipeline.md section 7) — a stream cannot be safely retried after partial tokens
+    were sent to the SSE client. For non-streaming calls (`complete_json`, `get_models`)
+    retry covers the whole call — safe because nothing has leaked to the end client yet.
     """
 
     def __init__(self, api_key: str | None = None, base_url: str = OPENROUTER_BASE_URL) -> None:
@@ -54,15 +53,15 @@ class OpenRouterClient:
         max_tokens: int | None = None,
         fallback_models: list[str] | None = None,
     ) -> AsyncIterator[dict[str, Any]]:
-        """Streamuje chat completion z OpenRoutera, yielduje sparsowane chunki SSE
+        """Stream chat completion from OpenRouter, yielding parsed SSE chunks
         (`{"choices": [{"delta": {...}, "finish_reason": ...}], "usage": {...}}`).
 
-        `usage: {"include": true}` w body — wymagane, żeby finalny chunk streamu
-        zawierał `prompt_tokens`/`completion_tokens` (ai-pipeline.md §1b, koszt USD).
+        `usage: {"include": true}` in the body — required so the final stream chunk
+        includes `prompt_tokens`/`completion_tokens` (ai-pipeline.md §1b, USD cost).
 
-        Retry (max 3 próby, exponential backoff) obejmuje WYŁĄCZNIE fazę przed pierwszym
-        wyemitowanym chunkiem — po pierwszym `yield` błąd propaguje się wprost (nie da
-        się bezpiecznie powtórzyć streamu po wysłaniu części tokenów do klienta SSE).
+        Retry (max 3 attempts, exponential backoff) covers ONLY the phase before the
+        first emitted chunk — after the first `yield` errors propagate directly (the
+        stream cannot be safely retried after partial tokens were sent to the SSE client).
         """
         payload: dict[str, Any] = {
             "model": model,
@@ -99,8 +98,8 @@ class OpenRouterClient:
             except (httpx.HTTPError, ExternalServiceError) as exc:
                 last_exc = exc
                 if yielded_any:
-                    # Część tokenów już poszła do klienta SSE — nie da się bezpiecznie
-                    # powtórzyć, propagujemy błąd wprost (ai-pipeline.md §7).
+                    # Some tokens already went to the SSE client — cannot safely
+                    # retry; propagate the error directly (ai-pipeline.md §7).
                     raise
                 logger.warning(
                     "openrouter_stream_retry", attempt=attempt + 1, error=str(exc)
@@ -120,11 +119,11 @@ class OpenRouterClient:
         json_schema: dict[str, Any],
         max_tokens: int = 300,
     ) -> dict[str, Any]:
-        """Wywołanie non-streaming z `response_format: json_schema` (strict) — używane
-        przez `ModerationService` i `ChatRoutingService` (ai-pipeline.md §1a, §5).
+        """Non-streaming call with `response_format: json_schema` (strict) — used by
+        `ModerationService` and `ChatRoutingService` (ai-pipeline.md §1a, §5).
 
-        `provider.require_parameters: true` — nie routuj do endpointu bez wsparcia
-        `json_schema` (ai-pipeline.md §1).
+        `provider.require_parameters: true` — do not route to an endpoint without
+        `json_schema` support (ai-pipeline.md §1).
         """
         payload = {
             "model": model,
@@ -145,8 +144,8 @@ class OpenRouterClient:
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.5, max=8))
     async def get_models(self) -> list[dict[str, Any]]:
-        """`GET /api/v1/models` — cennik modeli (ai-pipeline.md §1b), cache'owany przez
-        `app/domain/usage/pricing.py`, NIE tutaj (transport nie zna polityki cache)."""
+        """`GET /api/v1/models` — model pricing (ai-pipeline.md §1b), cached by
+        `app/domain/usage/pricing.py`, NOT here (transport layer has no cache policy)."""
         response = await self._client.get("/models")
         if response.status_code >= 400:
             raise ExternalServiceError(
@@ -161,6 +160,6 @@ class OpenRouterClient:
 
 @lru_cache
 def get_openrouter_client() -> OpenRouterClient:
-    """Singleton per proces — `httpx.AsyncClient` ma własny connection pool i nie
-    powinien być tworzony per-request (wyciek połączeń/gniazd)."""
+    """Singleton per process — `httpx.AsyncClient` has its own connection pool and should
+    not be created per request (socket/connection leak)."""
     return OpenRouterClient()

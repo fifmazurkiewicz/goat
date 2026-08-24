@@ -1,8 +1,8 @@
-"""`ResultsRepo` — tabela `results` (database-schema.md, ADR-9 wykresy trendu).
+"""`ResultsRepo` — `results` table (database-schema.md, ADR-9 trend charts).
 
-Wzorzec jak `PersonasRepo`. RLS ściśle `user_id = auth.uid()` — metody odczytu celowo
-NIE dodają zbędnego `WHERE user_id`, mutacje (`update`/`delete`) dodają jawnie (patrz
-`PersonasRepo` dla pełnego uzasadnienia konwencji)."""
+Same pattern as `PersonasRepo`. RLS is strictly `user_id = auth.uid()` — read methods
+deliberately do NOT add a redundant `WHERE user_id`; mutations (`update`/`delete`) add it
+explicitly (see `PersonasRepo` for the full convention rationale)."""
 
 from __future__ import annotations
 
@@ -150,9 +150,9 @@ class ResultsRepo:
             raise NotFoundError(f"Wynik {result_id!r} nie istnieje lub nie należy do usera.")
 
     async def list_recent_for_planner(self, *, category: str | None, limit: int = 30) -> list[ResultRow]:
-        """Ostatnie N wpisów (opcjonalnie per kategoria) — kontekst plannera
-        (architecture.md §5: "deterministyczne query ostatnich N rekordów, bez
-        LLM-owej sumaryzacji")."""
+        """Last N entries (optionally per category) — planner context
+        (architecture.md §5: "deterministic query of the last N records, without
+        LLM summarization")."""
         where = "WHERE category = :category" if category else ""
         params = {"category": category} if category else {}
         result = await self._conn.execute(

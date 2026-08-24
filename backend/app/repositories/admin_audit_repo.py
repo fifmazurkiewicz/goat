@@ -1,7 +1,7 @@
-"""`AdminAuditRepo` — tabela `admin_audit_log` (database-schema.md, security.md §2).
+"""`AdminAuditRepo` — `admin_audit_log` table (database-schema.md, security.md §2).
 
-Wymaga `service_role` (brak polityk RLS dla `authenticated` na tej tabeli — wyłącznie
-`/admin/*`, patrz `supabase/migrations/0001_init.sql`)."""
+Requires `service_role` (no RLS policies for `authenticated` on this table — `/admin/*` only,
+see `supabase/migrations/0001_init.sql`)."""
 
 from __future__ import annotations
 

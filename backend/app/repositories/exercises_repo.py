@@ -1,9 +1,9 @@
-"""`ExercisesRepo` — tabela `exercises` (ADR-14), treść referencyjna analogiczna do
+"""`ExercisesRepo` — `exercises` table (ADR-14), reference content analogous to
 `persona_templates`/`plan_templates` (`app/repositories/templates_repo.py`).
 
-Read-only (RLS SELECT dla wszystkich, brak INSERT/UPDATE/DELETE poza migracjami/seedem) —
-świadomie BEZ własnego `domain/exercises/` (ADR-14): filtrowanie po `persona_type`/
-`category`/`query` to proste `WHERE`, bez reguł biznesowych wartych osobnej warstwy domenowej.
+Read-only (RLS SELECT for everyone, no INSERT/UPDATE/DELETE outside migrations/seed) —
+deliberately WITHOUT a separate `domain/exercises/` (ADR-14): filtering by `persona_type`/
+`category`/`query` is simple `WHERE` logic, not business rules worth a dedicated domain layer.
 """
 
 from __future__ import annotations
@@ -45,10 +45,10 @@ class ExercisesRepo:
         category: str | None = None,
         query: str | None = None,
     ) -> list[ExerciseRow]:
-        """`GET /exercises` — filtry opcjonalne, kombinowalne (AND). `query` to prosty
-        `ILIKE` po nazwie (wyszukiwarka może równie dobrze filtrować po stronie klienta
-        na pełnej liście — katalog jest mały, ADR-14 — ale filtr server-side jest tani
-        i ogranicza payload przy większym katalogu w przyszłości)."""
+        """`GET /exercises` — optional, combinable filters (AND). `query` is a simple
+        `ILIKE` on name (the search UI may also filter client-side on the full list —
+        the catalog is small, ADR-14 — but server-side filter is cheap and limits payload
+        if the catalog grows later)."""
         clauses: list[str] = []
         params: dict[str, object] = {}
         if persona_type is not None:

@@ -1,7 +1,7 @@
-"""`PlansRepo` — tabele `plans`/`plan_items`/`plan_generation_jobs`/
+"""`PlansRepo` — tables `plans`/`plan_items`/`plan_generation_jobs`/
 `plan_generation_job_personas` (architecture.md §4, ADR-1/2, database-schema.md).
 
-Wzorzec jak `PersonasRepo`."""
+Same pattern as `PersonasRepo`."""
 
 from __future__ import annotations
 
@@ -100,13 +100,13 @@ _PLAN_STATUS_RANK = {"ready": 0, "partial_ready": 1, "generating": 2, "error": 3
 
 
 def pick_best_plan_for_range(plans: list[PlanRow]) -> PlanRow | None:
-    """Wybiera plan do wyświetlenia w kalendarzu — najnowszy w zakresie (regeneracja widoczna od razu)."""
+    """Pick the plan to show in the calendar — newest in range (regeneration visible immediately)."""
     if not plans:
         return None
 
     def sort_key(plan: PlanRow) -> tuple[float, int]:
-        # Najpierw najnowszy created_at (np. świeży `generating` po regenerate),
-        # potem preferuj gotowe przy remisie czasu.
+        # Newest created_at first (e.g. fresh `generating` after regenerate),
+        # then prefer ready on a timestamp tie.
         return (-plan.created_at.timestamp(), _PLAN_STATUS_RANK.get(plan.status, 9))
 
     return min(plans, key=sort_key)
@@ -146,7 +146,7 @@ class PlansRepo:
         return _row_to_plan(row) if row is not None else None
 
     async def get_latest_editable_plan_for_user(self, user_id: str) -> PlanRow | None:
-        """Najnowszy plan ready/partial_ready — edycja z czatu (upsert_plan_items)."""
+        """Newest ready/partial_ready plan — chat edit (upsert_plan_items)."""
         result = await self._conn.execute(
             text(
                 f"""
@@ -185,7 +185,7 @@ class PlansRepo:
         return _row_to_item(row) if row is not None else None
 
     async def get_plan_for_date(self, target_date: date) -> PlanRow | None:
-        """`GET /plans/{date}` — plan obejmujący dany dzień."""
+        """`GET /plans/{date}` — plan covering the given day."""
         result = await self._conn.execute(
             text(
                 f"""
@@ -200,7 +200,7 @@ class PlansRepo:
         return _row_to_plan(row) if row is not None else None
 
     async def list_plans_overlapping(self, *, range_start: date, range_end: date) -> list[PlanRow]:
-        """`GET /plans?start_date=&end_date=` — wszystkie plany nachodzące na podany zakres dat."""
+        """`GET /plans?start_date=&end_date=` — all plans overlapping the given date range."""
         result = await self._conn.execute(
             text(
                 f"""
@@ -214,7 +214,7 @@ class PlansRepo:
         return [_row_to_plan(row) for row in result]
 
     async def pick_plan_for_range(self, *, range_start: date, range_end: date) -> PlanRow | None:
-        """Najlepszy plan dla widocznego zakresu kalendarza — preferuj gotowe, potem najnowszy."""
+        """Best plan for the visible calendar range — prefer ready, then newest."""
         plans = await self.list_plans_overlapping(range_start=range_start, range_end=range_end)
         return pick_best_plan_for_range(plans)
 
@@ -237,11 +237,11 @@ class PlansRepo:
         return [_row_to_item(row) for row in result]
 
     async def insert_items(self, plan_id: str, items: list[dict[str, Any]]) -> list[PlanItemRow]:
-        """Pojedyncze INSERT-y — legacy; preferuj `insert_items_batch`."""
+        """Single INSERTs — legacy; prefer `insert_items_batch`."""
         return await self.insert_items_batch(plan_id, items)
 
     async def insert_items_batch(self, plan_id: str, items: list[dict[str, Any]]) -> list[PlanItemRow]:
-        """Batch INSERT pozycji planu — jeden round-trip na chunk (zapis per persona/okres)."""
+        """Batch INSERT of plan items — one round-trip per chunk (save per persona/period)."""
         if not items:
             return []
 
@@ -273,22 +273,22 @@ class PlansRepo:
         return inserted
 
     async def delete_items_for_persona(self, plan_id: str, persona_id: str) -> None:
-        """Usuwa pozycje danej persony — przed ponowną generacją failed persona w tym samym jobie."""
+        """Delete a persona's items — before regenerating a failed persona in the same job."""
         await self._conn.execute(
             text("DELETE FROM plan_items WHERE plan_id = :plan_id AND persona_id = :persona_id"),
             {"plan_id": plan_id, "persona_id": persona_id},
         )
 
     async def delete_item(self, item_id: str) -> None:
-        """Usuwa pojedynczą pozycję — np. harmonizacja Goata wycina kartę wykluczoną briefem."""
+        """Delete a single item — e.g. Goat harmonization removes a card excluded by brief."""
         await self._conn.execute(
             text("DELETE FROM plan_items WHERE id = :id"),
             {"id": item_id},
         )
 
     async def update_item_content(self, item_id: str, content: dict[str, Any]) -> None:
-        """Targeted patch etapu 3 — harmonizacja (architecture.md §4) koryguje TYLKO
-        konkretne `plan_items`, nie pełna regeneracja."""
+        """Targeted stage-3 patch — harmonization (architecture.md §4) adjusts ONLY
+        specific `plan_items`, not a full regeneration."""
         await self._conn.execute(
             text("UPDATE plan_items SET content = CAST(:content AS jsonb) WHERE id = :id"),
             {"id": item_id, "content": json.dumps(content)},
@@ -297,8 +297,8 @@ class PlansRepo:
     # ---------- plan_generation_jobs ----------
 
     async def create_job(self, *, plan_id: str, user_id: str) -> PlanJobRow:
-        """Rzuca `ConflictError` gdy user ma już aktywny job (`one_active_job_per_user`,
-        partial unique index w bazie — ostateczna linia obrony przeciw race condition)."""
+        """Raises `ConflictError` when the user already has an active job (`one_active_job_per_user`,
+        partial unique index in DB — final defense against race conditions)."""
         try:
             result = await self._conn.execute(
                 text(
@@ -325,7 +325,7 @@ class PlansRepo:
         return _row_to_job(row) if row is not None else None
 
     async def get_active_job_for_user(self, user_id: str) -> PlanJobRow | None:
-        """Aktywny job (`pending`/`running`) — max 1 na usera (partial unique index)."""
+        """Active job (`pending`/`running`) — max 1 per user (partial unique index)."""
         result = await self._conn.execute(
             text(
                 f"""
@@ -341,7 +341,7 @@ class PlansRepo:
         return _row_to_job(row) if row is not None else None
 
     async def cancel_job(self, job_id: str) -> PlanJobRow:
-        """Anuluje aktywny job i oznacza powiązany plan jako `error`."""
+        """Cancel the active job and mark the related plan as `error`."""
         job = await self.get_job(job_id)
         if job is None:
             raise NotFoundError(f"Job {job_id!r} nie istnieje.")
@@ -383,9 +383,9 @@ class PlansRepo:
         )
 
     async def reap_stale_jobs(self, *, older_than_minutes: int) -> list[str]:
-        """Reaper przy starcie appki (ADR-1): joby zawieszone (`pending`/`running`)
-        starsze niż `older_than_minutes` -> `error`. Wymaga `service_role` (działa na
-        WSZYSTKICH userach, nie jednym w kontekście RLS). Aktualizuje też `plans.status`."""
+        """Reaper on app startup (ADR-1): jobs stuck in `pending`/`running`
+        older than `older_than_minutes` -> `error`. Requires `service_role` (operates on
+        ALL users, not one RLS context). Also updates `plans.status`."""
         result = await self._conn.execute(
             text(
                 """
@@ -408,7 +408,7 @@ class PlansRepo:
     # ---------- plan_generation_job_personas ----------
 
     async def ensure_job_personas(self, job_id: str, persona_ids: list[str]) -> None:
-        """Idempotentne utworzenie wierszy per persona (resume joba bez duplicate key)."""
+        """Idempotent creation of per-persona rows (resume job without duplicate key)."""
         existing = {p.persona_id for p in await self.list_job_personas(job_id)}
         for persona_id in persona_ids:
             if persona_id in existing:

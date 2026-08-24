@@ -1,7 +1,7 @@
-"""Cache in-memory `allowed_metrics` + walidacja wpisów `results`/`log_result`.
+"""In-memory cache for `allowed_metrics` + validation of `results`/`log_result` entries.
 
-Patrz docs/technical/database-schema.md (`allowed_metrics`), docs/technical/ai-pipeline.md
-sekcja 2 (`log_result` batch, walidacja per-entry) i docs/technical/security.md sekcja 3
+See docs/technical/database-schema.md (`allowed_metrics`), docs/technical/ai-pipeline.md
+section 2 (`log_result` batch, per-entry validation) and docs/technical/security.md section 3
 (sanity checks, fallback `is_custom=true`).
 """
 
@@ -35,7 +35,7 @@ class MetricValidationResult:
 
 
 class AllowedMetricsCache:
-    """Nie zna FastAPI/HTTP — testowalna z listą fake wierszy przekazaną do `load_rows`."""
+    """Does not know FastAPI/HTTP — testable with a list of fake rows passed to `load_rows`."""
 
     def __init__(self) -> None:
         self._metrics: dict[tuple[str, str], object] = {}
@@ -60,8 +60,8 @@ class AllowedMetricsCache:
         notes: str | None,
         logged_date: date,
     ) -> MetricValidationResult:
-        """Sanity checks (security.md §3) uniwersalne + walidacja zakresu/typu jeśli
-        metryka jest znana w `allowed_metrics`, inaczej fallback `is_custom=True`."""
+        """Universal sanity checks (security.md §3) + range/type validation when the
+        metric is known in `allowed_metrics`, otherwise fallback `is_custom=True`."""
         if not isinstance(value, int | float) or not math.isfinite(value):
             return MetricValidationResult(False, True, "Wartość musi być skończoną liczbą.", unit)
         if unit is not None and len(unit) > _MAX_UNIT_LENGTH:

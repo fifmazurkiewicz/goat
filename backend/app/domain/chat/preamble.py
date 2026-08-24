@@ -73,7 +73,7 @@ def build_system_prompt(
     template_safety_prompt: str | None = None,
     persona_type: str | None = None,
 ) -> str:
-    """`[PLATFORM PREAMBUŁ] + opcjonalnie [ZABEZPIECZENIA GOTOWCA] + opcjonalnie [ZAKRES ROLI] + [ZACHOWANIE PERSONY]`."""
+    """`[PLATFORM PREAMBLE] + optional [TEMPLATE SAFETY] + optional [ROLE SCOPE] + [PERSONA BEHAVIOR]`."""
     segments = [PLATFORM_PREAMBLE]
     if template_safety_prompt and template_safety_prompt.strip():
         segments.append(

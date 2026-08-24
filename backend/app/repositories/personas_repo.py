@@ -1,12 +1,12 @@
-"""`PersonasRepo` — WZORZEC dla wszystkich przyszłych repozytoriów tego backendu.
+"""`PersonasRepo` — TEMPLATE for all future repositories in this backend.
 
-Zasada (docs/technical/architecture.md sekcja 1 i 7): CAŁA wiedza SQL żyje w
-`app/repositories/`, jako proste klasy przyjmujące `AsyncConnection` w konstruktorze —
-NIE silnik/sesję. Połączenie jest już otwarte z ustawionym kontekstem RLS przez
-`app.core.db.rls_connection(claims)` (sekcja 2 architecture.md) zanim trafi do repo.
+Rule (docs/technical/architecture.md sections 1 and 7): ALL SQL knowledge lives in
+`app/repositories/` as simple classes taking an `AsyncConnection` in the constructor —
+NOT the engine/session. The connection is already open with RLS context set via
+`app.core.db.rls_connection(claims)` (architecture.md section 2) before it reaches the repo.
 
-Repo NIE zarządza transakcją samo (brak commit/rollback tutaj) — to odpowiedzialność
-wołającego (orkiestrator/router), który otwiera `rls_connection` jako `async with`.
+The repo does NOT manage transactions itself (no commit/rollback here) — that is the
+caller's responsibility (orchestrator/router), which opens `rls_connection` as `async with`.
 """
 
 from __future__ import annotations
@@ -41,7 +41,7 @@ _UUID_KEYS = (
 
 @dataclass(frozen=True, slots=True)
 class PersonaRow:
-    """Reprezentacja pełnego wiersza `personas` (patrz docs/technical/database-schema.md)."""
+    """Full `personas` row representation (see docs/technical/database-schema.md)."""
 
     id: str
     user_id: str
@@ -77,23 +77,23 @@ def _row_to_persona(row: Any) -> PersonaRow:
 
 
 class PersonasRepo:
-    """Repo tabeli `personas`.
+    """Repository for the `personas` table.
 
-    Metody odczytu widoczności (`list_for_user`, `get_visible`) celowo NIE dodają
-    jawnego `WHERE user_id = :user_id` tam, gdzie RLS (`user_id = auth.uid() OR
-    (is_shared AND moderation_status='approved')`) już egzekwuje to na poziomie
-    Postgresa — patrz docs/technical/security.md sekcja 2 i ADR-3. Metody mutujące
-    (`create`/`update`/`delete`) DODAJĄ `WHERE user_id = :user_id` mimo RLS — podwójna
-    bariera jest tu tania i czyni intencję kodu jawną (nigdy nie edytujemy cudzej
-    persony nawet gdyby RLS miało bug), a `RETURNING` z pustym wynikiem staje się
-    czytelnym sygnałem "nie znaleziono/nie twoje" zamiast cichego no-opa.
+    Visibility read methods (`list_for_user`, `get_visible`) deliberately do NOT add
+    an explicit `WHERE user_id = :user_id` where RLS (`user_id = auth.uid() OR
+    (is_shared AND moderation_status='approved')`) already enforces this at the Postgres
+    level — see docs/technical/security.md section 2 and ADR-3. Mutating methods
+    (`create`/`update`/`delete`) ADD `WHERE user_id = :user_id` despite RLS — the double
+    barrier is cheap here and makes intent explicit (never edit another user's persona
+    even if RLS had a bug), and an empty `RETURNING` becomes a clear "not found/not yours"
+    signal instead of a silent no-op.
     """
 
     def __init__(self, conn: AsyncConnection) -> None:
         self._conn = conn
 
     async def list_for_user(self, user_id: str) -> list[PersonaRow]:
-        """Wyłącznie WŁASNE persony usera (dla `/personas`, nie community)."""
+        """Only the user's OWN personas (for `/personas`, not community)."""
         result = await self._conn.execute(
             text(f"SELECT {_SELECT_COLUMNS} FROM personas WHERE user_id = :user_id ORDER BY created_at DESC"),
             {"user_id": user_id},
@@ -101,9 +101,9 @@ class PersonasRepo:
         return [_row_to_persona(row) for row in result]
 
     async def list_community(self, *, exclude_user_id: str) -> list[PersonaRow]:
-        """`GET /personas/community` — persony innych userów, `is_shared` + `approved`.
-        RLS już ogranicza SELECT do (własne) OR (shared+approved); tu dodatkowo
-        wykluczamy własne, bo "community" ma sens jako "cudze do sklonowania"."""
+        """`GET /personas/community` — other users' personas, `is_shared` + `approved`.
+        RLS already limits SELECT to (own) OR (shared+approved); here we additionally
+        exclude own personas because "community" means "others' personas to clone"."""
         result = await self._conn.execute(
             text(
                 f"""
@@ -118,8 +118,8 @@ class PersonasRepo:
         return [_row_to_persona(row) for row in result]
 
     async def get_visible(self, persona_id: str) -> PersonaRow | None:
-        """Jedna persona widoczna w kontekście RLS bieżącego usera (własna lub
-        community approved) — używane przy odczycie do czatu/klonowania."""
+        """One persona visible in the current user's RLS context (own or community
+        approved) — used when loading for chat/cloning."""
         result = await self._conn.execute(
             text(f"SELECT {_SELECT_COLUMNS} FROM personas WHERE id = :id"),
             {"id": persona_id},
@@ -128,8 +128,8 @@ class PersonasRepo:
         return _row_to_persona(row) if row is not None else None
 
     async def get_own(self, persona_id: str, user_id: str) -> PersonaRow | None:
-        """Persona TYLKO jeśli należy do usera — do edycji/usuwania (nigdy cudza,
-        nawet gdyby to była zaakceptowana community persona)."""
+        """Persona ONLY if it belongs to the user — for edit/delete (never someone
+        else's, even if it is an approved community persona)."""
         result = await self._conn.execute(
             text(
                 f"SELECT {_SELECT_COLUMNS} FROM personas WHERE id = :id AND user_id = :user_id"
@@ -140,7 +140,7 @@ class PersonasRepo:
         return _row_to_persona(row) if row is not None else None
 
     async def list_slugs_for_user(self, user_id: str) -> set[str]:
-        """Wszystkie sluggi usera — do rozwiązywania kolizji przy generowaniu (ADR-13)."""
+        """All slugs for the user — for collision resolution during generation (ADR-13)."""
         result = await self._conn.execute(
             text("SELECT slug FROM personas WHERE user_id = :user_id"),
             {"user_id": user_id},
@@ -148,7 +148,7 @@ class PersonasRepo:
         return {row.slug for row in result}
 
     async def get_by_slug(self, user_id: str, slug: str) -> PersonaRow | None:
-        """Lookup po `/slug` w sesji `general` (architecture.md §3a) — tylko aktywne."""
+        """Lookup by `/slug` in a `general` session (architecture.md §3a) — active only."""
         result = await self._conn.execute(
             text(
                 f"""
@@ -162,7 +162,7 @@ class PersonasRepo:
         return _row_to_persona(row) if row is not None else None
 
     async def list_active_for_user(self, user_id: str) -> list[PersonaRow]:
-        """Aktywne persony usera — routing (ChatRoutingService) i generowanie planu."""
+        """User's active personas — routing (ChatRoutingService) and plan generation."""
         result = await self._conn.execute(
             text(
                 f"""
@@ -176,7 +176,7 @@ class PersonasRepo:
         return [_row_to_persona(row) for row in result]
 
     async def count_active(self, user_id: str) -> int:
-        """Liczba aktywnych person usera — wspiera limit per-konto
+        """Count of the user's active personas — supports per-account limit
         (`profiles.max_active_personas`, ADR-12)."""
         result = await self._conn.execute(
             text(
@@ -193,9 +193,9 @@ class PersonasRepo:
 
     async def create(self, user_id: str, values: dict[str, Any]) -> PersonaRow:
         columns = ["user_id", *values.keys()]
-        # asyncpg + surowy `text()` nie wnioskuje jsonb z parametru — bez CAST
-        # Postgres odrzuca text→jsonb (`template_overrides is of type jsonb but
-        # expression is of type text`), co kończy się 500 przy create/update persony.
+        # asyncpg + raw `text()` does not infer jsonb from the parameter — without CAST
+        # Postgres rejects text→jsonb (`template_overrides is of type jsonb but
+        # expression is of type text`), which ends in 500 on persona create/update.
         placeholders = [
             ":user_id",
             *(

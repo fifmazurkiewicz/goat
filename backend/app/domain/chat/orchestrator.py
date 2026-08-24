@@ -1,14 +1,13 @@
-"""`ChatOrchestrator` — pętla SSE + multi-turn tool calling (architecture.md sekcja 3).
+"""`ChatOrchestrator` — SSE loop + multi-turn tool calling (architecture.md section 3).
 
-**Wyjątek architektoniczny (dokumentowany, świadomy):** w przeciwieństwie do innych
-serwisów domenowych (`PersonaService`, `ResultsService`...), które dostają repo już
-związane z JEDNYM połączeniem DB przez konstruktor, `ChatOrchestrator` MUSI samo
-zarządzać cyklem życia wielu KRÓTKICH połączeń w trakcie długiego streamu (architecture.md
-§3: "połączenie DB nie może żyć przez cały czas streamu... orkiestrator otwiera krótkie
-transakcje tylko na moment zapisu, per rundę"). Stąd ten moduł zna konkretne repo i
-`app.core.db.rls_connection` zamiast czystych `Protocol` z DI przez konstruktor — jedyne
-takie miejsce obok `PlanOrchestrator` (ten sam powód: `BackgroundTasks` + wiele
-równoległych połączeń).
+**Documented architectural exception:** unlike other domain services (`PersonaService`,
+`ResultsService`...), which receive a repo already bound to ONE DB connection via the
+constructor, `ChatOrchestrator` MUST manage the lifecycle of many SHORT connections during
+a long stream (architecture.md §3: "the DB connection cannot live for the entire stream...
+the orchestrator opens short transactions only at write time, per round"). Hence this module
+knows concrete repos and `app.core.db.rls_connection` instead of pure `Protocol` DI via
+constructor — the only such place besides `PlanOrchestrator` (same reason: `BackgroundTasks`
++ many parallel connections).
 """
 
 from __future__ import annotations
@@ -69,7 +68,7 @@ def _title_from_message(text: str, *, max_len: int = 60) -> str:
 
 
 def should_run_goat_turn(message: str, active_personas: list[Any]) -> bool:
-    """Sesja general bez `/slug` — mówi wyłącznie Goat (GWT-1); slash → False (GWT-5)."""
+    """`general` session without `/slug` — only Goat speaks (GWT-1); slash → False (GWT-5)."""
     return parse_multi_slash_command(message, active_personas) is None
 
 
@@ -138,16 +137,16 @@ def _persist_persona_id(persona: Any) -> str | None:
 
 
 def _result_source_persona_id(persona: Any) -> str | None:
-    """`results.source_persona_id` dla wpisu z `log_result`.
+    """`results.source_persona_id` for a `log_result` entry.
 
-    Goat nie jest rekordem w `personas` (jego `id` to sentinel `__team_lead__`), a kolumna ma
-    FK na `personas(id)` — wpisy kierownika idą z `NULL` (kolumna jest nullable).
+    Goat is not a row in `personas` (its `id` is sentinel `__team_lead__`), and the column has
+    FK to `personas(id)` — team-lead entries use `NULL` (the column is nullable).
     """
     return None if getattr(persona, "type", None) == "team_lead" else persona.id
 
 
 def _tool_result_event_payload(name: str, response_content: str) -> dict[str, Any]:
-    """Kontrakt FE (`tool_name`/`summary`/`success`) — nie surowy JSON tool response."""
+    """FE contract (`tool_name`/`summary`/`success`) — not raw JSON tool response."""
     summary = "Wykonano narzędzie"
     success = True
     job_id: str | None = None
@@ -211,12 +210,12 @@ def _tool_result_event_payload(name: str, response_content: str) -> dict[str, An
 
 
 class ChatOrchestrator:
-    """Producer strony agregatora SSE — wypełnia `asyncio.Queue` konsumowaną przez
-    endpoint `/chat` (`sse-starlette` `EventSourceResponse`, patrz api/routers/chat.py).
+    """SSE aggregator producer side — fills `asyncio.Queue` consumed by the
+    `/chat` endpoint (`sse-starlette` `EventSourceResponse`, see api/routers/chat.py).
 
-    `claims` — JWT claims zalogowanego usera, zbindowane per-instancję (jedna instancja
-    per request/wiadomość, tworzona w routerze) — używane do otwierania krótkich
-    `rls_connection` w trakcie pętli.
+    `claims` — authenticated user's JWT claims, bound per instance (one instance
+    per request/message, created in the router) — used to open short
+    `rls_connection` calls inside the loop.
     """
 
     def __init__(self, llm_client: LLMClientProtocol, claims: dict[str, Any]) -> None:
@@ -244,7 +243,7 @@ class ChatOrchestrator:
         persist_messages: bool = True,
         consult_roster: list[Any] | None = None,
     ) -> tuple[bool, str | None]:
-        """Obsługuje jedną turę persony. Zwraca `(sukces, treść odpowiedzi assistant)`."""
+        """Handle one persona turn. Returns `(success, assistant reply content)`."""
         try:
             return await self._handle_message_inner(
                 user_id=user_id,
@@ -300,13 +299,13 @@ class ChatOrchestrator:
             self._consult_roster = consult_roster
             self._consult_session_id = session_id
             self._consult_user_queue = queue
-        # Warstwa C (security.md §1) — świadomie fail-open: `check_chat_message` już
-        # zaloguje trafienie do `moderation_events` (do przeglądu), ale NIE blokujemy tu
-        # samej wiadomości. Preambuł platformy (warstwa A) + odporność samego modelu na
-        # instrukcje w treści usera są pierwszą linią obrony; twarde blokowanie na samej
-        # heurystyce/klasyfikatorze niosłoby zbyt duże ryzyko false-positive (zwykłe
-        # pytanie o "zasady treningu" zawiera słowo "zasady") i psuło UX. Jeśli w
-        # przyszłości potrzebna twarda blokada, tu jest jedyne miejsce do dodania.
+        # Layer C (security.md §1) — deliberately fail-open: `check_chat_message` already
+        # logs hits to `moderation_events` (for review), but we do NOT block the message
+        # here. Platform preamble (layer A) + the model's own resilience to instructions
+        # in user content are the first line of defense; hard blocking on heuristic/classifier
+        # alone would carry too much false-positive risk (a normal question about "training
+        # rules" contains the word "rules") and hurt UX. If hard blocking is needed later,
+        # this is the only place to add it.
         await get_moderation_service().check_chat_message(
             user_id=user_id, message=user_message, session_id=session_id
         )
@@ -477,7 +476,7 @@ class ChatOrchestrator:
                     await ChatRepo(conn).touch_session(session_id)
                 continue
 
-            # finish_reason == 'stop' (albo brak dalszych tool calls) -> koniec tury.
+            # finish_reason == 'stop' (or no further tool calls) -> end of turn.
             if emit_sse:
                 await _emit_persona_status(
                     queue, persona=persona, phase="wrapping_up", label=status_label
@@ -501,9 +500,9 @@ class ChatOrchestrator:
                 await queue.put({"event": "done", "data": "{}"})
             return True, assistant_content
 
-        # Twardy limit rund osiągnięty bez finish_reason=='stop' — bezpiecznik przeciw
-        # pętlom (security.md §4), NIE oczekiwana ścieżka normalnego użycia (ADR-6:
-        # log_result batch sprawia że 3-5 rund wystarcza na realistyczne scenariusze).
+        # Hard round limit reached without finish_reason=='stop' — safety valve against
+        # loops (security.md §4), NOT the expected normal path (ADR-6:
+        # log_result batch means 3-5 rounds suffice for realistic scenarios).
         logger.warning("chat_max_tool_rounds_reached", session_id=session_id)
         if emit_sse:
             await _emit(
@@ -549,7 +548,7 @@ class ChatOrchestrator:
         actual_cost = await pricing_cache.estimate_cost_usd(
             model=model, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens
         )
-        prompt_chars_estimate = 0  # rekoncyliacja koryguje wyłącznie różnicę kosztu, nie tokeny wejściowe
+        prompt_chars_estimate = 0  # reconciliation adjusts cost difference only, not input tokens
         async with rls_connection(self._claims) as conn:
             usage_service = UsageLimitService(
                 UsageLimitsRepo(conn), ProfilesRepo(conn), pricing_cache
@@ -598,9 +597,9 @@ class ChatOrchestrator:
 
             if name == "consult_persona":
                 # Nested LLM (30–90s) must not hold the parent RLS transaction.
-                # Sekwencyjne await = FIFO kolejność eventów (persona_status → tool_result
-                # → consult_detail → tokeny syntezy); przy ewentualnej przyszłej
-                # paralelizacji roundtable trzeba zagwarantować porządek jawnie.
+                # Sequential await = FIFO event order (persona_status → tool_result
+                # → consult_detail → synthesis tokens); if roundtable is parallelized
+                # later, order must be guaranteed explicitly.
                 response_content = await self._run_single_tool(
                     name=name,
                     raw_arguments=raw_arguments,
@@ -646,9 +645,9 @@ class ChatOrchestrator:
                     _tool_result_event_payload(name, response_content),
                 )
                 if name == "consult_persona":
-                    # Widoczność konsultacji (2026-08-22): dedykowany event z pytaniem
-                    # i pełną odpowiedzią trenera — tylko przy status ok; kontrakt
-                    # `tool_result` (summary/success) pozostaje nietknięty.
+                    # Consultation visibility (2026-08-22): dedicated event with question
+                    # and full trainer answer — only when status ok; `tool_result`
+                    # contract (summary/success) stays unchanged.
                     try:
                         consult = json.loads(response_content) if response_content else {}
                     except json.JSONDecodeError:
@@ -683,8 +682,8 @@ class ChatOrchestrator:
         plan_tools: ChatPlanToolsService | None = None,
         allowed_persona_ids: list[str] | None = None,
     ) -> str:
-        """Błąd walidacji (JSON niepoprawny / Pydantic) wraca jako tool response, NIGDY
-        wyjątek serwera (security.md §3) — niezaufany input mimo że pochodzi z modelu."""
+        """Validation errors (invalid JSON / Pydantic) return as tool response, NEVER
+        as a server exception (security.md §3) — untrusted input even from our model."""
         if name == "consult_persona":
             if getattr(persona, "type", None) != "team_lead":
                 return json.dumps(
@@ -890,15 +889,15 @@ async def run_chat_turn(
     queue: asyncio.Queue[dict[str, Any]],
     retry: bool = False,
 ) -> None:
-    """Funkcja producent, uruchamiana jako `asyncio.create_task` z routera (architecture.md
-    §3, `run_chat_orchestrator` w pseudokodzie tam). Odpowiada za:
-    1. Rozwiązanie sesji + (jeśli `general`) ROUTING persony PRZED wywołaniem
-       `ChatOrchestrator.handle_message` (ADR-13 — routing to krok POZA logiką pojedynczej
-       persony, która pozostaje niezmieniona).
-    2. Zapis wiadomości usera (pomijany przy `retry=True`, gdy ostatnia wiadomość usera
-       ma tę samą treść — „Wyślij ponownie” po urwanym SSE).
-    3. Emisję `persona_turn_start` przed pierwszym tokenem tury.
-    4. Delegację do `ChatOrchestrator.handle_message`.
+    """Producer function, started as `asyncio.create_task` from the router (architecture.md
+    §3, `run_chat_orchestrator` in the pseudocode there). Responsible for:
+    1. Resolving the session + (if `general`) persona ROUTING before calling
+       `ChatOrchestrator.handle_message` (ADR-13 — routing is a step OUTSIDE single-persona
+       logic, which stays unchanged).
+    2. Persisting the user message (skipped when `retry=True` if the last user message
+       has the same content — "Send again" after a broken SSE).
+    3. Emitting `persona_turn_start` before the first token of the turn.
+    4. Delegating to `ChatOrchestrator.handle_message`.
     """
     try:
         await _run_chat_turn_inner(

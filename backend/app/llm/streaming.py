@@ -1,17 +1,17 @@
-"""Parser surowych chunków SSE OpenRoutera -> zdarzenia domenowe.
+"""Parser for raw OpenRouter SSE chunks -> domain events.
 
-Format wejściowy (SSE, kompatybilny z OpenAI): każdy blok to linia `data: <json>`
-zakończona pustą linią, strumień kończy się sentinelem `data: [DONE]`, np.:
+Input format (SSE, OpenAI-compatible): each block is a `data: <json>` line followed by
+a blank line; the stream ends with sentinel `data: [DONE]`, e.g.:
 
-    data: {"id":"...","choices":[{"delta":{"content":"Cześć"}}]}
+    data: {"id":"...","choices":[{"delta":{"content":"Hello"}}]}
 
     data: {"id":"...","choices":[{"delta":{"tool_calls":[...]}}]}
 
     data: [DONE]
 
-Pełna implementacja: docs/technical/architecture.md sekcja 3 — `delta.content` ->
-zdarzenie `token`, `delta.tool_calls` (fragmenty: `id`+`name` w pierwszym chunku danego
-`index`, `arguments` doklejane kawałkami) -> akumulacja przez `app/llm/tool_calling.py`.
+Full implementation: docs/technical/architecture.md section 3 — `delta.content` ->
+`token` event, `delta.tool_calls` (fragments: `id`+`name` in the first chunk for a
+given `index`, `arguments` appended piecewise) -> accumulation via `app/llm/tool_calling.py`.
 """
 
 from __future__ import annotations
@@ -21,15 +21,15 @@ from typing import Any
 
 
 def parse_sse_chunk(raw: str) -> dict[str, Any] | None:
-    """Parsuje pojedynczą linię surowego strumienia SSE OpenRoutera.
+    """Parse a single line from the raw OpenRouter SSE stream.
 
-    Zwraca sparsowany JSON danego chunku, albo `None` dla sentinela `[DONE]`, pustej
-    linii (separator bloków SSE) albo komentarza SSE (linia zaczynająca się od `:`,
-    używana przez niektóre proxy jako heartbeat).
+    Returns parsed JSON for the chunk, or `None` for the `[DONE]` sentinel, an empty
+    line (SSE block separator), or an SSE comment (line starting with `:`, used by some
+    proxies as a heartbeat).
 
-    Akceptuje zarówno linie z prefiksem `data: ` (typowy output `httpx.Response.aiter_lines()`
-    na surowym body SSE), jak i już-odartą z prefiksu treść — odporność na drobne różnice
-    w tym, skąd dokładnie linia pochodzi w pipeline'ie.
+    Accepts both lines with a `data: ` prefix (typical `httpx.Response.aiter_lines()`
+    output on raw SSE body) and content already stripped of the prefix — resilience to
+    minor differences in where exactly the line comes from in the pipeline.
     """
     line = raw.strip()
     if not line or line.startswith(":"):

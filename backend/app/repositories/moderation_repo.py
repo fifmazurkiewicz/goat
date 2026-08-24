@@ -1,11 +1,11 @@
-"""`ModerationEventsRepo` — tabela `moderation_events` (security.md sekcja 1/RODO).
+"""`ModerationEventsRepo` — `moderation_events` table (security.md section 1/GDPR).
 
-WAŻNE: `moderation_events` nie ma polityk RLS dla roli `authenticated` (brak SELECT/INSERT) —
-dostęp wyłącznie przez `service_role` (patrz `supabase/migrations/0001_init.sql` i
-docs/technical/database-schema.md, sekcja RLS). Ten repo MUSI dostać połączenie z
-`app.core.db.service_role_connection()`, NIGDY zwykłe `rls_connection` — insert przez
-kontekst `authenticated` skończy się cichym odrzuceniem przez RLS (0 wierszy, brak błędu
-z `INSERT` bez `RETURNING`, więc błąd byłby łatwy do przeoczenia)."""
+IMPORTANT: `moderation_events` has no RLS policies for the `authenticated` role (no SELECT/INSERT) —
+access only via `service_role` (see `supabase/migrations/0001_init.sql` and
+docs/technical/database-schema.md, RLS section). This repo MUST receive a connection from
+`app.core.db.service_role_connection()`, NEVER plain `rls_connection` — insert via
+`authenticated` context is silently rejected by RLS (0 rows, no error from `INSERT` without
+`RETURNING`, so the failure is easy to miss)."""
 
 from __future__ import annotations
 
@@ -64,8 +64,8 @@ class ModerationEventsRepo:
         )
 
     async def list_all(self, *, limit: int = 200) -> list[ModerationEventRow]:
-        """`/admin/audit-log`-adjacent read (dodatkowy wgląd, nie wymagany przez spec API,
-        ale przydatny wewnętrznie) — wymaga `service_role`."""
+        """`/admin/audit-log`-adjacent read (extra visibility, not required by the API spec,
+        but useful internally) — requires `service_role`."""
         result = await self._conn.execute(
             text(
                 """

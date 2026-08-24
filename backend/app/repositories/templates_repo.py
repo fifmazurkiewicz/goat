@@ -1,7 +1,7 @@
-"""Repozytoria "gotowców" — `persona_templates`/`plan_templates` (database-schema.md).
+"""Template repositories — `persona_templates`/`plan_templates` (database-schema.md).
 
-Tabele read-only dla usera (SELECT publiczne przez RLS), więc repo tu ma wyłącznie
-metody odczytu. Wzorzec jak `PersonasRepo`."""
+Read-only tables for users (public SELECT via RLS), so repos here have read methods only.
+Same pattern as `PersonasRepo`."""
 
 from __future__ import annotations
 
@@ -58,8 +58,8 @@ class PersonaTemplatesRepo:
         return _row_to_persona_template(row) if row is not None else None
 
     async def get_safety_prompt(self, template_id: str) -> str | None:
-        """Odczyt `app_private.persona_template_safety` — wołać wyłącznie na połączeniu
-        `service_role` (brak GRANT dla anon/authenticated)."""
+        """Read `app_private.persona_template_safety` — call only on a
+        `service_role` connection (no GRANT for anon/authenticated)."""
         result = await self._conn.execute(
             text(
                 "SELECT safety_prompt FROM app_private.persona_template_safety "

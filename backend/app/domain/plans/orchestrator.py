@@ -1,23 +1,23 @@
-"""`PlanOrchestrator` — pipeline 3-etapowy generowania planu (architecture.md §4, ADR-2).
+"""`PlanOrchestrator` — 3-stage plan generation pipeline (architecture.md §4, ADR-2).
 
-Uruchamiane z `BackgroundTasks` FastAPI (bez osobnego Render Workera — ADR-1), w tym
-samym procesie co web. Priorytet produktowy: SYNCHRONIZACJA planu między aktywnymi
-personami, nie tylko jakość pojedynczej persony w izolacji.
+Runs from FastAPI `BackgroundTasks` (no separate Render Worker — ADR-1), in the same
+process as the web app. Product priority: plan SYNCHRONIZATION across active personas,
+not just quality of a single persona in isolation.
 
-**Wyjątek architektoniczny (jak `ChatOrchestrator`):** ten moduł ZNA konkretne repo i
-`app.core.db.rls_connection` zamiast czystych `Protocol` — architecture.md §4 wymaga
-explicite, że "każda coroutine bierze WŁASNE połączenie DB z puli", co jest sprzeczne z
-typowym wzorcem "jedno połączenie per request-scoped serwis" używanym w pozostałych
-serwisach domenowych. Testy jednostkowe (`tests/test_plan_orchestrator*.py`) pokrywają
-więc głównie czyste funkcje pomocnicze (parsowanie/patchowanie), nie cały orchestrator
-end-to-end (wymagałoby prawdziwej bazy — poza zakresem testów jednostkowych).
+**Architectural exception (like `ChatOrchestrator`):** this module KNOWS concrete repos and
+`app.core.db.rls_connection` instead of pure `Protocol` — architecture.md §4 requires
+explicitly that "each coroutine takes its OWN DB connection from the pool", which conflicts
+with the typical "one connection per request-scoped service" pattern used in other domain
+services. Unit tests (`tests/test_plan_orchestrator*.py`) therefore cover mainly pure
+helper functions (parse/patch), not the full orchestrator end-to-end (would require a real
+DB — outside unit-test scope).
 
-**Format `rows` w JSON schema LLM: LISTA LIST stringów (pozycyjnie, wg kolejności
-`resolve_persona_columns`), NIE lista obiektów/dict.** OpenRouter/OpenAI `response_format:
-json_schema` w trybie `strict:true` wymaga jawnie zdefiniowanych kluczy obiektu — kolumny
-per-persona są dynamiczne (`template_overrides`), więc nie da się z góry zadeklarować
-`properties` dla dowolnych nazw kolumn. Lista list stringów jest schema-safe i backend
-z powrotem zippuje ją z kolumnami przy budowaniu `PlanItemContent`.
+**LLM JSON schema `rows` format: LIST OF string LISTS (positional, per `resolve_persona_columns`
+order), NOT a list of objects/dicts.** OpenRouter/OpenAI `response_format: json_schema` in
+`strict:true` mode requires explicitly defined object keys — per-persona columns are dynamic
+(`template_overrides`), so `properties` for arbitrary column names cannot be declared upfront.
+A list of string lists is schema-safe and the backend zips it back with columns when building
+`PlanItemContent`.
 """
 
 from __future__ import annotations
@@ -177,7 +177,7 @@ def iter_dates(start: date, end: date):
 
 
 def rows_to_content(*, title: str, columns: list[str], rows: list[list[str]], notes: str | None) -> dict[str, Any]:
-    """`PlanItemContent` — zippuje pozycyjne `rows` (z LLM) z `columns` (resolve_persona_columns)."""
+    """`PlanItemContent` — zips positional `rows` (from LLM) with `columns` (`resolve_persona_columns`)."""
     dict_rows = [dict(zip(columns, row, strict=False)) for row in rows]
     return {"title": title, "columns": columns, "rows": dict_rows, "notes": notes}
 
@@ -369,7 +369,7 @@ class PlanOrchestrator:
             usage_service = UsageLimitService(
                 UsageLimitsRepo(conn), ProfilesRepo(conn), get_pricing_cache()
             )
-            # Zgrubne oszacowanie: coordinator (tani) + N person + harmonizacja (PLANNER_MODEL).
+            # Rough estimate: coordinator (cheap) + N personas + harmonization (PLANNER_MODEL).
             estimated = await usage_service.estimate_turn_cost_usd(
                 model=self._planner_model,
                 prompt_text_length_chars=3000,
@@ -567,7 +567,7 @@ class PlanOrchestrator:
         if not item_lookup and not user_brief:
             return
 
-        # Deterministyczna egzekucja briefu (np. usuń wszystkie karty badminton_coach).
+        # Deterministic brief enforcement (e.g. remove all badminton_coach cards).
         if user_brief:
             excluded_ids = {
                 p.id
@@ -652,7 +652,7 @@ class PlanOrchestrator:
         claims: dict[str, Any],
         dates: list[str],
     ) -> None:
-        """Lekka harmonizacja po `upsert_plan_items` — tylko dotknięte dni."""
+        """Light harmonization after `upsert_plan_items` — affected days only."""
         if not dates:
             return
         date_set = set(dates)

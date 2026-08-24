@@ -1,7 +1,7 @@
-"""`BackgroundJobsRepo` — tabela `background_jobs` (migracja 0008).
+"""`BackgroundJobsRepo` — `background_jobs` table (migration 0008).
 
-Persystentna kolejka zadań w Postgres: generowanie planu, harmonizacja po upsert,
-auto-tytuł rozmowy. Render Free = jedna instancja; reaper/start uruchamia pending.
+Persistent job queue in Postgres: plan generation, harmonization after upsert,
+auto chat title. Render Free = single instance; reaper/startup resumes pending jobs.
 """
 
 from __future__ import annotations

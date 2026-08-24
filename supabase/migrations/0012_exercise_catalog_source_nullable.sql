@@ -28,7 +28,7 @@ begin
 end $$;
 
 -- User decision 2026-08-23: EN equivalents from the dataset replace manual PL entries
--- (przysiad ze sztangą / wyciskanie leżąc / martwy ciąg → Barbell_Squat / Bench_Press / Deadlift).
+-- (barbell squat / bench press / deadlift → Barbell_Squat / Bench_Press / Deadlift).
 -- badminton_coach entries remain. Idempotent: deletes only those 3 slugs, and only when source='manual'.
 delete from public.exercises
 where source = 'manual'

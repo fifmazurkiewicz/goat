@@ -1,13 +1,13 @@
-"""`UserProfileRepo` — tabela `user_profile` (jedna, WSPÓLNA na usera — patrz ADR-11,
-docs/technical/ai-pipeline.md sekcja 0).
+"""`UserProfileRepo` — `user_profile` table (one row SHARED per user — see ADR-11,
+docs/technical/ai-pipeline.md section 0).
 
-Wzorzec jak `PersonasRepo` (patrz ten plik dla pełnego opisu konwencji repozytoriów):
-konstruktor przyjmuje wyłącznie `AsyncConnection` z już ustawionym kontekstem RLS,
-metody to pojedyncze zapytania SQL z bindowanymi parametrami, zwracają typowany obiekt.
+Same pattern as `PersonasRepo` (see that file for the full repository convention):
+constructor takes only an `AsyncConnection` with RLS context already set,
+methods are single SQL queries with bound parameters returning a typed object.
 
-Zapisywana przez DWIE ścieżki, obie kończą się tym samym `upsert`:
-1. Narzędzie `update_user_profile` wołane przez model w trakcie czatu (ChatOrchestrator).
-2. `PATCH /api/v1/profile` — formularz, fallback dla userów niepreferujących rozmowy o danych.
+Saved via TWO paths, both ending in the same `upsert`:
+1. `update_user_profile` tool called by the model during chat (ChatOrchestrator).
+2. `PATCH /api/v1/profile` — form fallback for users who prefer not to discuss data in chat.
 """
 
 from __future__ import annotations
@@ -48,8 +48,8 @@ class UserProfileRepo:
         self._conn = conn
 
     async def get(self, user_id: str) -> UserProfileRow | None:
-        """`None` gdy user jeszcze nie ma wiersza (pierwsza rozmowa, przed jakąkolwiek
-        aktualizacją) — `ContextBuilder` traktuje to tożsamo z "wszystkie pola puste"."""
+        """`None` when the user has no row yet (first conversation, before any
+        update) — `ContextBuilder` treats this the same as "all fields empty"."""
         result = await self._conn.execute(
             text(
                 """
@@ -65,14 +65,14 @@ class UserProfileRepo:
         return _row_to_profile(row) if row is not None else None
 
     async def upsert(self, user_id: str, fields: dict[str, object]) -> UserProfileRow:
-        """Częściowa aktualizacja — `fields` to tylko klucze faktycznie podane przez
-        wołającego (np. z `UserProfileUpdate.model_dump(exclude_unset=True)`), NIGDY
-        pełny `model_dump()` (nadpisałby istniejące pola wartością `None`).
+        """Partial update — `fields` contains only keys actually provided by the
+        caller (e.g. from `UserProfileUpdate.model_dump(exclude_unset=True)`), NEVER
+        a full `model_dump()` (that would overwrite existing fields with `None`).
 
-        `INSERT ... ON CONFLICT DO UPDATE` z `COALESCE` po stronie SQL byłoby kruche przy
-        dynamicznym zbiorze kolumn — zamiast tego wołający scala z istniejącym wierszem
-        (`get` + merge) w warstwie `PersonaService`/`ChatOrchestrator`, tu wchodzi już
-        kompletny, docelowy zestaw wartości do zapisania.
+        `INSERT ... ON CONFLICT DO UPDATE` with SQL-side `COALESCE` would be fragile with
+        a dynamic column set — instead the caller merges with the existing row
+        (`get` + merge) in `PersonaService`/`ChatOrchestrator`; this layer receives the
+        complete target values to persist.
         """
         columns = ", ".join(fields.keys())
         placeholders = ", ".join(f":{key}" for key in fields.keys())

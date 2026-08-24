@@ -1,8 +1,8 @@
-"""Akumulacja fragmentów `tool_calls` streamowanych kawałkami przez OpenRouter.
+"""Accumulation of `tool_calls` fragments streamed in pieces by OpenRouter.
 
-Pierwszy chunk dla danego tool call niesie `id`+`function.name`, kolejne chunki
-dokładają fragmenty `function.arguments` (string JSON budowany przyrostowo) — patrz
-docs/technical/architecture.md sekcja 3, pkt 3 pętli orkiestratora.
+The first chunk for a given tool call carries `id`+`function.name`; subsequent chunks
+append `function.arguments` fragments (JSON string built incrementally) — see
+docs/technical/architecture.md section 3, orchestrator loop step 3.
 """
 
 from __future__ import annotations
@@ -14,16 +14,16 @@ from typing import Any
 
 @dataclass
 class ToolCallBuffer:
-    """Bufor pojedynczego tool call, trzymany w `dict[int, ToolCallBuffer]` keyed po
-    `index` z delty OpenRoutera (nie po `id` — `id` może przyjść dopiero w pierwszym
-    chunku danego indeksu), zgodnie z architecture.md sekcja 3."""
+    """Buffer for a single tool call, held in `dict[int, ToolCallBuffer]` keyed by
+    OpenRouter delta `index` (not `id` — `id` may arrive only in the first chunk for
+    that index), per architecture.md section 3."""
 
     id: str | None = None
     name: str | None = None
     arguments_buffer: io.StringIO = field(default_factory=io.StringIO)
 
     def accumulate(self, delta: dict[str, Any]) -> None:
-        """Doklejenie kolejnego fragmentu tool_call delty do bufora."""
+        """Append the next tool_call delta fragment to the buffer."""
         tool_call_id = delta.get("id")
         if tool_call_id and self.id is None:
             self.id = tool_call_id
@@ -38,7 +38,7 @@ class ToolCallBuffer:
             self.arguments_buffer.write(arguments_fragment)
 
     def get_arguments_json(self) -> str:
-        """Pełny, zakumulowany string JSON argumentów — parsować (`json.loads`) i
-        walidować przez Pydantic dopiero po `finish_reason == 'tool_calls'`, jako
-        niezaufany input (security.md sekcja 3)."""
+        """Full accumulated JSON arguments string — parse (`json.loads`) and validate
+        with Pydantic only after `finish_reason == 'tool_calls'`, as untrusted input
+        (security.md section 3)."""
         return self.arguments_buffer.getvalue()

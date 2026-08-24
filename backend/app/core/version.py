@@ -1,4 +1,4 @@
-"""Metadane deployu — semver aplikacji + commit/branch (Render/Vercel env)."""
+"""Deploy metadata — app semver + commit/branch (Render/Vercel env)."""
 
 from __future__ import annotations
 
@@ -61,7 +61,7 @@ def _read_version_file() -> str | None:
 
 
 def normalize_app_version(raw: str | None) -> str:
-    """Semver z pliku VERSION / env — fallback gdy brak lub niepoprawny format."""
+    """Semver from VERSION file / env — fallback when missing or invalid format."""
     value = (raw or "").strip()
     if value and _SEMVER_RE.match(value):
         return value

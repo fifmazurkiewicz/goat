@@ -1,17 +1,17 @@
-"""`UsageLimitsRepo` — tabela `usage_limits`, budżet USD per konto (ADR-16).
+"""`UsageLimitsRepo` — `usage_limits` table, USD budget per account (ADR-16).
 
-Wzorzec jak `PersonasRepo`. Okres rozliczeniowy: MIESIĘCZNY (`period_start` = pierwszy
-dzień bieżącego miesiąca UTC) — dokumentacja (`architecture.md` §9, ADR-16) nie precyzuje
-wprost długości okresu, tylko klucz `(user_id, period_start)`; przyjmujemy miesiąc jako
-najbardziej naturalną granulację dla budżetu kosztowego (spójne z istniejącymi licznikami
-`messages_used`/`plan_generations_used`, które również mają sens jako metryki miesięczne).
+Same pattern as `PersonasRepo`. Billing period: MONTHLY (`period_start` = first day of
+the current UTC month) — documentation (`architecture.md` §9, ADR-16) does not specify
+period length explicitly, only the `(user_id, period_start)` key; we use a month as the
+most natural granularity for a cost budget (consistent with existing `messages_used`/
+`plan_generations_used` counters, which also make sense as monthly metrics).
 
-Model "rezerwacja + rekoncyliacja" (patrz `app/domain/usage/service.py` dla pełnego
-uzasadnienia): koszt realnej tury LLM jest znany dopiero PO odpowiedzi OpenRoutera
-(`usage.prompt_tokens`/`completion_tokens` w finalnym chunku streamu), więc atomowy
-check+increment z architecture.md §9 działa na SZACOWANYM koszcie PRZED wywołaniem
-(gate — blokuje wydanie pieniędzy), a `reconcile` koryguje na koszt rzeczywisty PO
-(bez ponownej bramki — już przepuszczone).
+"Reserve + reconcile" model (see `app/domain/usage/service.py` for full rationale): real
+LLM turn cost is known only AFTER the OpenRouter response
+(`usage.prompt_tokens`/`completion_tokens` in the final stream chunk), so the atomic
+check+increment from architecture.md §9 runs on an ESTIMATED cost BEFORE the call
+(gate — blocks spending), and `reconcile` adjusts to the actual cost AFTER
+(no second gate — already admitted).
 """
 
 from __future__ import annotations
@@ -68,9 +68,9 @@ class UsageLimitsRepo:
         message_delta: int = 0,
         plan_generation_delta: int = 0,
     ) -> UsageLimitsRow | None:
-        """Atomowy check+increment (architecture.md §9): `UPDATE ... WHERE cost_usd_used
-        + :amount <= (SELECT usage_budget_usd FROM profiles ...) RETURNING ...` w JEDNYM
-        query — race-condition-safe. `None` = odrzucone (budżet przekroczony)."""
+        """Atomic check+increment (architecture.md §9): `UPDATE ... WHERE cost_usd_used
+        + :amount <= (SELECT usage_budget_usd FROM profiles ...) RETURNING ...` in a SINGLE
+        query — race-condition-safe. `None` = rejected (budget exceeded)."""
         await self._ensure_row(user_id, period_start)
         result = await self._conn.execute(
             text(
@@ -101,9 +101,9 @@ class UsageLimitsRepo:
     async def reconcile(
         self, *, user_id: str, period_start: date, delta_usd: float, tokens_delta: int = 0
     ) -> None:
-        """Korekta na koszt rzeczywisty po odpowiedzi LLM (patrz docstring modułu) —
-        `GREATEST(..., 0)` chroni przed ujemnym `cost_usd_used`, gdyby rzeczywisty koszt
-        wyszedł ujemny względem rezerwacji (nie powinno się zdarzyć, ale tania asercja)."""
+        """Adjust to actual cost after the LLM response (see module docstring) —
+        `GREATEST(..., 0)` prevents negative `cost_usd_used` if actual cost were below
+        the reservation (should not happen, but a cheap assertion)."""
         await self._ensure_row(user_id, period_start)
         await self._conn.execute(
             text(
@@ -138,8 +138,8 @@ class UsageLimitsRepo:
         return _row_to_usage(row) if row is not None else None
 
     async def list_for_period(self, period_start: date) -> dict[str, UsageLimitsRow]:
-        """Wszyscy userzy w danym okresie — dla `/admin/users` (wymaga `service_role`,
-        RLS ograniczyłby zwykłego usera do własnego wiersza)."""
+        """All users in the given period — for `/admin/users` (requires `service_role`;
+        RLS would limit a regular user to their own row)."""
         result = await self._conn.execute(
             text(
                 """

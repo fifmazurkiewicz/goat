@@ -29,8 +29,8 @@ class Settings(BaseSettings):
     # OPENROUTER_PLANNER_MODEL is an optional override; empty = same as chat.
     openrouter_chat_model: str = "x-ai/grok-4-fast"
     openrouter_planner_model: str = ""
-    # Fallback providerzy dla chat_model (ai-pipeline.md §1) — awaria jednego providera
-    # nie wywala czatu. Przekazywane jako `extra_body={"models": [...]}` do OpenRoutera.
+    # Fallback providers for chat_model (ai-pipeline.md §1) — one provider outage
+    # must not take down chat. Passed as `extra_body={"models": [...]}` to OpenRouter.
     openrouter_chat_model_fallbacks: str = "openai/gpt-5-mini"
 
     # Comma-separated string (env var format) — see cors_origins_list below.
@@ -45,19 +45,19 @@ class Settings(BaseSettings):
     chat_max_output_tokens: int = 1500
     chat_llm_title_enabled: bool = True
 
-    # --- Generowanie planu (architecture.md §4, ADR-1/2) ---
+    # --- Plan generation (architecture.md §4, ADR-1/2) ---
     plan_reaper_stale_minutes: int = 5
     plan_persona_concurrency_limit: int = 3
     plan_max_output_tokens: int = 4000
     plan_auto_harmonize_on_upsert: bool = True
 
-    # --- Cennik modeli OpenRouter (ai-pipeline.md §1b, ADR-16) ---
+    # --- OpenRouter model pricing (ai-pipeline.md §1b, ADR-16) ---
     model_pricing_refresh_seconds: int = 3600
     # Conservative upper-bound USD/token estimate when the price cache is empty (cold start) —
     # intentionally overstated to avoid bypassing the budget limit when /api/v1/models has no data.
     model_pricing_fallback_usd_per_token: float = 0.00003
 
-    # --- Moderacja (security.md §1, ADR-4) ---
+    # --- Moderation (security.md §1, ADR-4) ---
     # Layer C classifier is always called on a heuristic hit, and additionally sampled
     # randomly (defense in depth) at this probability even without a hit.
     moderation_random_sample_rate: float = 0.02

@@ -1,11 +1,11 @@
-"""`ProfilesRepo` — tabela `profiles` (1 wiersz/user: `is_admin`, `max_active_personas`,
+"""`ProfilesRepo` — `profiles` table (1 row/user: `is_admin`, `max_active_personas`,
 `nick` — ADR-15, `usage_budget_usd` — ADR-16).
 
-Wzorzec jak `PersonasRepo`. Używane w kontekście RLS zalogowanego usera (`get`,
-`update_nick`) i w kontekście `service_role` dla `/admin/*` (`list_all`,
-`update_max_active_personas`, `update_usage_budget`) — te ostatnie operują na
-WSZYSTKICH userach, stąd jawny filtr `WHERE id = :user_id` w update (nie polegamy na
-RLS, bo `service_role` je omija)."""
+Same pattern as `PersonasRepo`. Used in the logged-in user's RLS context (`get`,
+`update_nick`) and in `service_role` for `/admin/*` (`list_all`,
+`update_max_active_personas`, `update_usage_budget`) — the latter operate on ALL users,
+hence explicit `WHERE id = :user_id` on updates (do not rely on RLS, because `service_role`
+bypasses it)."""
 
 from __future__ import annotations
 
@@ -55,17 +55,17 @@ class ProfilesRepo:
         return _row_to_profile(row) if row is not None else None
 
     async def list_all(self) -> list[ProfileRow]:
-        """`/admin/users` — wymaga połączenia `service_role` (RLS na `profiles` daje
-        zwykłemu userowi widoczność wyłącznie własnego wiersza, patrz security.md)."""
+        """`/admin/users` — requires a `service_role` connection (RLS on `profiles` gives
+        a regular user visibility only to their own row, see security.md)."""
         result = await self._conn.execute(
             text(f"SELECT {_COLUMNS} FROM profiles ORDER BY created_at DESC")
         )
         return [_row_to_profile(row) for row in result]
 
     async def update_max_active_personas(self, user_id: str, value: int) -> ProfileRow:
-        """`PATCH /admin/users/{user_id}/persona-limit` (ADR-12). Zakres 0-50 egzekwowany
-        DODATKOWO jako `CHECK` w bazie — walidacja Pydantic tu jest tylko szybszym,
-        czytelniejszym feedbackiem, NIE jedyną barierą."""
+        """`PATCH /admin/users/{user_id}/persona-limit` (ADR-12). Range 0-50 is also
+        enforced as a DB `CHECK` — Pydantic validation here is only faster, clearer
+        feedback, NOT the sole barrier."""
         result = await self._conn.execute(
             text(
                 f"""
@@ -82,8 +82,8 @@ class ProfilesRepo:
         return _row_to_profile(row)
 
     async def update_usage_budget(self, user_id: str, value: float) -> ProfileRow:
-        """`PATCH /admin/users/{user_id}/usage-budget` (ADR-16) — wzorzec identyczny
-        jak `update_max_active_personas`."""
+        """`PATCH /admin/users/{user_id}/usage-budget` (ADR-16) — same pattern as
+        `update_max_active_personas`."""
         result = await self._conn.execute(
             text(
                 f"""
@@ -100,10 +100,10 @@ class ProfilesRepo:
         return _row_to_profile(row)
 
     async def ensure(self, user_id: str) -> ProfileRow:
-        """Tworzy brakujący wiersz `profiles` (np. po wipe DB gdy auth.users zostali).
+        """Create a missing `profiles` row (e.g. after a DB wipe when auth.users remain).
 
-        Wywoływać w kontekście `service_role` — RLS na `profiles` nie ma policy INSERT
-        dla `authenticated` (tworzy je trigger `handle_new_user` przy rejestracji).
+        Call in `service_role` context — RLS on `profiles` has no INSERT policy for
+        `authenticated` (created by the `handle_new_user` trigger on signup).
         """
         await self._conn.execute(
             text(
@@ -121,7 +121,7 @@ class ProfilesRepo:
         return profile
 
     async def update_nick(self, user_id: str, nick: str | None) -> ProfileRow:
-        """`PATCH /account` (ADR-15) — w kontekście RLS własnego usera lub service_role."""
+        """`PATCH /account` (ADR-15) — in the user's own RLS context or service_role."""
         result = await self._conn.execute(
             text(
                 f"""

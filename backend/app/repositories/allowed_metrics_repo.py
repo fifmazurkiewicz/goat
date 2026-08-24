@@ -1,8 +1,8 @@
-"""`AllowedMetricsRepo` — tabela referencyjna `allowed_metrics` (database-schema.md).
+"""`AllowedMetricsRepo` — reference table `allowed_metrics` (database-schema.md).
 
-Read-only, publiczna (RLS SELECT dla wszystkich). Ładowana do cache in-memory na
-starcie appki (`app/domain/results/metrics_cache.py`) — hot-path w trakcie streamingu
-SSE, nie chcemy zapytania SQL per `log_result` tool call."""
+Read-only, public (RLS SELECT for everyone). Loaded into an in-memory cache on app
+startup (`app/domain/results/metrics_cache.py`) — hot path during SSE streaming;
+avoid one SQL query per `log_result` tool call."""
 
 from __future__ import annotations
 

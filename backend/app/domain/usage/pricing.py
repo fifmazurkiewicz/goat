@@ -1,9 +1,9 @@
-"""Cennik modeli OpenRouter — cache in-memory, odświeżany okresowo (ai-pipeline.md §1b).
+"""OpenRouter model pricing — in-memory cache, refreshed periodically (ai-pipeline.md §1b).
 
-Ceny modeli na OpenRouterze zmieniają się w czasie, więc NIE są hardkodowane — pobierane
-z `GET /api/v1/models` (`pricing.prompt`/`pricing.completion`, USD za token) i trzymane
-w pamięci procesu z TTL. Odświeżanie leniwe (przy pierwszym użyciu po wygaśnięciu TTL),
-nie osobny scheduler/thread — prostsze i wystarczające dla skali tej aplikacji.
+Model prices on OpenRouter change over time, so they are NOT hardcoded — fetched from
+`GET /api/v1/models` (`pricing.prompt`/`pricing.completion`, USD per token) and kept
+in process memory with TTL. Lazy refresh (on first use after TTL expiry), not a separate
+scheduler/thread — simpler and sufficient at this app's scale.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ class ModelsProviderProtocol(Protocol):
 
 
 class ModelPricingCache:
-    """Nie zna FastAPI/HTTP — testowalna z fake `ModelsProviderProtocol`."""
+    """Does not know FastAPI/HTTP — testable with a fake `ModelsProviderProtocol`."""
 
     def __init__(
         self,
@@ -48,9 +48,9 @@ class ModelPricingCache:
                 return
             try:
                 models = await self._client.get_models()
-            except Exception as exc:  # noqa: BLE001 — transport/parsing awarii nie eskalujemy
+            except Exception as exc:  # noqa: BLE001 — transport/parsing failures are not escalated
                 logger.warning("model_pricing_refresh_failed", error=str(exc))
-                return  # zachowujemy ostatnią znaną wartość z cache (ai-pipeline.md §1b)
+                return  # keep last known cache value (ai-pipeline.md §1b)
 
             prices: dict[str, tuple[float, float]] = {}
             for model in models:
@@ -69,9 +69,9 @@ class ModelPricingCache:
                 self._last_refresh = now
 
     async def get_price_per_token(self, model: str) -> tuple[float, float]:
-        """`(prompt_usd_per_token, completion_usd_per_token)`. Fallback konserwatywny
-        (górna granica) gdy model nieznany w cache albo cache pusty (zimny start) —
-        celowo NIE wpuszcza darmowego użycia przy braku danych o cenie."""
+        """`(prompt_usd_per_token, completion_usd_per_token)`. Conservative fallback
+        (upper bound) when the model is unknown in cache or cache is empty (cold start) —
+        deliberately does NOT allow free usage when price data is missing."""
         await self.refresh()
         if model in self._prices:
             return self._prices[model]

@@ -1,7 +1,7 @@
-"""Kierownik zespołu — systemowa koordynacja sesji `general` (ADR-17).
+"""Team lead — system coordination for `general` sessions (ADR-17).
 
-User nie konfiguruje tej persony. W UI sesja nadal nazywa się „Ogólna rozmowa”.
-Produkcja: jedna tura `TeamLeadSpeaker` z `consult_persona`; slash → bezpośrednia persona.
+The user does not configure this persona. In the UI the session is still called "General conversation".
+Production: one `TeamLeadSpeaker` turn with `consult_persona`; slash → direct persona.
 """
 
 from __future__ import annotations
@@ -71,7 +71,7 @@ PERSONA_TYPE_LABELS_PL: dict[str, str] = {
 
 
 def is_direct_persona_invocation(invoked_via: str | None) -> bool:
-    """User rozmawia bezpośrednio z personą — tylko slash / multi-slash."""
+    """User talks directly to a persona — slash / multi-slash only."""
     return invoked_via in ("slash_command", "multi_slash")
 
 
@@ -141,7 +141,7 @@ def _token_hits_message(token: str, message: str) -> bool:
 
 
 def consult_scope_hint(*, message: str, active_personas: list[PersonaLike]) -> str | None:
-    """Wskazówka tylko spośród person z rosteru tego usera — bez hardcoded ról."""
+    """Hint only among personas from this user's roster — no hardcoded roles."""
     lower = message.lower()
     matched = [
         p
@@ -211,7 +211,7 @@ def build_goat_turn_prompt(*, active_personas: list[PersonaLike], user_message: 
 
 
 def user_requests_all_trainers(message: str) -> bool:
-    """Heurystyka: user prosi o wypowiedź każdego trenera / całego składu."""
+    """Heuristic: user asks every trainer / the full roster to speak."""
     lower = message.lower()
     needles = (
         "niech każdy",
@@ -274,7 +274,7 @@ def user_requests_plan_rebuild(message: str) -> bool:
 
 
 def plan_brief_excludes_persona_type(brief: str, persona_type: str) -> bool:
-    """Czy brief usera wyklucza generowanie wkładu danej roli (np. bez badmintona)."""
+    """Whether the user's brief excludes generating input for a given role (e.g. no badminton)."""
     lower = (brief or "").lower()
     if not lower:
         return False
@@ -298,7 +298,7 @@ def plan_brief_excludes_persona_type(brief: str, persona_type: str) -> bool:
 
 
 def is_plan_coordination_only(message: str) -> bool:
-    """Heurystyka: prośba głównie o plan, bez osobnego pytania merytorycznego do trenera."""
+    """Heuristic: request is mainly about the plan, without a separate substantive question to a trainer."""
     if not user_requests_plan_rebuild(message):
         return False
     lower = message.lower()
@@ -319,7 +319,7 @@ def is_plan_coordination_only(message: str) -> bool:
 
 @dataclass(frozen=True, slots=True)
 class TeamLeadSpeaker:
-    """Wirtualna persona Goata — widoczna w UI przy operacjach na planie."""
+    """Virtual Goat persona — visible in the UI during plan operations."""
 
     id: str = TEAM_LEAD_PERSONA_ID
     name: str = TEAM_LEAD_NAME

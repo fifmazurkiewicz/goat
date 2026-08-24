@@ -1,31 +1,31 @@
 # Coach — Multi-Persona Coaching App
 
-Aplikacja webowa, w której użytkownik konfiguruje do 5 person-trenerów (dietetyk, trener siłowni, trener badmintona, psycholog sportowy, psycholog, trener motoryczny), rozmawia z nimi w czacie z pamięcią, a agenci zapisują wyniki (siłownia, dieta, basen, triathlon, badminton) do bazy. Persony współpracują przy generowaniu wspólnego, zsynchronizowanego planu tygodnia/miesiąca widocznego w kalendarzu.
+A web app where the user configures up to 5 trainer personas (dietitian, gym coach, badminton coach, sports psychologist, psychologist, motor-skills coach), chats with them with memory, and agents save results (gym, diet, pool, triathlon, badminton) to the database. Personas collaborate on generating a shared, synchronized week/month plan visible in the calendar.
 
 ## Stack
 
 - **Frontend:** Vite + React + TypeScript + Tailwind + shadcn/ui → Vercel
 - **Backend:** Python (FastAPI) → Render
 - **DB + Auth:** Supabase (Postgres, RLS, Auth: Google OAuth)
-- **LLM:** OpenRouter (structured output przez natywny `response_format: json_schema`)
+- **LLM:** OpenRouter (structured output via native `response_format: json_schema`)
 - **DNS:** Cloudflare
 
-## Dokumentacja
+## Documentation
 
-Pełna specyfikacja techniczna, decyzje architektoniczne i plan implementacji — w [`docs/`](docs/):
+Full technical specification, architectural decisions and implementation plan — in [`docs/`](docs/):
 
-- [`docs/technical/architecture.md`](docs/technical/architecture.md) — architektura backendu, przepływ czatu (SSE + tool calling), pipeline generowania planu
-- [`docs/technical/database-schema.md`](docs/technical/database-schema.md) — pełny schemat bazy danych + RLS
-- [`docs/technical/security.md`](docs/technical/security.md) — bezpieczeństwo, jailbreak defense, RLS vs service role
-- [`docs/technical/ai-pipeline.md`](docs/technical/ai-pipeline.md) — warstwa AI: modele, moderacja, generowanie planu, testy jakości
-- [`docs/technical/frontend.md`](docs/technical/frontend.md) — architektura frontendu, routing, state management, SSE klient
-- [`docs/technical/devops.md`](docs/technical/devops.md) — deploy, CI/CD, migracje, sekrety, koszty
-- [`docs/technical/cloud-setup.md`](docs/technical/cloud-setup.md) — setup chmury (Supabase / Render / Vercel / Cloudflare) — **aktualna ścieżka**
-- [`docs/technical/local-setup.md`](docs/technical/local-setup.md) — lokalny loop + Graft (§G, ADR-20)
-- [`docs/adr/decisions.md`](docs/adr/decisions.md) — log kluczowych decyzji architektonicznych (ADR)
+- [`docs/technical/architecture.md`](docs/technical/architecture.md) — backend architecture, chat flow (SSE + tool calling), plan generation pipeline
+- [`docs/technical/database-schema.md`](docs/technical/database-schema.md) — full database schema + RLS
+- [`docs/technical/security.md`](docs/technical/security.md) — security, jailbreak defense, RLS vs service role
+- [`docs/technical/ai-pipeline.md`](docs/technical/ai-pipeline.md) — AI layer: models, moderation, plan generation, quality tests
+- [`docs/technical/frontend.md`](docs/technical/frontend.md) — frontend architecture, routing, state management, SSE client
+- [`docs/technical/devops.md`](docs/technical/devops.md) — deploy, CI/CD, migrations, secrets, costs
+- [`docs/technical/cloud-setup.md`](docs/technical/cloud-setup.md) — cloud setup (Supabase / Render / Vercel / Cloudflare) — **current path**
+- [`docs/technical/local-setup.md`](docs/technical/local-setup.md) — local loop + Graft (§G, ADR-20)
+- [`docs/adr/decisions.md`](docs/adr/decisions.md) — log of key architectural decisions (ADR)
 
 ## Status
 
-Implementacja w toku. Szkielet backendu/frontendu (routing, warstwy, DI) gotowy, logika biznesowa
-poszczególnych domen (persony, czat, plany, wyniki, admin, katalog ćwiczeń, ustawienia konta)
-uzupełniana zgodnie z `docs/adr/decisions.md`.
+Implementation in progress. Backend/frontend skeleton (routing, layers, DI) is ready; business logic
+for individual domains (personas, chat, plans, results, admin, exercise catalog, account settings)
+is being filled in per `docs/adr/decisions.md`.

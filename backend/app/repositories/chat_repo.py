@@ -1,19 +1,19 @@
-"""`ChatRepo` — tabele `chat_sessions`/`chat_messages` (ADR-13: sesje 'persona'/'general',
-atrybucja `persona_id`/`invoked_via` per wiadomość).
+"""`ChatRepo` — tables `chat_sessions`/`chat_messages` (ADR-13: 'persona'/'general' sessions,
+`persona_id`/`invoked_via` attribution per message).
 
-Wzorzec jak `PersonasRepo`. Tabele są ściśle `user_id = auth.uid()` w RLS (brak
-"community" jak przy personach) — metody odczytu świadomie NIE dodają zbędnego
-`WHERE user_id`, RLS już to egzekwuje (patrz `PersonasRepo` dla pełnego uzasadnienia
-tej konwencji).
+Same pattern as `PersonasRepo`. Tables are strictly `user_id = auth.uid()` in RLS (no
+"community" like personas) — read methods deliberately do NOT add a redundant
+`WHERE user_id`; RLS already enforces this (see `PersonasRepo` for the full rationale
+for this convention).
 
-**Reprezentacja tool calls bez zmiany schematu** (migracje 0001-0006 są zamrożone):
-kolumna `chat_messages.tool_calls jsonb` jest reużywana dwojako w zależności od `role`:
+**Tool-call representation without schema changes** (migrations 0001-0006 are frozen):
+the `chat_messages.tool_calls jsonb` column is reused in two ways depending on `role`:
 - `role='assistant'`: `{"calls": [{"id","type":"function","function":{"name","arguments"}}]}`
-  — surowa lista tool_calls z odpowiedzi modelu, do odtworzenia formatu OpenAI przy
-  budowaniu historii dla kolejnych rund.
-- `role='tool'`: `{"tool_call_id": "..."}` — jedyne dodatkowe pole potrzebne, żeby
-  odtworzyć poprawny kontrakt `{"role":"tool","tool_call_id":...,"content":...}` przy
-  budowaniu historii (OpenAI/OpenRouter tool message format).
+  — raw tool_calls list from the model response, to rebuild the OpenAI format for
+  subsequent rounds.
+- `role='tool'`: `{"tool_call_id": "..."}` — the only extra field needed to rebuild
+  the correct `{"role":"tool","tool_call_id":...,"content":...}` contract when building
+  history (OpenAI/OpenRouter tool message format).
 """
 
 from __future__ import annotations
@@ -27,7 +27,6 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.repositories._row_utils import stringify_uuid
-
 
 @dataclass(frozen=True, slots=True)
 class ChatSessionRow:
@@ -157,7 +156,7 @@ class ChatRepo:
         return _row_to_session(row) if row is not None else None
 
     async def set_title_if_empty(self, session_id: str, title: str) -> None:
-        """Auto-tytuł z pierwszej wiadomości usera — nie nadpisuje ręcznej edycji."""
+        """Auto-title from the first user message — does not overwrite manual edits."""
         await self._conn.execute(
             text(
                 """
@@ -187,7 +186,7 @@ class ChatRepo:
     # ---------- messages ----------
 
     async def list_messages(self, session_id: str) -> list[ChatMessageRow]:
-        """Historia PEŁNA (bez windowingu) — używana przez `GET /chat/sessions/{id}/messages`."""
+        """FULL history (no windowing) — used by `GET /chat/sessions/{id}/messages`."""
         result = await self._conn.execute(
             text(
                 f"SELECT {_MESSAGE_COLUMNS} FROM chat_messages "
@@ -200,10 +199,10 @@ class ChatRepo:
     async def list_recent_messages_for_context(
         self, *, session_id: str, persona_id: str | None, session_type: str, limit: int
     ) -> list[ChatMessageRow]:
-        """Sliding window ostatnich `limit` wiadomości (architecture.md §5), z
-        filtrowaniem per-personę dla sesji `general` (§3a pkt 6): wszystkie
-        `role='user'` + `role in ('assistant','tool')` WHERE `persona_id = X` — inaczej
-        persona X "widziałaby" odpowiedzi innych person jako własne."""
+        """Sliding window of the last `limit` messages (architecture.md §5), with
+        per-persona filtering for `general` sessions (§3a pt 6): all
+        `role='user'` + `role in ('assistant','tool')` WHERE `persona_id = X` — otherwise
+        persona X would "see" other personas' replies as its own."""
         if session_type == "general" and persona_id is not None:
             result = await self._conn.execute(
                 text(
@@ -230,12 +229,12 @@ class ChatRepo:
                 {"session_id": session_id, "limit": limit},
             )
         rows = [_row_to_message(row) for row in result]
-        rows.reverse()  # chronologiczna kolejność dla API modelu
+        rows.reverse()  # chronological order for the model API
         return rows
 
     async def get_last_responding_persona(self, session_id: str) -> str | None:
-        """Fallback routingu w sesji `general` (architecture.md §3a pkt 3) — persona,
-        która ostatnio odpowiadała w tej sesji."""
+        """Routing fallback in a `general` session (architecture.md §3a pt 3) — persona
+        that last responded in this session."""
         result = await self._conn.execute(
             text(
                 """
@@ -251,7 +250,7 @@ class ChatRepo:
         return stringify_uuid(row.persona_id) if row is not None else None
 
     async def get_last_user_message(self, session_id: str) -> ChatMessageRow | None:
-        """Ostatnia wiadomość usera — używane przy `retry` (pomijanie podwójnego INSERT)."""
+        """Last user message — used on `retry` (skip duplicate INSERT)."""
         result = await self._conn.execute(
             text(
                 f"""
