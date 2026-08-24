@@ -38,6 +38,9 @@ wcześniejszego pomysłu hasaneyldrm — skip z 2026-08-22 pozostaje aktualny).
    `frontend/src/lib/exercise-matcher.ts` (normalizacja PL/EN, fallback contains).
 5. **Architektura importu:** skrypt = **generator SQL-seeda**, nigdy klient bazy (rozstrzygnięta
    sprzeczność draftu §3↔§10). Artefakt w repo = jedyna prawda; re-init cloud przez SQL Editor działa bez zmian.
+6. **Idle katalogu (2026-08-24):** puste wyszukiwanie pokazuje 3 losowe ćwiczenia
+   (nowa trójka przy każdym wejściu na Ustawienia + przycisk „Pokaż inne”); pełna lista
+   dopiero po wpisaniu frazy. Kategoria zawęża pulę losowania, nie dump 870 kart.
 
 ## Zadania
 

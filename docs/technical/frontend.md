@@ -165,7 +165,9 @@ SettingsPage (smart)
 │  + przełącznik motywu jasny/ciemny (`useThemeStore`, tylko localStorage, ADR-15);
 │  `is_admin` z GET /account → `useAuthStore` (zakładka Admin w shellu)
 └─ ExerciseCatalog (smart) — ~873 pozycje po imporcie free-exercise-db (Unlicense),
-   treść PL (tłumaczenie LLM przy generacji seeda 0013), `name_en` dla matcherów
+   treść PL (tłumaczenie LLM przy generacji seeda 0013), `name_en` dla matcherów.
+   Idle (puste query): 3 losowe z puli (kategoria zawęża pulę) + „Pokaż inne”;
+   pełna lista tylko po wpisaniu frazy. Losowanie: `lib/exercise-catalog.ts`.
    ├─ ExerciseSearchBar (dumb) — pole szukania (PL i EN przez `name_en`) + Select
    │  kategorii z grupowaniem (Partie mięśniowe / Typ treningu — chipy nie skalują się
    │  do ~24 kategorii)

@@ -1,22 +1,28 @@
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
-import { Skeleton } from "@/components/ui/skeleton";
 import { ExerciseGrid } from "@/components/settings/ExerciseGrid";
 import { ExerciseSearchBar } from "@/components/settings/ExerciseSearchBar";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useExercises } from "@/hooks/useExercises";
+import {
+  IDLE_SAMPLE_SIZE,
+  pickRandomExercises,
+  visibleExercises,
+} from "@/lib/exercise-catalog";
+import type { Exercise } from "@/types/api";
 
 /**
- * Katalog ćwiczeń (ADR-14) — pozostaje w zakładce Ustawienia. Filtrowanie po
- * kategorii/query PO STRONIE KLIENTA (docs/technical/frontend.md sekcja 7a);
- * karta prowadzi do strony `/exercises/:slug` (dialog usunięty 2026-08-23).
+ * Katalog ćwiczeń (ADR-14) — pozostaje w zakładce Ustawienia. Bez query: 3 losowe
+ * karty + „Pokaż inne”; po wpisaniu słowa filtr po stronie klienta (frontend.md §7a).
  */
 export function ExerciseCatalog() {
   const { data: exercises, isLoading } = useExercises();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
-  // ~870 kart po imporcie free-exercise-db — odroczone filtrowanie, żeby wpisywanie
-  // nie re-koncylidowało siatki przy każdym klawiszu (słabsze mobile).
+  const [sample, setSample] = useState<Exercise[]>([]);
   const deferredQuery = useDeferredValue(query);
+  const isSearching = deferredQuery.trim().length > 0;
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -24,26 +30,33 @@ export function ExerciseCatalog() {
     return Array.from(set).sort();
   }, [exercises]);
 
-  const filtered = useMemo(() => {
-    const normalizedQuery = deferredQuery.trim().toLowerCase();
-    return (exercises ?? []).filter((ex) => {
-      const matchesCategory = category === "all" || ex.categories.includes(category);
-      const matchesQuery =
-        !normalizedQuery ||
-        ex.name.toLowerCase().includes(normalizedQuery) ||
-        ex.name_en?.toLowerCase().includes(normalizedQuery) ||
-        ex.categories.some((c) => c.toLowerCase().includes(normalizedQuery));
-      return matchesCategory && matchesQuery;
-    });
-  }, [exercises, deferredQuery, category]);
+  const pool = useMemo(() => {
+    const all = exercises ?? [];
+    if (category === "all") return all;
+    return all.filter((ex) => ex.categories.includes(category));
+  }, [exercises, category]);
+
+  useEffect(() => {
+    setSample(pickRandomExercises(pool, IDLE_SAMPLE_SIZE));
+  }, [pool]);
+
+  const shown = useMemo(
+    () =>
+      visibleExercises({
+        all: exercises ?? [],
+        sample,
+        query: deferredQuery,
+        category,
+      }),
+    [exercises, sample, deferredQuery, category],
+  );
 
   return (
     <section>
       <h2 className="text-xl font-semibold">Katalog ćwiczeń</h2>
       <p className="mt-1 max-w-[70ch] text-sm text-muted-foreground">
-        Widoczny dla person typu trener motoryczny i trener badmintona — opisy wykonania najpopularniejszych
-        ćwiczeń, ze zdjęciem poglądowym. Większość pozycji pochodzi z otwartego katalogu free-exercise-db
-        (opisy przetłumaczone na polski).
+        Szukaj po nazwie (PL lub EN). Na starcie trzy losowe ćwiczenia — reszta katalogu
+        pojawia się po wpisaniu frazy.
       </p>
 
       <div className="mt-4">
@@ -64,7 +77,19 @@ export function ExerciseCatalog() {
             ))}
           </div>
         ) : (
-          <ExerciseGrid exercises={filtered} />
+          <>
+            <ExerciseGrid exercises={shown} />
+            {!isSearching && pool.length > IDLE_SAMPLE_SIZE ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-4"
+                onClick={() => setSample(pickRandomExercises(pool, IDLE_SAMPLE_SIZE))}
+              >
+                Pokaż inne
+              </Button>
+            ) : null}
+          </>
         )}
       </div>
     </section>

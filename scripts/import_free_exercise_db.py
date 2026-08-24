@@ -48,7 +48,11 @@ SOURCE_REPO = "yuhonas/free-exercise-db"
 SOURCE_COMMIT_SHA = "b0eed061e1c832b3ed815fbaa4b45b3cdc14df49"
 
 BUCKET = "exercise-photos"
-STORAGE_PREFIX = f"free-exercise-db"  # <prefix>/<Id>/0.jpg w buckecie
+STORAGE_PREFIX = "free-exercise-db"  # <prefix>/<Id>/0.jpg w buckecie
+LOCAL_PHOTO_DIRS = (
+    CACHE_DIR / "exercise-photos-upload2" / STORAGE_PREFIX,
+    CACHE_DIR / "exercise-photos-upload" / STORAGE_PREFIX,
+)
 CHUNK_SIZE = 100
 
 LEVEL_MAP = {"beginner": "beginner", "intermediate": "intermediate", "expert": "advanced"}
@@ -180,44 +184,103 @@ def transform(raw: list[dict[str, object]]) -> tuple[list[dict[str, object]], li
     return rows, skipped
 
 
+def load_backend_env() -> None:
+    """Uzupełnia brakujące zmienne z backend/.env — nie nadpisuje już ustawionego env."""
+    env_path = REPO_ROOT / "backend" / ".env"
+    if not env_path.exists():
+        return
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip("'").strip('"')
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+def local_photo_bytes(source_id: str) -> bytes | None:
+    for root in LOCAL_PHOTO_DIRS:
+        candidate = root / source_id / "0.jpg"
+        if candidate.is_file() and candidate.stat().st_size > 0:
+            return candidate.read_bytes()
+    return None
+
+
+def ensure_public_bucket(client: httpx.Client, supabase_url: str, headers: dict[str, str]) -> None:
+    listed = client.get(f"{supabase_url}/storage/v1/bucket/{BUCKET}", headers=headers, timeout=30)
+    if listed.status_code == 200:
+        return
+    created = client.post(
+        f"{supabase_url}/storage/v1/bucket",
+        headers={**headers, "Content-Type": "application/json"},
+        json={"id": BUCKET, "name": BUCKET, "public": True, "file_size_limit": 5_000_000},
+        timeout=30,
+    )
+    if created.status_code not in (200, 201):
+        sys.exit(f"Nie udało się utworzyć bucketa {BUCKET}: {created.status_code} {created.text}")
+    print(f"[zdjęcia] utworzono publiczny bucket {BUCKET}")
+
+
 def upload_photos(rows: list[dict[str, object]], client: httpx.Client) -> None:
+    load_backend_env()
     supabase_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
     service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
     if not supabase_url or not service_key:
         sys.exit(
-            "--upload-photos wymaga SUPABASE_URL i SUPABASE_SERVICE_ROLE_KEY w środowisku "
-            "(nie commituj kluczy; patrz backend/.env.example)."
+            "--upload-photos: w env / backend/.env brak SUPABASE_URL albo "
+            "SUPABASE_SERVICE_ROLE_KEY. Lokalny tryb (email/hasło) ich nie potrzebuje, "
+            "ale Storage tak. Dopisz obie z dashboardu Supabase (Project Settings → API) "
+            "i odpal ponownie — nie wklejaj kluczy do czatu."
         )
 
-    uploaded = 0
+    auth_headers = {
+        "Authorization": f"Bearer {service_key}",
+        "apikey": service_key,
+    }
+    ensure_public_bucket(client, supabase_url, auth_headers)
+
+    uploaded = skipped = 0
     for row in rows:
         path = str(row["storage_path"])
-        head = client.head(f"{supabase_url}/storage/v1/object/public/{BUCKET}/{path}", timeout=30)
-        if head.status_code == 200:
-            uploaded += 1
+        head = client.get(
+            f"{supabase_url}/storage/v1/object/public/{BUCKET}/{path}",
+            headers={"Range": "bytes=0-0"},
+            timeout=30,
+        )
+        if head.status_code in (200, 206):
+            skipped += 1
             continue
 
         source_id_dir = path.split("/")[1]
-        image_url = (
-            f"https://raw.githubusercontent.com/{SOURCE_REPO}/{SOURCE_COMMIT_SHA}"
-            f"/exercises/{source_id_dir}/0.jpg"
-        )
-        image = client.get(image_url, timeout=60)
-        image.raise_for_status()
+        content = local_photo_bytes(source_id_dir)
+        if content is None:
+            image_url = (
+                f"https://raw.githubusercontent.com/{SOURCE_REPO}/{SOURCE_COMMIT_SHA}"
+                f"/exercises/{source_id_dir}/0.jpg"
+            )
+            image = client.get(image_url, timeout=60)
+            image.raise_for_status()
+            content = image.content
 
         upload = client.post(
             f"{supabase_url}/storage/v1/object/{BUCKET}/{path}",
-            headers={"Authorization": f"Bearer {service_key}"},
-            content=image.content,
+            headers={
+                **auth_headers,
+                "Content-Type": "image/jpeg",
+                "x-upsert": "true",
+            },
+            content=content,
             timeout=120,
         )
         if upload.status_code not in (200, 201):
             sys.exit(f"Upload nieudany ({upload.status_code}) dla {path}: {upload.text}")
         uploaded += 1
-        if uploaded % 50 == 0:
-            print(f"  ...{uploaded}/{len(rows)}")
+        if (uploaded + skipped) % 50 == 0:
+            print(f"  ...{uploaded + skipped}/{len(rows)} (nowe {uploaded})")
 
-    print(f"[zdjęcia] gotowe: {uploaded}/{len(rows)}")
+    print(f"[zdjęcia] gotowe: {uploaded} wgranych, {skipped} już było, łącznie {len(rows)}")
 
 
 def generate_sql(rows: list[dict[str, object]]) -> str:
@@ -261,11 +324,16 @@ def main() -> None:
     parser.add_argument(
         "--upload-photos",
         action="store_true",
-        help="Upload zdjęć do Supabase Storage przed generacją SQL (wymaga kluczy w env).",
+        help="Upload zdjęć do Supabase Storage (klucze z env albo backend/.env).",
+    )
+    parser.add_argument(
+        "--skip-sql",
+        action="store_true",
+        help="Nie nadpisuj migracji 0013 (sam upload / dry-run transform).",
     )
     args = parser.parse_args()
 
-    with httpx.Client() as client:
+    with httpx.Client(follow_redirects=True) as client:
         raw = fetch_dataset(client)
         rows, skipped = transform(raw)  # type: ignore[arg-type]
 
@@ -273,6 +341,9 @@ def main() -> None:
 
         if args.upload_photos:
             upload_photos(rows, client)
+
+        if args.skip_sql:
+            return
 
         sql = generate_sql(rows)
 
