@@ -30,8 +30,10 @@ def public_photo_url(photo_path: str | None) -> str | None:
 
 
 def _to_out(row: ExerciseRow) -> ExerciseOut:
+    # `id` jest `uuid` w DB (asyncpg/SQLAlchemy zwraca UUID, nie str). Konwersja w DTO,
+    # nie w repo — spójnie z resztą endpointów (AGENTS.md: "asyncpg: UUID→str w DTO").
     return ExerciseOut(
-        id=row.id,
+        id=str(row.id),
         slug=row.slug,
         name=row.name,
         name_en=row.name_en,

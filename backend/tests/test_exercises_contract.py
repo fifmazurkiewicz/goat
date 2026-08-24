@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from unittest.mock import MagicMock
+from uuid import UUID
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -18,9 +19,9 @@ from app.api.routers.exercises import public_photo_url
 from app.main import app
 
 
-def _exercise_row(*, slug: str, common_mistakes: str | None) -> MagicMock:
+def _exercise_row(*, slug: str, common_mistakes: str | None, raw_id: object) -> MagicMock:
     row = MagicMock()
-    row.id = f"id-{slug}"
+    row.id = raw_id
     row.slug = slug
     row.name = "Przysiad ze sztangą"
     row.name_en = "Barbell Squat"
@@ -49,9 +50,21 @@ def _patched(monkeypatch: pytest.MonkeyPatch):
         async def list_all(self, **_kwargs: object):
             return [
                 # Importowany z datasetu — brak treści "Częste błędy".
-                _exercise_row(slug="barbell-squat", common_mistakes=None),
-                # Ręczny wpis kuratorowany — wartość obecna.
-                _exercise_row(slug="serw-krotki-technika", common_mistakes="Zbyt duży zamach."),
+                _exercise_row(
+                    slug="barbell-squat",
+                    common_mistakes=None,
+                    # Symulacja prawdziwej kolumny `uuid` w DB — asyncpg/SQLAlchemy
+                    # zwracają UUID, nie str. Konwersja musi działać w `_to_out`,
+                    # bo inaczej Pydantic rzuci ValidationError i endpoint zwróci 500
+                    # z maskowanym body (handle_unexpected_error). Regresja z 2026-08-24.
+                    raw_id=UUID("f9c6dcdc-f3f6-4134-8aae-f6908ffb49ac"),
+                ),
+                # Ręczny wpis kuratorowany — wartość obecna, klasyczny string-id.
+                _exercise_row(
+                    slug="serw-krotki-technika",
+                    common_mistakes="Zbyt duży zamach.",
+                    raw_id="id-custom-1",
+                ),
             ]
 
     monkeypatch.setattr("app.api.routers.exercises.rls_connection", fake_rls)
@@ -80,8 +93,12 @@ async def test_exercises_endpoint_serializes_null_common_mistakes(_patched) -> N
     assert imported["name"] == "Przysiad ze sztangą"
     assert imported["name_en"] == "Barbell Squat"
     assert str(imported["photo_path"]).endswith("free-exercise-db/Barbell_Squat/0.jpg")
+    # UUID z DB musi być serializowany jako string w JSON, nie rzucony do klienta.
+    assert imported["id"] == "f9c6dcdc-f3f6-4134-8aae-f6908ffb49ac"
+    assert isinstance(imported["id"], str)
     manual = next(e for e in exercises if e["slug"] == "serw-krotki-technika")
     assert manual["common_mistakes"] == "Zbyt duży zamach."
+    assert manual["id"] == "id-custom-1"
 
 
 def test_public_photo_url_keeps_absolute_and_prefixes_relative() -> None:
