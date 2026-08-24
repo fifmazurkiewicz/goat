@@ -1,5 +1,5 @@
-/** Normalizacja `plan_items.content.rows` — backend zapisuje wiersze jako obiekty
- *  `{ [kolumna]: wartość }`, frontend historycznie oczekiwał tablic pozycyjnych. */
+/** Normalization of `plan_items.content.rows` — the backend stores rows as objects
+ *  `{ [column]: value }`, while the frontend historically expected positional arrays. */
 export type PlanItemRow = (string | number)[] | Record<string, string | number>;
 
 export function normalizePlanRow(row: PlanItemRow, columns: string[]): string[] {

@@ -25,7 +25,7 @@ function persona(overrides: Partial<Persona> & Pick<Persona, "id" | "type">): Pe
 }
 
 describe("resultCategoryTabsFromPersonas", () => {
-  it("buduje taby tylko z typów person (bez triathlon/badminton gdy ich brak)", () => {
+  it("builds tabs from persona types only (no triathlon/badminton when missing)", () => {
     const tabs = resultCategoryTabsFromPersonas([
       persona({ id: "1", type: "dietitian" }),
       persona({ id: "2", type: "personal_trainer" }),
@@ -33,7 +33,7 @@ describe("resultCategoryTabsFromPersonas", () => {
     expect(tabs.map((t) => t.key)).toEqual(["strength", "diet"]);
   });
 
-  it("preferuje tylko aktywne persony", () => {
+  it("prefers only active personas", () => {
     const tabs = resultCategoryTabsFromPersonas([
       persona({ id: "1", type: "badminton_coach", active: false }),
       persona({ id: "2", type: "dietitian", active: true }),
@@ -41,7 +41,7 @@ describe("resultCategoryTabsFromPersonas", () => {
     expect(tabs.map((t) => t.key)).toEqual(["diet"]);
   });
 
-  it("deduplikuje strength z trenera i motorycznego", () => {
+  it("deduplicates strength from personal trainer and motor coach", () => {
     const tabs = resultCategoryTabsFromPersonas([
       persona({ id: "1", type: "personal_trainer" }),
       persona({ id: "2", type: "motor_coach" }),
@@ -49,14 +49,14 @@ describe("resultCategoryTabsFromPersonas", () => {
     expect(tabs).toEqual([{ key: "strength", label: "Trening" }]);
   });
 
-  it("dokleja kategorie z już zapisanych wyników (spoza person)", () => {
+  it("appends categories from already saved results (outside personas)", () => {
     const tabs = resultCategoryTabsFromPersonas([persona({ id: "1", type: "motor_coach" })], {
       categoriesWithData: ["triathlon", "strength"],
     });
     expect(tabs.map((t) => t.key)).toEqual(["strength", "triathlon"]);
   });
 
-  it("obsługuje custom_result_category", () => {
+  it("handles custom_result_category", () => {
     const tabs = resultCategoryTabsFromPersonas([
       persona({ id: "1", type: "custom", custom_result_category: "Wspinaczka" }),
     ]);

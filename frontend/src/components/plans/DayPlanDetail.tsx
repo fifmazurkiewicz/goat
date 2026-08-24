@@ -17,11 +17,11 @@ interface DayPlanDetailProps {
   date: Date;
   items: PlanItem[];
   personas: Persona[];
-  /** Ukryj nagłówek daty — np. w rozwiniętym wierszu tygodnia. */
+  /** Hide the date header — e.g. inside an expanded week row. */
   showHeader?: boolean;
 }
 
-/** Szczegóły planu na dany dzień — inline (bez Sheet z prawej strony). */
+/** Day plan details — inline (no right-side Sheet). */
 export function DayPlanDetail({ date, items, personas, showHeader = true }: DayPlanDetailProps) {
   const navigate = useNavigate();
   const createSession = useCreateChatSession();

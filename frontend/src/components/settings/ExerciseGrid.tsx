@@ -18,9 +18,9 @@ const LEVEL_LABELS: Record<Exercise["level"], string> = {
 };
 
 /**
- * Karta = `Link` do `/exercises/:slug` (ADR-14 nowelizacja 2026-08-23 — jedna strona
- * szczegółów dla katalogu i planów, dialog usunięty). `grid-cols-1` <768px /
- * `grid-cols-3` desktop, opis `line-clamp-2`, lazy-loading zdjęć (import ~870 pozycji).
+ * Card = `Link` to `/exercises/:slug` (ADR-14 update 2026-08-23 — a single detail
+ * page for catalog and plans, dialog removed). `grid-cols-1` <768px / `grid-cols-3`
+ * on desktop, `line-clamp-2` description, lazy-loaded images (import ~870 entries).
  */
 export function ExerciseGrid({ exercises }: ExerciseGridProps) {
   if (exercises.length === 0) {

@@ -1,8 +1,8 @@
-"""Fixture'y współdzielone dla testów backendu.
+"""Shared fixtures for backend tests.
 
-Placeholdery env są ustawiane *przed* importem `app.main`, bo `Settings` ładuje się
-przy imporcie modułu i wymaga `DATABASE_URL` / `SUPABASE_*` / `OPENROUTER_API_KEY`.
-Wartości nie muszą być prawdziwe — testy jednostkowe nie łączą się z DB/OpenRouter.
+Env placeholders are set *before* importing `app.main` because `Settings` initializes
+at module import time and requires `DATABASE_URL` / `SUPABASE_*` / `OPENROUTER_API_KEY`.
+The values don't need to be real — unit tests don't connect to DB/OpenRouter.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 from collections.abc import AsyncIterator
 
-# Musi być przed `from app.main import app` — Settings inicjalizuje się na poziomie modułu.
+# Must be before `from app.main import app` — Settings initializes at module level.
 os.environ.setdefault(
     "DATABASE_URL",
     "postgresql+asyncpg://postgres:password@localhost:5432/postgres",

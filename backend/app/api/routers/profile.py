@@ -1,8 +1,8 @@
-"""Router `/profile` — fallback formularz dla `user_profile` (ADR-11, ai-pipeline.md §0).
+"""`/profile` router — form fallback for `user_profile` (ADR-11, ai-pipeline.md §0).
 
-Ścieżka alternatywna do głównej, konwersacyjnej ("persona dopytuje w czacie", narzędzie
-`update_user_profile` — patrz `app/domain/chat/tools.py`) dla userów wolących wypełnić
-dane wprost. Obie ścieżki piszą do tej samej tabeli przez `UserProfileRepo.upsert`.
+Alternative path to the main, conversational one ("persona asks in the chat", tool
+`update_user_profile` — see `app/domain/chat/tools.py`) for users who prefer to fill
+in their data directly. Both paths write to the same table via `UserProfileRepo.upsert`.
 """
 
 from __future__ import annotations
@@ -23,8 +23,8 @@ router = APIRouter(prefix="/profile", tags=["profile"])
 async def get_profile(auth: AuthContext = Depends(get_current_user)) -> UserProfileOut | None:
     async with rls_connection(auth.claims) as conn:
         row = await UserProfileRepo(conn).get(auth.user_id)
-    # `None` (profil jeszcze nieutworzony) jest poprawną odpowiedzią — frontend renderuje
-    # pusty formularz, nie błąd.
+    # `None` (profile not yet created) is a valid response — the frontend renders an
+    # empty form, not an error.
     return UserProfileOut.model_validate(row) if row is not None else None
 
 

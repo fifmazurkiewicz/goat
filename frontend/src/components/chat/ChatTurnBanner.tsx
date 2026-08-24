@@ -5,7 +5,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { useChatTurnStore } from "@/store/useChatTurnStore";
 
-/** Banner gdy tura czatu trwa w tle (user na innej zakładce). */
+/** Banner shown when a chat turn runs in the background (user on another tab). */
 export function ChatTurnBanner() {
   const location = useLocation();
   const isStreaming = useChatTurnStore((s) => s.isStreaming);

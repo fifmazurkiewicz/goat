@@ -5,8 +5,8 @@ interface ActualResultsPanelProps {
 }
 
 /**
- * "Zrealizowane" — results zalogowane tego dnia obok "Zaplanowane" (adherence
- * tracking, ADR-9: prosta juxtapozycja plan vs wyniki, bez złożonej analityki w MVP).
+ * "Actual" — results logged on that day alongside "Planned" (adherence tracking,
+ * ADR-9: simple plan-vs-results juxtaposition, no heavy analytics in MVP).
  */
 export function ActualResultsPanel({ date }: ActualResultsPanelProps) {
   const { data: results, isLoading } = useResultsByDate(date);

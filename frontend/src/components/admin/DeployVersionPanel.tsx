@@ -44,7 +44,7 @@ function DeployRow({ info }: { info: DeployInfo }) {
   );
 }
 
-/** Porównanie semver FE vs API; commit jako metadane deployu. */
+/** Semver comparison of FE vs API; commit is treated as deploy metadata. */
 export function DeployVersionPanel() {
   const { data: apiInfo, isLoading, isError } = useAdminDeployInfo();
   const frontendInfo = getFrontendDeployInfo();

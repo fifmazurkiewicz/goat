@@ -1,4 +1,4 @@
-"""Testy jednostkowe Goata w orchestratorze (persistencja, etykiety, zapis wyników)."""
+"""Unit tests for Goat in the orchestrator (persistence, labels, result logging)."""
 
 from __future__ import annotations
 
@@ -50,11 +50,11 @@ def test_team_lead_speaker_constants() -> None:
     assert TEAM_LEAD_DISPLAY_LABEL == "Goat · Kierownik Zespołu"
 
 
-# ============ log_result u Goata (spec 2026-08-17) ============
+# ============ log_result in Goat (spec 2026-08-17) ============
 
 
 def test_result_source_persona_id_is_none_for_team_lead() -> None:
-    """`__team_lead__` nie jest UUID — FK `results.source_persona_id` wymaga NULL."""
+    """`__team_lead__` is not a UUID — FK `results.source_persona_id` requires NULL."""
     assert _result_source_persona_id(TeamLeadSpeaker()) is None
 
 
@@ -94,7 +94,7 @@ _LOG_ARGS = json.dumps(
 
 @pytest.mark.asyncio
 async def test_team_lead_log_result_persists_with_null_source_persona() -> None:
-    """GWT-5: Goat zapisuje zaraportowany wynik; `source_persona_id=NULL`."""
+    """GWT-5: Goat records a reported result; `source_persona_id=NULL`."""
     orchestrator = ChatOrchestrator.__new__(ChatOrchestrator)
     spy = _SpyResultsService()
 
@@ -108,14 +108,14 @@ async def test_team_lead_log_result_persists_with_null_source_persona() -> None:
         plan_tools=object(),  # type: ignore[arg-type]
     )
 
-    assert spy.calls, "Goat musi móc zapisać wynik (log_result nie może być odrzucone)"
+    assert spy.calls, "Goat must be able to record a result (log_result cannot be rejected)"
     assert spy.calls[0]["source_persona_id"] is None
     assert '"status": "ok"' in response or '"status":"ok"' in response
 
 
 @pytest.mark.asyncio
 async def test_trainer_log_result_keeps_persona_uuid() -> None:
-    """GWT-6: brak regresji — trener zapisuje z własnym UUID."""
+    """GWT-6: no regression — trainer records with their own UUID."""
     orchestrator = ChatOrchestrator.__new__(ChatOrchestrator)
     spy = _SpyResultsService()
 

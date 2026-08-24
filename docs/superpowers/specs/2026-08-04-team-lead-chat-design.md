@@ -1,93 +1,93 @@
-# Design: Kierownik zespołu, tytuły rozmów, tło czatu
+# Design: Team lead, conversation titles, chat background
 
-**Data:** 2026-08-04  
-**Status:** wdrożone (faza 1 + faza 2) + **odchylenie ADR-17** (Goat widoczny przy planie)
+**Date:** 2026-08-04  
+**Status:** implemented (phase 1 + phase 2) + **ADR-17 deviation** (Goat visible on plan)
 
-> **Kanon:** [docs/technical/team-lead.md](../../technical/team-lead.md) · **Audyt:** [docs/technical/audits/2026-08-04-goat-team-lead-audit.md](../../technical/audits/2026-08-04-goat-team-lead-audit.md)
+> **Canon:** [docs/technical/team-lead.md](../../technical/team-lead.md) · **Audit:** [docs/technical/audits/2026-08-04-goat-team-lead-audit.md](../../technical/audits/2026-08-04-goat-team-lead-audit.md)
 
-## Analiza zespołu ekspertów (synteza)
+## Expert team analysis (synthesis)
 
 ### UX/UI
-- Tytuł „Nowa rozmowa” na każdej sesji — brak auto-tytułu z pierwszej wiadomości; brak edycji (PPM) i usuwania.
-- Statusy trenerów są, ale brak fazy „kierownik uzgadnia z zespołem” przed odpowiedziami.
-- Nawigacja do Wyniki/Plan przerywa SSE (`abort` + `cancel` po stronie BE) — user traci turę.
+- "New conversation" title on every session — no auto-title from first message; no edit (right-click) and delete.
+- Trainer statuses are present, but no "lead is coordinating with team" phase before responses.
+- Navigation to Results/Plan interrupts SSE (`abort` + `cancel` on BE side) — user loses the turn.
 
-### Architektura
-- Routing (`ChatRoutingService`) wybiera persony, ale **nie koordynuje** — każda persona ma izolowaną historię (`persona_id` filter) i nie widzi rekomendacji innych w tej samej turze → model mówi „nie wiem co robi dietetyk”.
-- Brak nadrzędnej roli „kierownik zespołu” (systemowa, niewidoczna dla usera).
-- Brak kolejki zadań czatu — wszystko wiąże się z połączeniem SSE.
+### Architecture
+- Routing (`ChatRoutingService`) picks personas, but **doesn't coordinate** — each persona has isolated history (`persona_id` filter) and doesn't see other recommendations in the same turn → model says "I don't know what the dietitian is doing".
+- No superordinate "team lead" role (system, invisible to user).
+- No chat task queue — everything ties to SSE connection.
 
 ### AI / Python
-- `ContextBuilder` ma profil usera, ale **nie** skrótu planów ani ostatnich wyników.
-- `upsert_plan_items` wymaga istniejącego planu `ready|partial_ready` i blokuje edycję cudzych pozycji — kierownik nie może zapisać uzgodnionego planu za trenerów.
+- `ContextBuilder` has user profile, but **no** plans summary or recent results.
+- `upsert_plan_items` requires an existing `ready|partial_ready` plan and blocks editing others' entries — the lead can't save the agreed plan for trainers.
 
 ### Frontend
-- `useChatStream` żyje w `ChatWindow` — unmount = abort. Wzorzec do skopiowania: `usePlanGenerationStore` + polling w `AppShell`.
+- `useChatStream` lives in `ChatWindow` — unmount = abort. Pattern to copy: `usePlanGenerationStore` + polling in `AppShell`.
 
-## Decyzje produktowe
+## Product decisions
 
-| Temat | Decyzja |
+| Topic | Decision |
 |-------|---------|
-| Kierownik zespołu | Systemowa persona (prompt w kodzie); **widoczny jako „Goat · Kierownik Zespołu”** przy operacjach na planie; przy zwykłych pytaniach niewidoczny |
-| Flow ogólnej rozmowy | (1) kierownik planuje konsultację → (2) status „Uzgodniam z…” → (3) trenerzy odpowiadają sekwencyjnie z briefem + rekomendacjami poprzednich → (4) `done` |
-| Tytuł rozmowy | Auto z pierwszych ~60 znaków pierwszej wiadomości usera; edycja PATCH; PPM → „Zmień tytuł” / „Usuń” |
-| Tło | BE nie anuluje orchestratora przy disconnect SSE; FE: globalny runner w AppShell (jak plan jobs) |
-| Pamięć person | Bloki `[PLAN]` i `[OSTATNIE WYNIKI]` w system prompt + toole bez zmian |
-| Zapis planu | `upsert_plan_items` akceptuje `persona_id` w entry (dowolna aktywna persona usera); kierownik może delegować zapis |
+| Team lead | System persona (prompt in code); **visible as "Goat · Team Lead"** during plan operations; invisible for regular questions |
+| General conversation flow | (1) lead plans consultation → (2) status "Agreeing with…" → (3) trainers respond sequentially with brief + prior recommendations → (4) `done` |
+| Conversation title | Auto from the first ~60 chars of the user's first message; PATCH edit; right-click → "Change title" / "Delete" |
+| Background | BE doesn't cancel orchestrator on SSE disconnect; FE: global runner in AppShell (like plan jobs) |
+| Persona memory | `[PLAN]` and `[RECENT RESULTS]` blocks in system prompt + tools unchanged |
+| Plan save | `upsert_plan_items` accepts `persona_id` in entry (any active user persona); lead can delegate save |
 
-## Kontrakt SSE (rozszerzenie)
+## SSE contract (extension)
 
 ```ts
-{ type: "team_status", message: "Uzgodniam z dietetykiem i trenerem…" }
-{ type: "turn_complete" }  // opcjonalnie przed done — sygnał końca pracy zespołu
+{ type: "team_status", message: "Agreeing with dietitian and trainer…" }
+{ type: "turn_complete" }  // optionally before done — signal team done
 ```
 
-Istniejące: `persona_turn_start`, `token`, `tool_call_start`, `tool_result`, `done`, `error`.
+Existing: `persona_turn_start`, `token`, `tool_call_start`, `tool_result`, `done`, `error`.
 
-## API (nowe)
+## API (new)
 
-| Metoda | Ścieżka | Opis |
-|--------|---------|------|
+| Method | Path | Description |
+|--------|------|-------------|
 | PATCH | `/chat/sessions/{id}` | `{ title: string }` |
-| DELETE | `/chat/sessions/{id}` | Usuwa sesję + wiadomości (kaskada FK) |
+| DELETE | `/chat/sessions/{id}` | Deletes session + messages (FK cascade) |
 | GET | `/chat/sessions/{id}/turn-status` | `{ in_progress: bool }` |
 
-## Poza zakresem tej iteracji
+## Out of scope for this iteration
 
-- Pełna tabela `chat_turn_jobs` w Postgres (Render Free = jedna instancja; rejestr in-memory wystarczy na start).
-- Równoległe odpowiedzi trenerów (zostaje sekwencja).
-- Widoczne wiadomości kierownika w czacie przy **operacjach na planie** (Goat); przy zwykłych pytaniach user widzi tylko trenerów.
+- Full `chat_turn_jobs` table in Postgres (Render Free = one instance; in-memory registry suffices at start).
+- Parallel trainer responses (stays sequence).
+- Visible lead messages in chat during **plan operations** (Goat); for regular questions user sees only trainers.
 
-## ADR (propozycja)
+## ADR (proposal)
 
-**ADR-17:** Sesja `general` jest koordynowana przez systemowego Kierownika Zespołu przed delegacją do person użytkownika. Routing slash/multi-slash pozostaje deterministyczny (pomija kierownika).
+**ADR-17:** `general` session is coordinated by a system Team Lead before delegating to user personas. Slash/multi-slash routing remains deterministic (skips the lead).
 
-### Znane trade-offy (ADR-17, 2026-08-04)
+### Known trade-offs (ADR-17, 2026-08-04)
 
-| Scenariusz | Zachowanie |
-|------------|------------|
-| Plan-only bez pytań merytorycznych | Tylko Goat (`is_plan_coordination_only`) — trenerzy pominięci, nawet przy multi-slash |
-| Plan-only | `build_plan_only_consultation` pomija LLM konsultacji (1 wywołanie mniej) |
-| Multi-slash + plan-only | Slash wybiera persony w routingu, ale tura kończy się po Goacie |
-| Retry streamu | Nie idempotentny dla `rebuild_plan` — może powtórzyć job planu |
-| Sesja persona 1:1 | Brak Goata i `rebuild_plan` — harmonizacja przez Ogólną rozmowę lub zakładkę Plany |
+| Scenario | Behavior |
+|----------|----------|
+| Plan-only without merit questions | Only Goat (`is_plan_coordination_only`) — trainers skipped, even with multi-slash |
+| Plan-only | `build_plan_only_consultation` skips the consultation LLM (1 call less) |
+| Multi-slash + plan-only | Slash picks personas in routing, but turn ends after Goat |
+| Stream retry | Not idempotent for `rebuild_plan` — may repeat plan job |
+| `persona` 1:1 session | No Goat and no `rebuild_plan` — harmonize via General conversation or Plans tab |
 
-Legacy `ChatRoutingService` zastąpiony przez `TeamLeadService` — do usunięcia w P2.
+Legacy `ChatRoutingService` replaced by `TeamLeadService` — to be removed in P2.
 
 ---
 
-## Faza 2 — wdrożone rozszerzenia
+## Phase 2 — implemented extensions
 
-| Temat | Implementacja |
+| Topic | Implementation |
 |-------|----------------|
-| SSE statusów | `persona_status` (thinking/writing/tool/wrapping_up/done), `team_phase`, `persona_turn_end` |
-| Kolejka Postgres | `background_jobs` (`0008_background_jobs.sql`) + `domain/jobs/runner.py` |
-| Auto-tytuł LLM | job `chat_title`, env `CHAT_LLM_TITLE_ENABLED=true` |
-| Harmonizacja po upsert | job `plan_harmonize` na dotknięte dni, `PLAN_AUTO_HARMONIZE_ON_UPSERT=true` |
-| Enqueue planów | `enqueue_plan_generation_async` — `/plans/generate` i `rebuild_plan` |
-| Tura w tle | `chat_sessions.turn_in_progress` + rejestr in-memory |
+| SSE statuses | `persona_status` (thinking/writing/tool/wrapping_up/done), `team_phase`, `persona_turn_end` |
+| Postgres queue | `background_jobs` (`0008_background_jobs.sql`) + `domain/jobs/runner.py` |
+| LLM auto-title | `chat_title` job, env `CHAT_LLM_TITLE_ENABLED=true` |
+| Harmonization after upsert | `plan_harmonize` job for touched days, `PLAN_AUTO_HARMONIZE_ON_UPSERT=true` |
+| Plan enqueue | `enqueue_plan_generation_async` — `/plans/generate` and `rebuild_plan` |
+| Turn in background | `chat_sessions.turn_in_progress` + in-memory registry |
 
-### Kontrakt SSE (pełny)
+### Full SSE contract
 
 ```ts
 { type: "team_phase", phase: "planning" | "delegating", message: string }
@@ -102,6 +102,6 @@ Legacy `ChatRoutingService` zastąpiony przez `TeamLeadService` — do usunięci
 { type: "done" } | { type: "error", message }
 ```
 
-### Migracja
+### Migration
 
-Uruchom `supabase/migrations/0008_background_jobs.sql` w SQL Editor (cloud + lokalny Postgres).
+Run `supabase/migrations/0008_background_jobs.sql` in SQL Editor (cloud + local Postgres).

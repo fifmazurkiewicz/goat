@@ -9,8 +9,8 @@ export interface UseChatStreamOptions {
 }
 
 /**
- * Cienka warstwa nad globalnym `useChatTurnStore` + `useChatTurnRunner` w AppShell.
- * Stream nie ginie przy nawigacji do Wyniki/Plany.
+ * Thin layer over the global `useChatTurnStore` + `useChatTurnRunner` in AppShell.
+ * Stream survives navigation to Results/Plans.
  */
 export function useChatStream(sessionId: string | undefined, options?: UseChatStreamOptions) {
   const sessionType = options?.sessionType ?? "persona";
@@ -54,5 +54,5 @@ export function useChatStream(sessionId: string | undefined, options?: UseChatSt
   return { sendMessage, retry, stopGeneration, clearError, isStreaming, streaming, error };
 }
 
-/** Re-eksport dla useChatTurnRunner — dopina ukończoną turę do cache historii. */
+/** Re-export for useChatTurnRunner — attaches the finished turn to the history cache. */
 export { finalizeStreamingTurn } from "@/hooks/useChatStream.impl";

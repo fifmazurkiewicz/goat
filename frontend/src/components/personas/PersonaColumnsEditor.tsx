@@ -9,9 +9,9 @@ import type { PersonaFormValues } from "@/lib/validation/persona-schema";
 const MAX_COLUMNS = 8;
 
 /**
- * `template_overrides` — lista edytowalna przez `useFieldArray` (nazwa kolumny + ↑/↓
- * reorder + usuń + "+ Dodaj kolumnę"), bez drag-n-drop na MVP (docs/technical/frontend.md
- * sekcja 7).
+ * `template_overrides` — editable list via `useFieldArray` (column name + ↑/↓ reorder +
+ * remove + "+ Add column"), no drag-and-drop in MVP (docs/technical/frontend.md
+ * section 7).
  */
 export function PersonaColumnsEditor() {
   const {

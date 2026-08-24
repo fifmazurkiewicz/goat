@@ -1,4 +1,4 @@
-"""Testy lokalnego loginu email/hasło."""
+"""Tests for local email/password login."""
 
 from __future__ import annotations
 

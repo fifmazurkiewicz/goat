@@ -1,4 +1,4 @@
-"""Jednolity enqueue zadań w tle — plan_generate, plan_harmonize, chat_title."""
+"""Uniform enqueue of background jobs — plan_generate, plan_harmonize, chat_title."""
 
 from __future__ import annotations
 
@@ -52,8 +52,8 @@ async def enqueue_background_job(
     coro = _dispatch(job_type=job_type, user_id=user_id, claims=claims, payload=payload)
     runner = _run_job_wrapper(bg_job_id=row.id, claims=claims, coro=coro)
 
-    # Zawsze asyncio.create_task — BackgroundTasks na Render/części hostów nie
-    # gwarantuje wykonania po 202 (job zostaje w `pending` w nieskończoność).
+    # Always asyncio.create_task — BackgroundTasks on Render/some hosts doesn't
+    # guarantee execution after 202 (the job stays `pending` forever).
     asyncio.create_task(runner)
 
     return row.id
@@ -152,7 +152,7 @@ async def enqueue_chat_title_async(
 
 
 async def resume_orphaned_plan_jobs_on_startup() -> None:
-    """Wznawia `plan_generation_jobs` pending/running bez aktywnego wpisu w `background_jobs`."""
+    """Resumes `plan_generation_jobs` pending/running with no active `background_jobs` entry."""
     from sqlalchemy import text
 
     try:

@@ -1,7 +1,7 @@
-"""Router gotowców — `GET /persona-templates` i `GET /plan-templates`.
+"""Templates router — `GET /persona-templates` and `GET /plan-templates`.
 
-Tabele read-only (RLS SELECT publiczne). Endpointy wymagają auth, żeby nie
-eksponować katalogu bez sesji; odczyt idzie przez `rls_connection` jak reszta API.
+Read-only tables (public RLS SELECT). Endpoints require auth, so the catalog isn't
+exposed without a session; reads go via `rls_connection` like the rest of the API.
 """
 
 from __future__ import annotations

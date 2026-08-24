@@ -1,4 +1,4 @@
-"""Rejestr aktywnych tur czatu — tło po rozłączeniu SSE (Render Free, jedna instancja)."""
+"""Registry of active chat turns — survives SSE disconnects (Render Free, single instance)."""
 
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ def is_turn_in_progress(session_id: str) -> bool:
 
 
 def cancel_turn(session_id: str) -> bool:
-    """Anuluje aktywną turę (przycisk Zatrzymaj) — zatrzymuje generowanie LLM."""
+    """Cancels the active turn (Stop button) — stops LLM generation."""
     task = _active.get(session_id)
     if task is None or task.done():
         return False

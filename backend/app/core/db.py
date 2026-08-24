@@ -1,7 +1,7 @@
-"""Async DB engine (SQLAlchemy Core, nie ORM) + asyncpg — architecture.md sekcja 2.
+"""Async DB engine (SQLAlchemy Core, not ORM) + asyncpg — architecture.md section 2.
 
-Migracje idą osobnym torem (Supabase CLI, surowy SQL w `supabase/migrations/`), więc
-ORM-owe mapowanie relacji/migracji byłoby dublowaniem systemu — stąd Core, nie ORM.
+Migrations go a separate route (Supabase CLI, raw SQL in `supabase/migrations/`), so
+ORM-style relation/migration mapping would duplicate the system — hence Core, not ORM.
 """
 
 from __future__ import annotations
@@ -19,8 +19,8 @@ from app.core.config import settings
 
 
 def _asyncpg_url(url: str) -> str:
-    """Wymusza dialect `postgresql+asyncpg` — zwykłe `postgresql://` mapuje się na
-    synchroniczny psycopg2, którego nie mamy w zależnościach (architecture.md §2)."""
+    """Forces the `postgresql+asyncpg` dialect — plain `postgresql://` maps to the
+    synchronous psycopg2, which we don't have as a dependency (architecture.md §2)."""
     if url.startswith("postgresql+asyncpg://"):
         return url
     if url.startswith("postgres://"):
@@ -30,38 +30,39 @@ def _asyncpg_url(url: str) -> str:
     return url
 
 
-# NullPool: pooling robi Supavisor (Supabase), aplikacja go nie duplikuje drugą
-# warstwą poolingu po swojej stronie.
+# NullPool: pooling is done by Supavisor (Supabase), the app does not duplicate a
+# second pooling layer of its own.
 #
-# connect_args={"statement_cache_size": 0}: OBOWIĄZKOWE dla kompatybilności z Supavisor
-# w trybie transaction. asyncpg domyślnie cache'uje prepared statements po stronie
-# klienta, kluczując po tekście zapytania na DANYM fizycznym połączeniu. W trybie
-# transaction Supavisor przydziela inne fizyczne połączenie backendu Postgresa do
-# każdej transakcji — statement przygotowany na jednym backendzie nie istnieje na
-# kolejnym, co kończy się błędem "prepared statement ... does not exist". Wyłączenie
-# cache po stronie klienta (statement_cache_size=0) to jedyny bezpieczny sposób
-# działania w tym trybie (patrz architecture.md sekcja 2, ADR-3).
+# connect_args={"statement_cache_size": 0}: REQUIRED for compatibility with Supavisor
+# in transaction mode. asyncpg by default caches prepared statements on the client
+# side, keyed by query text on a GIVEN physical connection. In transaction mode,
+# Supavisor assigns a different physical Postgres backend connection to each
+# transaction — a statement prepared on one backend doesn't exist on the next,
+# which ends in a "prepared statement ... does not exist" error. Disabling the
+# client-side cache (statement_cache_size=0) is the only safe way to work in this
+# mode (see architecture.md section 2, ADR-3).
 engine = create_async_engine(
     _asyncpg_url(settings.database_url),
     poolclass=NullPool,
     connect_args={"statement_cache_size": 0},
 )
 
-# service_role — osobny "silnik" logiczny dla /admin/* i Supabase Admin API (architecture.md
-# §2, ADR-3). W tym repo `DATABASE_URL` łączy się jako rola Postgresa z uprawnieniem do
-# `SET ROLE service_role` (standardowy setup Supabase: rola połączeniowa jest członkiem
-# `service_role`, który ma BYPASSRLS) — więc fizycznie reużywamy ten sam silnik/pulę, ale
-# NIGDY nie mieszamy tej ścieżki z `rls_connection` (tam nigdy nie ustawiamy service_role).
-# ZAŁOŻENIE / WĄTPLIWOŚĆ: jeśli DSN w produkcji wskazuje na rolę bez uprawnienia do przełączenia
-# na `service_role` (np. wąsko uprawniony użytkownik aplikacyjny), potrzebny będzie osobny,
-# w pełni odseparowany `DATABASE_URL_SERVICE_ROLE` — architecture.md mówi wprost "osobny
-# silnik/DSN", ale nie precyzuje connection stringa, więc przyjmujemy najprostszy, zgodny
-# z domyślnym Supabase wariant.
+# service_role — a separate logical "engine" for /admin/* and Supabase Admin API
+# (architecture.md §2, ADR-3). In this repo `DATABASE_URL` connects as a Postgres role
+# with permission to `SET ROLE service_role` (standard Supabase setup: the connection
+# role is a member of `service_role`, which has BYPASSRLS) — so we physically reuse
+# the same engine/pool, but NEVER mix this path with `rls_connection` (where we never
+# set service_role).
+# ASSUMPTION / DOUBT: if the production DSN points to a role without permission to
+# switch to `service_role` (e.g. a narrowly-privileged app user), a separate, fully
+# isolated `DATABASE_URL_SERVICE_ROLE` will be needed — architecture.md says plainly
+# "separate engine/DSN", but doesn't specify the connection string, so we assume the
+# simplest, Supabase-default variant.
 @asynccontextmanager
 async def service_role_connection() -> AsyncIterator[AsyncConnection]:
-    """Połączenie z rolą `service_role` (bypass RLS) — wyłącznie dla `/admin/*` i operacji
-    wymagających dostępu do wszystkich userów (security.md §2, ADR-3). Nigdy jako fallback
-    domyślnej zależności zwykłych endpointów."""
+    """Connection as the `service_role` role (bypass RLS) — ONLY for `/admin/*` and
+    operations requiring access across all users (security.md §2, ADR-3). Never as a
+    fallback for the default dependency of regular endpoints."""
     async with engine.connect() as conn, conn.begin():
         await conn.execute(text("SET LOCAL ROLE service_role"))
         yield conn
@@ -69,20 +70,21 @@ async def service_role_connection() -> AsyncIterator[AsyncConnection]:
 
 @asynccontextmanager
 async def rls_connection(claims: dict[str, Any] | None) -> AsyncIterator[AsyncConnection]:
-    """Otwiera połączenie z kontekstem RLS ustawionym z JWT claimów zalogowanego usera.
+    """Opens a connection with the RLS context set from the logged-in user's JWT claims.
 
-    `SET LOCAL` (NIGDY `SET` sesyjne!) + `set_config(..., is_local=True)` w OBRĘBIE
-    jednej transakcji — ustawienie cofa się automatycznie na COMMIT/ROLLBACK. `SET`
-    sesyjne przeciekłoby claimy jednego usera do kolejnego requestu, bo Supavisor w
-    trybie transaction przydziela fizyczne połączenia z puli, nie 1:1 per HTTP request.
+    `SET LOCAL` (NEVER session-level `SET`!) + `set_config(..., is_local=True)` WITHIN
+    a single transaction — the setting is automatically reverted on COMMIT/ROLLBACK.
+    Session-level `SET` would leak one user's claims to the next request, because
+    Supavisor in transaction mode assigns physical connections from a pool, not 1:1
+    per HTTP request.
 
-    `claims=None` -> brak kontekstu RLS, sesja jako `anon`/rola domyślna (np. odczyt
-    tabel publicznych typu `persona_templates`/`allowed_metrics`). Dla `service_role`
-    (Supabase Admin API, `/admin/*`) używaj OSOBNEGO silnika/DSN — nigdy tej funkcji
-    jako fallbacku "dla wygody" (security.md sekcja 2, ADR-3).
+    `claims=None` -> no RLS context, session as `anon`/default role (e.g. reading
+    public tables like `persona_templates`/`allowed_metrics`). For `service_role`
+    (Supabase Admin API, `/admin/*`) use a SEPARATE engine/DSN — never this function
+    as a "convenience" fallback (security.md section 2, ADR-3).
 
-    Commit następuje automatycznie przy wyjściu z bloku `async with` (bez wyjątku);
-    wyjątek w bloku -> rollback (zachowanie `AsyncConnection.begin()`).
+    Commit happens automatically when exiting the `async with` block (without an
+    exception); exception in the block -> rollback (`AsyncConnection.begin()` behavior).
     """
     async with engine.connect() as conn, conn.begin():
         if claims is not None:

@@ -1,13 +1,13 @@
--- RESET środowiska goat — uruchom RĘCZNIE w Supabase SQL Editor PRZED świeżym 0001+0002.
--- NIE jest częścią numerowanej historii migracji (świadomie — unikamy auto-wipe przy db push).
--- UWAGA: kasuje WSZYSTKIE tabele/dane w schemacie public + app_private oraz triggery na auth.users.
--- Nie usuwa użytkowników auth.users (konta zostają; profiles i reszta public znikają).
+-- RESET of goat environment — run MANUALLY in Supabase SQL Editor BEFORE a fresh 0001+0002.
+-- NOT part of the numbered migration history (deliberately — we avoid auto-wipe on db push).
+-- WARNING: drops ALL tables/data in the public + app_private schemas and triggers on auth.users.
+-- Does not delete auth.users (accounts remain; profiles and the rest of public disappear).
 
 begin;
 
 drop schema if exists app_private cascade;
 
--- Triggery PRZED funkcjami (inaczej 2BP01: function depends on trigger)
+-- Triggers BEFORE functions (otherwise 2BP01: function depends on trigger)
 drop trigger if exists on_auth_user_created on auth.users;
 drop trigger if exists trg_persona_limit on public.personas;
 drop trigger if exists trg_guard_persona_constraints on public.personas;
@@ -36,7 +36,7 @@ drop table if exists public.plan_templates cascade;
 drop table if exists public.persona_templates cascade;
 drop table if exists public.profiles cascade;
 
--- Historia migracji CLI (jeśli używasz supabase db push) — wyczyść, żeby 0001/0002 poszły od zera:
+-- CLI migration history (if you use supabase db push) — clear it so 0001/0002 start from scratch:
 -- delete from supabase_migrations.schema_migrations;
 
 commit;

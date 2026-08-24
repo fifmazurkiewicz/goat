@@ -20,7 +20,7 @@ export const DETAIL_LEVEL_EXPLANATIONS: Record<DetailLevel, string> = {
   detailed: "dodatkowa kolumna techniki/uzasadnienia w każdej rozpisce.",
 };
 
-/** Kolory awatarów person — silne kodowanie wizualne (nie tylko tekst), docs/technical/frontend.md sekcja 4. */
+/** Persona avatar colors — strong visual coding (not just text), docs/technical/frontend.md section 4. */
 const AVATAR_PALETTE = [
   "bg-rose-500",
   "bg-amber-500",

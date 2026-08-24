@@ -35,23 +35,23 @@ describe("filterPersonasBySlug", () => {
     makePersona({ id: "p3", name: "Nieaktywny", slug: "nieaktywny_ktos", active: false }),
   ];
 
-  it("zwraca wszystkie aktywne persony dla pustego zapytania", () => {
+  it("returns all active personas for an empty query", () => {
     expect(filterPersonasBySlug(personas, "")).toHaveLength(2);
   });
 
-  it("filtruje po prefiksie slugu", () => {
+  it("filters by slug prefix", () => {
     const result = filterPersonasBySlug(personas, "diet");
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("Marek Nowicki");
   });
 
-  it("filtruje po fragmencie nazwy", () => {
+  it("filters by a name fragment", () => {
     const result = filterPersonasBySlug(personas, "kasia");
     expect(result).toHaveLength(1);
     expect(result[0].slug).toBe("trener_badmintona_kasia_wilk");
   });
 
-  it("nigdy nie zwraca nieaktywnych person", () => {
+  it("never returns inactive personas", () => {
     const result = filterPersonasBySlug(personas, "nieaktywny");
     expect(result).toHaveLength(0);
   });
@@ -63,7 +63,7 @@ describe("PersonaSlashAutocomplete", () => {
     makePersona({ id: "p2", name: "Marek Nowicki", slug: "dietetyk_marek_nowicki", type: "dietitian" }),
   ];
 
-  it("renderuje listę pasujących person i wywołuje onSelect po kliknięciu", () => {
+  it("renders a list of matching personas and calls onSelect on click", () => {
     const onSelect = vi.fn();
     render(<PersonaSlashAutocomplete personas={personas} query="" activeIndex={0} onSelect={onSelect} />);
 
@@ -74,7 +74,7 @@ describe("PersonaSlashAutocomplete", () => {
     expect(onSelect).toHaveBeenCalledWith(personas[1]);
   });
 
-  it("pokazuje komunikat o braku dopasowań", () => {
+  it("shows a message when there are no matches", () => {
     render(<PersonaSlashAutocomplete personas={personas} query="zzz" activeIndex={0} onSelect={vi.fn()} />);
     expect(screen.getByText("Brak pasujących person.")).toBeInTheDocument();
   });

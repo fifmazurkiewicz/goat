@@ -14,7 +14,7 @@ interface WeekAgendaViewProps {
 }
 
 /**
- * Widok tygodnia — lista dni z rozwijanym szczegółem planu pod wybranym dniem (inline).
+ * Week view — list of days with the day's plan detail expanded inline under the selected day.
  */
 export function WeekAgendaView({ days, items, selectedDate, onSelectDate, personas }: WeekAgendaViewProps) {
   return (

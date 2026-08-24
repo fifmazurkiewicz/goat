@@ -16,8 +16,8 @@ const sessions: ChatSession[] = [
   },
 ];
 
-describe("ChatSessionsScreen (mobile /chat bez sesji, GWT-2/GWT-3)", () => {
-  it("pokazuje historię rozmów bez potrzeby tworzenia nowego czatu", () => {
+describe("ChatSessionsScreen (mobile /chat without session, GWT-2/GWT-3)", () => {
+  it("shows the conversation history without forcing a new chat", () => {
     render(
       <ChatSessionsScreen
         sessions={sessions}
@@ -34,7 +34,7 @@ describe("ChatSessionsScreen (mobile /chat bez sesji, GWT-2/GWT-3)", () => {
     expect(screen.getByRole("button", { name: /nowa rozmowa/i })).toBeInTheDocument();
   });
 
-  it("bez rozmów pokazuje CTA zamiast pustego ekranu", () => {
+  it("with no conversations shows a CTA instead of an empty screen", () => {
     render(
       <ChatSessionsScreen
         sessions={[]}
@@ -50,7 +50,7 @@ describe("ChatSessionsScreen (mobile /chat bez sesji, GWT-2/GWT-3)", () => {
     expect(screen.getByText(/brak rozmów/i)).toBeInTheDocument();
   });
 
-  it("wybór rozmowy z listy woła onSelectSession", () => {
+  it("selecting a conversation from the list calls onSelectSession", () => {
     const onSelect = vi.fn();
 
     render(

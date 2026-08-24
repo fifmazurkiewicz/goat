@@ -4,14 +4,14 @@ import { reportApiNetworkError } from "@/store/useApiHealthStore";
 import type { ChatStreamEvent, SendMessageBody } from "@/types/chat-stream";
 
 /**
- * Parsuje jeden "chunk" SSE (tekst pomiędzy separatorami `\n\n`) na zdarzenie domenowe.
- * Format wejścia to standardowe pola SSE: `event: <nazwa>` i (jedna lub więcej) `data: <json>`
- * linii — `sse-starlette` (`architecture.md` sekcja 3) serializuje tak `EventSourceResponse`.
- * Linie komentarza (`:` na początku, np. heartbeat ping co 15s) są ignorowane i zwracamy `null`
- * — to nie jest zdarzenie domenowe, tylko utrzymanie połączenia.
+ * Parses one SSE "chunk" (text between `\n\n` separators) into a domain event.
+ * The input format is the standard SSE fields: `event: <name>` and (one or more) `data: <json>`
+ * lines — `sse-starlette` (`architecture.md` section 3) serializes `EventSourceResponse` like this.
+ * Comment lines (`:` at the start, e.g. a heartbeat ping every 15s) are ignored and we return `null`
+ * — that's not a domain event, just connection keep-alive.
  *
- * Gdy w jednym chunku wpadną dwa eventy (brak `\n\n` między nimi), `parseSseEvents` rozdziela
- * je po `event:` — inaczej `data:` skleja się w nieparsowalny JSON i FE pokazuje surowy dump.
+ * When two events end up in one chunk (missing `\n\n` between them), `parseSseEvents` splits them
+ * on `event:` — otherwise `data:` glues into unparsable JSON and the FE shows a raw dump.
  */
 export function parseSseEvent(chunk: string): ChatStreamEvent | null {
   const events = parseSseEvents(chunk);
@@ -73,8 +73,8 @@ export interface StreamChatMessageOptions {
 }
 
 /**
- * `fetch` + `ReadableStream`, NIE `EventSource` (nie wspiera POST z body ani nagłówka
- * `Authorization`) — docs/technical/frontend.md sekcja 3.
+ * `fetch` + `ReadableStream`, NOT `EventSource` (it does not support POST with body or
+ * the `Authorization` header) — docs/technical/frontend.md section 3.
  */
 export async function* streamChatMessage({
   sessionId,

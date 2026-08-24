@@ -1,8 +1,8 @@
 import type { Persona } from "@/types/api";
 
 /**
- * Filtruje aktywne persony po `slug`/nazwie dla dropdownu "/" w sesji `general`
- * (ADR-13) — surowa składnia `/slug` bez podpowiedzi jest praktycznie nieodkrywalna.
+ * Filters active personas by `slug`/name for the "/" dropdown in the `general`
+ * session (ADR-13) — the raw `/slug` syntax without hints is practically undiscoverable.
  */
 export function filterPersonasBySlug(personas: Persona[], query: string): Persona[] {
   const activePersonas = personas.filter((p) => p.active);

@@ -17,8 +17,8 @@ export class ApiError extends Error {
 }
 
 /**
- * Parsuje odpowiedź błędu backendu w formacie `{error: {code, message}}`
- * (patrz docs/technical/architecture.md sekcja 6 — hierarchia AppError).
+ * Parses the backend error response in `{error: {code, message}}` format
+ * (see docs/technical/architecture.md section 6 — AppError hierarchy).
  */
 export async function toApiError(response: Response): Promise<ApiError> {
   try {
@@ -32,7 +32,7 @@ export async function toApiError(response: Response): Promise<ApiError> {
   return new ApiError("unknown_error", response.statusText || "Nieznany błąd", response.status);
 }
 
-/** Czytelny komunikat do toastów — działa też gdy `instanceof ApiError` zawodzi. */
+/** Readable message for toasts — works even when `instanceof ApiError` fails. */
 export function getErrorMessage(err: unknown, fallback: string): string {
   if (err instanceof ApiError) return err.message;
   if (err instanceof Error && err.message) return err.message;
@@ -48,10 +48,10 @@ export interface ApiRequestOptions extends Omit<RequestInit, "body"> {
 }
 
 /**
- * Prosty wrapper na `fetch` doklejający `Authorization: Bearer <token>` i
- * bazowy URL API. Do strumieniowania SSE (`/chat/.../message`) używamy
- * osobnej funkcji `streamChatMessage` (docs/technical/frontend.md sekcja 3),
- * nie tego helpera — potrzebuje dostępu do `res.body` jako stream.
+ * Simple `fetch` wrapper that appends `Authorization: Bearer <token>` and
+ * the API base URL. For streaming SSE (`/chat/.../message`) we use a separate
+ * `streamChatMessage` function (docs/technical/frontend.md section 3), not this
+ * helper — it needs access to `res.body` as a stream.
  */
 export async function apiFetch<TResponse = unknown>(
   path: string,

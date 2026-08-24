@@ -1,4 +1,4 @@
-"""Testy `ChatTitleService` — generowanie tytułu bez prawdziwego LLM."""
+"""Tests for `ChatTitleService` — title generation without a real LLM."""
 
 from unittest.mock import AsyncMock
 

@@ -1,7 +1,7 @@
-"""`ModerationService` — warstwa B (klasyfikator LLM przy create/edit/share persony)
-i warstwa C (runtime guard: heurystyka + próbkowany klasyfikator na wiadomościach czatu).
+"""`ModerationService` — layer B (LLM classifier on persona create/edit/share) and
+layer C (runtime guard: heuristic + sampled classifier on chat messages).
 
-Pełna implementacja: docs/technical/security.md sekcja 1 (trzy warstwy obrony) i
+Full implementation: docs/technical/security.md section 1 (three defense layers) and
 docs/adr/decisions.md ADR-4.
 """
 
@@ -30,9 +30,9 @@ class PersonaModerationResult:
 
 @dataclass(frozen=True, slots=True)
 class ChatGuardResult:
-    """Wynik warstwy C — `blocked=True` NIE oznacza automatycznie twardej blokady
-    wiadomości w MVP (patrz `ChatOrchestrator`), tylko sygnał do zalogowania +
-    (opcjonalnie) do decyzji orkiestratora."""
+    """Layer C result — `blocked=True` does NOT automatically mean hard blocking of
+    the message in MVP (see `ChatOrchestrator`), only a signal to log + (optionally)
+    for the orchestrator to decide."""
 
     heuristic_hit: bool
     classifier_verdict: ClassifierVerdict | None
@@ -83,9 +83,9 @@ _CHAT_CLASSIFIER_SYSTEM = (
     "(również zamaskowanej jako żart/wiersz/inny język/roleplay), w przeciwnym razie 'clean'."
 )
 
-# Warstwa C — heurystyka regex/keyword (tania, na KAŻDEJ wiadomości), obejmuje polskie i
-# angielskie warianty typowych jailbreak fraz. Świadomie szeroka (może dawać false
-# positives) — trafienie tylko URUCHAMIA klasyfikator, nie blokuje samo w sobie.
+# Layer C — regex/keyword heuristic (cheap, on EVERY message), covers Polish and
+# English variants of typical jailbreak phrases. Deliberately broad (may produce false
+# positives) — a hit only TRIGGERS the classifier, doesn't block by itself.
 _HEURISTIC_PATTERNS = [
     re.compile(pattern, re.IGNORECASE)
     for pattern in [
@@ -111,7 +111,7 @@ _HEURISTIC_PATTERNS = [
 
 
 def hash_prompt(text: str) -> str:
-    """Hash TYLKO sekcji usera (nigdy preambułu platformy) — `personas.moderation_checked_prompt_hash`."""
+    """Hash ONLY the user section (never the platform preamble) — `personas.moderation_checked_prompt_hash`."""
     return hashlib.sha256(text.strip().encode("utf-8")).hexdigest()
 
 
@@ -120,7 +120,7 @@ def run_heuristic(message: str) -> bool:
 
 
 class ModerationService:
-    """Nie zna FastAPI/HTTP — testowalna z fake LLM client (architecture.md sekcja 7)."""
+    """Doesn't know FastAPI/HTTP — testable with a fake LLM client (architecture.md section 7)."""
 
     def __init__(
         self,
@@ -161,12 +161,12 @@ class ModerationService:
         previous_status: ModerationStatus | None = None,
         previous_preamble_version: int | None = None,
     ) -> PersonaModerationResult:
-        """Warstwa B: klasyfikator przy tworzeniu/**każdej edycji**/`is_shared=True`.
+        """Layer B: classifier on creation/**every edit**/`is_shared=True`.
 
-        Cache po `moderation_checked_prompt_hash` — nie re-moderuj niezmienionej treści,
-        chyba że `preamble_version` (`app/domain/chat/preamble.py`) się zmienił od
-        ostatniego sprawdzenia (wymusza re-check WSZYSTKICH person po zmianie preambułu
-        platformy, niezależnie od treści usera — ADR-4).
+        Cache by `moderation_checked_prompt_hash` — don't re-moderate unchanged content,
+        unless `preamble_version` (`app/domain/chat/preamble.py`) changed since the last
+        check (forces re-check of ALL personas after platform preamble changes,
+        regardless of user content — ADR-4).
         """
         prompt_hash = hash_prompt(user_prompt)
         cache_hit = (
@@ -189,9 +189,9 @@ class ModerationService:
                 system_message=_PERSONA_CLASSIFIER_SYSTEM, content=user_prompt
             )
         except Exception:
-            # Fail-open na infrastrukturalną awarię klasyfikatora (nie blokujemy całej
-            # funkcji person z powodu przejściowej awarii OpenRoutera) — flagujemy do
-            # ręcznego przeglądu zamiast automatycznie odrzucać/akceptować w ciemno.
+            # Fail-open on infrastructure failure of the classifier (don't block the
+            # entire persona feature due to a transient OpenRouter outage) — flag for
+            # manual review instead of auto-rejecting/accepting in the dark.
             await self._events_logger.log(
                 user_id=user_id,
                 persona_id=persona_id,
@@ -232,12 +232,12 @@ class ModerationService:
         session_id: str | None = None,
         message_id: str | None = None,
     ) -> ChatGuardResult:
-        """Warstwa C: heurystyka na KAŻDEJ wiadomości + klasyfikator LLM przy trafieniu
-        (albo losowo, obrona w głąb — `random_sample_rate`). Trafienia -> `moderation_events`.
+        """Layer C: heuristic on EVERY message + LLM classifier on hit (or randomly,
+        defense-in-depth — `random_sample_rate`). Hits -> `moderation_events`.
 
-        Obejmuje też pola `is_custom` w `results` (freeform `metric`/`unit`/`notes`) —
-        wołający (`ChatOrchestrator`/`log_result` handler) powinien przepuścić te wartości
-        przez tę samą metodę, patrz security.md sekcja 1.
+        Also covers `is_custom` fields in `results` (freeform `metric`/`unit`/`notes`) —
+        the caller (`ChatOrchestrator`/`log_result` handler) should pass those values
+        through the same method, see security.md section 1.
         """
         heuristic_hit = run_heuristic(message)
         should_classify = heuristic_hit or random.random() < self._random_sample_rate
@@ -250,8 +250,8 @@ class ModerationService:
                 system_message=_CHAT_CLASSIFIER_SYSTEM, content=message
             )
         except Exception:
-            # Awaria klasyfikatora nie blokuje czatu — heurystyka sama w sobie jest tylko
-            # sygnałem, nie twardą barierą (security.md sekcja 1).
+            # Classifier outage doesn't block the chat — the heuristic itself is only
+            # a signal, not a hard barrier (security.md section 1).
             return ChatGuardResult(
                 heuristic_hit=heuristic_hit, classifier_verdict=None, blocked=False
             )

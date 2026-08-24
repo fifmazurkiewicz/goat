@@ -1,103 +1,103 @@
-# Design: Lampka statusu API (cold start Render)
+# Design: API status lamp (Render cold start)
 
-**Data:** 2026-08-16  
-**Status:** wdrożone (2026-08-16)  
-**Powiązane:** ADR-19 · [`docs/technical/frontend.md`](../../technical/frontend.md) · [`docs/technical/devops.md`](../../technical/devops.md)
+**Date:** 2026-08-16  
+**Status:** implemented (2026-08-16)  
+**Related:** ADR-19 · [`docs/technical/frontend.md`](../../technical/frontend.md) · [`docs/technical/devops.md`](../../technical/devops.md)
 
 ## Problem
 
-Frontend na Vercelu wstaje od razu. Backend na Render Free usypia po ~15 min bezczynności; pierwsze requesty do API potrafią wisieć 30–60 s. User widzi puste listy / „Failed to fetch” i odświeża stronę, bo nie wie, że serwer się budzi.
+The frontend on Vercel starts immediately. The backend on Render Free sleeps after ~15 min of inactivity; the first requests to the API can hang for 30–60 s. The user sees empty lists / "Failed to fetch" and refreshes the page, not knowing the server is waking up.
 
-## Cel
+## Goal
 
-Mała **lampka tylko gdy czekamy na API**. Hover (desktop) albo tap (telefon) tłumaczy, co się dzieje. Po wybudzeniu lampka **znika**. Requesty TanStack Query same się ponawiają — bez F5.
+A small **lamp only when we're waiting for the API**. Hover (desktop) or tap (phone) explains what's happening. After waking up the lamp **disappears**. TanStack Query requests retry themselves — without F5.
 
-**Backend ma móc usnąć.** Lampka nie jest heartbeatem. Żadnego cyklicznego `/api/health`, gdy aplikacja już działa albo karta jest w tle.
+**The backend must be allowed to sleep.** The lamp is not a heartbeat. No cyclic `/api/health` when the app is already running or the tab is in the background.
 
-## Stany
+## States
 
-| Stan UI | Kiedy | Lampka | Tekst (hover / tap) |
-|---------|--------|--------|---------------------|
-| `hidden` | API odpowiada **albo** nic właśnie nie czekamy | brak | — |
-| `waking` | realny request (albo sonda wybudzania) wisi ≥ 2 s | bursztyn, puls | Budzimy aplikację, poczekaj chwilę. |
-| `down` | nadal brak sukcesu po ~90 s | czerwień, bez pulsu | Nie możemy połączyć się z serwerem. Spróbujemy ponownie. |
+| UI state | When | Lamp | Text (hover / tap) |
+|----------|------|------|--------------------|
+| `hidden` | API responding **or** nothing is waiting now | none | — |
+| `waking` | real request (or wake-up probe) hanging ≥ 2 s | amber, pulsing | Waking up the app, please wait. |
+| `down` | still no success after ~90 s | red, no pulse | We can't connect to the server. We'll try again. |
 
-Domyślnie nic nie widać (lokalnie i gdy Render już ciepły). Nie ma zielonej lampki „wszystko OK”.
+By default nothing is visible (locally and when Render is already warm). There is no green "all OK" lamp.
 
-## Sondowanie — twarde reguły
+## Probing — hard rules
 
-`GET {VITE_API_BASE_URL}/api/health` (publiczny, bez JWT; kontrakt bez zmian: `200` + `{"status":"ok"}`) wolno wysłać **wyłącznie** w oknie wybudzania:
+You may send `GET {VITE_API_BASE_URL}/api/health` (public, no JWT; contract unchanged: `200` + `{"status":"ok"}`) **only** in the wake-up window:
 
-1. **Start okna:** mount AppShell (albo błąd sieci w `apiFetch` / SSE, nie 4xx/5xx z JSON). Sam mount `/login` **nie** pinguje — Google OAuth nie potrzebuje Rendera; ping przy każdym otwarciu logowania by budził serwer bez potrzeby.
-2. **W oknie:** timeout próby 8 s; kolejna próba co 4 s, **tylko** gdy karta jest widoczna (`document.visibilityState === "visible"`).
-3. **Koniec okna (natychmiast stop, zero dalszych health):** pierwsze 200 **albo** ~90 s bez 200 **albo** karta schodzi w tło. Po `down` automat **nie** kręci się dalej; tap w lampkę = jedno nowe okno (znowu max ~90 s).
-4. **Po 200:** lampka znika, `queryClient.invalidateQueries()` (poza health). Dopóki kolejne **rzeczywiste** requesty użytkownika przechodzą, **żadnego** `/api/health`.
+1. **Window start:** AppShell mount (or network error in `apiFetch` / SSE, not 4xx/5xx with JSON). Just mounting `/login` **doesn't** ping — Google OAuth doesn't need Render; pinging every login opening would wake the server needlessly.
+2. **In window:** probe timeout 8 s; next probe every 4 s, **only** when the tab is visible (`document.visibilityState === "visible"`).
+3. **Window end (immediate stop, zero further health):** first 200 **or** ~90 s without 200 **or** tab goes to background. After `down` the auto-stop **does not** spin further; tap on lamp = one new window (again max ~90 s).
+4. **After 200:** lamp disappears, `queryClient.invalidateQueries()` (outside health). As long as the next **real** user requests pass, **no** `/api/health`.
 
-Zakazane: `refetchInterval` gdy zdrowo; ping co N sekund „na wszelki wypadek”; keep-alive w tle; ping przy ukrytej karcie.
+Forbidden: `refetchInterval` when healthy; ping every N seconds "just in case"; keep-alive in the background; ping when tab is hidden.
 
 ## UI
 
-- Miejsce: header AppShell obok „Coach”. Na `/login` lampka tylko jeśli ta strona faktycznie czeka na API (dev-login), nie przy samym wejściu.
-- Hit area ≥ 44px; kropka ~10px.
-- Hover otwiera krótki tekst; tap/klik też. Nie ma bannera ani overlaya.
-- `aria-label` = treść z tabeli; gdy lampka widoczna: `role="status"` / `aria-live="polite"`.
+- Location: AppShell header next to "Coach". On `/login` the lamp only if that page actually waits for the API (dev-login), not on entry alone.
+- Hit area ≥ 44px; dot ~10px.
+- Hover opens a short text; tap/click too. No banner, no overlay.
+- `aria-label` = content from the table; when lamp visible: `role="status"` / `aria-live="polite"`.
 
-## Poza zakresem
+## Out of scope
 
-- Overlay / banner / toast przy każdym błędzie.
-- Zewnętrzny keep-alive (UptimeRobot, cron) i jakikolwiek ping, który trzyma Render bezczynnie przy życiu.
-- Zmiana `/api/health` (zostaje liveness bez DB).
-- Upgrade Render Free → Starter.
+- Overlay / banner / toast on every error.
+- External keep-alive (UptimeRobot, cron) and any ping that keeps Render artificially alive.
+- Changing `/api/health` (stays liveness without DB).
+- Render Free → Starter upgrade.
 
-## Wymagania (Given / When / Then)
+## Requirements (Given / When / Then)
 
-### GWT-1 — ciepły backend: cisza
+### GWT-1 — warm backend: silence
 
-**Given** pierwszy health (albo zwykły request AppShell) zwraca 200 w mniej niż 2 s  
-**When** user jest w apce  
-**Then** lampka nie jest renderowana  
-**And** nie ma dalszych wywołań `/api/health`
+**Given** the first health (or a regular AppShell request) returns 200 in less than 2 s  
+**When** the user is in the app  
+**Then** the lamp is not rendered  
+**And** there are no further `/api/health` calls
 
-### GWT-2 — cold start: lampka i tekst
+### GWT-2 — cold start: lamp and text
 
-**Given** AppShell czeka na API i nie ma 200 przez co najmniej 2 s  
-**When** user patrzy na header  
-**Then** widać bursztynową pulsującą lampkę  
-**And** hover albo tap pokazuje „Budzimy aplikację, poczekaj chwilę.”
+**Given** AppShell is waiting for the API and no 200 for at least 2 s  
+**When** the user looks at the header  
+**Then** an amber pulsing lamp is visible  
+**And** hover or tap shows "Waking up the app, please wait."
 
-### GWT-3 — po wybudzeniu znika, dane wracają, pingi stop
+### GWT-3 — after waking up it disappears, data returns, pings stop
 
-**Given** lampka w stanie `waking`  
-**When** health zwraca 200  
-**Then** lampka znika  
-**And** zapytania TanStack Query, które padły na timeout/sieć, są ponawiane bez odświeżania strony  
-**And** frontend **nie** wysyła więcej `/api/health`, dopóki nie zacznie się nowe okno z GWT-6
+**Given** lamp in `waking` state  
+**When** health returns 200  
+**Then** the lamp disappears  
+**And** TanStack Query queries that failed on timeout/network are retried without refreshing the page  
+**And** frontend **does not** send more `/api/health` until a new window opens from GWT-6
 
-### GWT-4 — długotrwała awaria: stop automatu
+### GWT-4 — long-lasting failure: stop the autoloop
 
-**Given** okno wybudzania trwa ~90 s bez 200  
-**When** user tapnie lampkę  
-**Then** kolor jest czerwony (bez pulsu)  
-**And** tekst: „Nie możemy połączyć się z serwerem. Spróbujemy ponownie.”  
-**And** automatyczne `/api/health` już nie idą  
-**And** tap startuje **jedno** nowe okno wybudzania (znowu limit ~90 s)
+**Given** wake-up window lasting ~90 s without 200  
+**When** the user taps the lamp  
+**Then** color is red (no pulse)  
+**And** text: "We can't connect to the server. We'll try again."  
+**And** automatic `/api/health` no longer go out  
+**And** tap starts **one** new wake-up window (again ~90 s limit)
 
-### GWT-5 — login nie budzi Rendera sam z siebie
+### GWT-5 — login does not wake Render on its own
 
-**Given** user jest na `/login` i nic nie wysyła do API  
-**When** strona się montuje  
-**Then** nie ma requestu `/api/health`  
-**And** lampki nie widać
+**Given** the user is on `/login` and nothing sends to the API  
+**When** the page mounts  
+**Then** no `/api/health` request  
+**And** the lamp is not visible
 
-### GWT-6 — ponowny sen tylko po prawdziwym błędzie
+### GWT-6 — re-sleep only on a real error
 
-**Given** API było OK, lampka ukryta, brak sondy  
-**When** `apiFetch` / SSE kończy się błędem sieci (nie 4xx/5xx z JSON)  
-**Then** startuje nowe okno wybudzania; po 2 s bez 200 lampka wraca w `waking`
+**Given** API was OK, lamp hidden, no probe  
+**When** `apiFetch` / SSE ends with a network error (not 4xx/5xx with JSON)  
+**Then** a new wake-up window starts; after 2 s without 200 the lamp returns to `waking`
 
-### GWT-7 — karta w tle nie trzyma serwera
+### GWT-7 — background tab does not keep the server alive
 
-**Given** trwa okno wybudzania albo apka jest już „zdrowa”  
-**When** karta jest w tle (`visibilityState !== "visible"`) albo user nic nie robi przez 15 min  
-**Then** frontend nie wysyła `/api/health`  
-**And** Render Free może usnąć
+**Given** a wake-up window is in progress or the app is already "healthy"  
+**When** tab is in background (`visibilityState !== "visible"`) or the user doesn't do anything for 15 min  
+**Then** frontend does not send `/api/health`  
+**And** Render Free can sleep

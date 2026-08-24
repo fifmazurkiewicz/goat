@@ -7,8 +7,8 @@ import { buttonVariants } from "@/components/ui/button";
 export type CalendarProps = DayPickerProps;
 
 /**
- * Wrapper na react-day-picker v10 (nowe UI class names, patrz DayPicker.UI enum) —
- * używany WYŁĄCZNIE przez MonthGridView w /plans (docs/technical/frontend.md sekcja 5).
+ * react-day-picker v10 wrapper (new UI class names, see DayPicker.UI enum) —
+ * used ONLY by MonthGridView in /plans (docs/technical/frontend.md section 5).
  */
 function Calendar({ className, classNames, showOutsideDays = true, ...props }: CalendarProps) {
   return (

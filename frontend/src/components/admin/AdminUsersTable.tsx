@@ -10,9 +10,9 @@ import { ApiError } from "@/lib/api-client";
 import type { AdminUser } from "@/types/api";
 
 /**
- * Kwota w USD (`cost_usd_used`/`usage_budget_usd`) BEZ etykiet "Free"/"Pro" (ADR-16 —
- * to nie są plany subskrypcyjne, tylko budżet ochronny). Pierwsza kolumna `sticky
- * left-0` + poziomy scroll (docs/technical/frontend.md sekcja 11).
+ * Amount in USD (`cost_usd_used`/`usage_budget_usd`) WITHOUT "Free"/"Pro" labels (ADR-16 —
+ * these are not subscription plans, just a protective budget). First column `sticky
+ * left-0` + horizontal scroll (docs/technical/frontend.md section 11).
  */
 export function AdminUsersTable({ users }: { users: AdminUser[] }) {
   const updatePersonaLimit = useUpdatePersonaLimit();

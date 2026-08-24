@@ -21,7 +21,7 @@ function createSupabaseClient(): SupabaseClient {
 export const supabase = !isDevLoginEnabled ? createSupabaseClient() : (null as unknown as SupabaseClient);
 
 /**
- * Logowanie przez Google OAuth (ADR-5) — tylko produkcja / bez VITE_ENABLE_DEV_LOGIN.
+ * Sign-in via Google OAuth (ADR-5) — production only / without VITE_ENABLE_DEV_LOGIN.
  */
 export async function signInWithGoogle() {
   const client = createSupabaseClient();

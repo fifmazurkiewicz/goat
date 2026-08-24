@@ -1,4 +1,4 @@
-"""Router `/usage` — bieżące zużycie budżetu USD (ADR-16) dla badge'a FE."""
+"""`/usage` router — current USD budget consumption (ADR-16) for the FE badge."""
 
 from __future__ import annotations
 

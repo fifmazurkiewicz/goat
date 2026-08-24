@@ -21,7 +21,7 @@ describe("MessageList", () => {
     HTMLElement.prototype.scrollIntoView = vi.fn();
   });
 
-  it("historia: assistant bez persona_id dostaje etykietę Goata", () => {
+  it("history: assistant without persona_id gets the Goat label", () => {
     render(
       <MessageList
         messages={[goatMessage]}
@@ -33,7 +33,7 @@ describe("MessageList", () => {
     expect(screen.getByText("Plan uruchomiony.")).toBeInTheDocument();
   });
 
-  it("streaming: status bez tokenów → StreamingStatusLine", () => {
+  it("streaming: status with no tokens → StreamingStatusLine", () => {
     render(
       <MessageList
         messages={[]}
@@ -51,7 +51,7 @@ describe("MessageList", () => {
     expect(screen.getByText("Goat · Kierownik Zespołu analizuje…")).toBeInTheDocument();
   });
 
-  it("po załadowaniu historii kotwiczy widok na dole (ostatnia wiadomość)", () => {
+  it("after loading history, anchors the view at the bottom (last message)", () => {
     const older: ChatMessage = { ...goatMessage, id: "older", content: "Stara wiadomość." };
     const latest: ChatMessage = { ...goatMessage, id: "latest", content: "Najnowsza wiadomość." };
 
@@ -64,7 +64,7 @@ describe("MessageList", () => {
     expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled();
   });
 
-  it("streaming: tokeny + personaLabel → bubble z nagłówkiem Goata", () => {
+  it("streaming: tokens + personaLabel → bubble with Goat's header", () => {
     render(
       <MessageList
         messages={[]}

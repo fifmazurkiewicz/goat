@@ -1,5 +1,5 @@
-"""Testy walidacji narzędzi LLM `log_result` i `update_user_profile` — niezaufany input
-mimo że pochodzi z modelu (security.md §3), ADR-6 (batch, częściowy sukces)."""
+"""Tests for LLM tool validation `log_result` and `update_user_profile` — untrusted input
+despite coming from the model (security.md §3), ADR-6 (batch, partial success)."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from app.domain.results.service import ResultsService
 from app.models.schemas import LogResultArgs, UserProfileUpdate
 
 
-# ============ LogResultArgs — walidacja schema-level ============
+# ============ LogResultArgs — schema-level validation ============
 
 
 def test_log_result_args_requires_at_least_one_entry() -> None:
@@ -40,7 +40,7 @@ def test_log_result_args_accepts_valid_entry() -> None:
     assert parsed.entries[0].value == 82.5
 
 
-# ============ update_user_profile — walidacja zakresów (ai-pipeline.md §0) ============
+# ============ update_user_profile — range validation (ai-pipeline.md §0) ============
 
 
 def test_update_user_profile_rejects_height_out_of_range() -> None:
@@ -54,7 +54,7 @@ def test_update_user_profile_partial_update_only_sets_given_fields() -> None:
     assert dumped == {"weight_kg": 75}
 
 
-# ============ ResultsService.log_batch_from_agent — częściowy sukces (ADR-6) ============
+# ============ ResultsService.log_batch_from_agent — partial success (ADR-6) ============
 
 
 @dataclass
@@ -93,7 +93,7 @@ async def test_log_batch_partial_success_valid_and_invalid_entries() -> None:
         source_persona_id="p1",
         entries=[
             {"category": "strength", "metric": "weight_kg", "value": 80, "logged_date": date(2026, 1, 1)},
-            # Poza zakresem allowed_metrics (min 20) -> odrzucone, NIE wyjątek.
+            # Outside allowed_metrics range (min 20) -> rejected, NOT an exception.
             {"category": "strength", "metric": "weight_kg", "value": 5, "logged_date": date(2026, 1, 1)},
         ],
     )
@@ -120,8 +120,8 @@ async def test_log_batch_unknown_metric_falls_back_to_custom() -> None:
 
 
 async def test_log_batch_accepts_null_source_persona_for_team_lead() -> None:
-    """Goat (`team_lead`) nie ma UUID persony — wpis idzie z `source_persona_id=NULL`
-    (spec 2026-08-17; kolumna nullable w `0001_init.sql`)."""
+    """Goat (`team_lead`) has no persona UUID — entry goes in with `source_persona_id=NULL`
+    (spec 2026-08-17; column nullable in `0001_init.sql`)."""
     repo = _FakeResultsRepo()
     service = ResultsService(repo, _metrics_cache())
 

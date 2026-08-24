@@ -1,8 +1,8 @@
-"""Router `/results` — wyniki logowane przez agenta (tool calling) lub ręcznie.
+"""`/results` router — results logged by the agent (tool calling) or manually.
 
-Patrz docs/technical/database-schema.md (tabela `results`) i docs/adr/decisions.md
-ADR-9 (wykresy trendu per metryka we `/results`, bez zmian schematu poza indeksem
-`results_user_category_metric_date`).
+See docs/technical/database-schema.md (the `results` table) and docs/adr/decisions.md
+ADR-9 (trend charts per metric in `/results`, no schema changes beyond the
+`results_user_category_metric_date` index).
 """
 
 from __future__ import annotations

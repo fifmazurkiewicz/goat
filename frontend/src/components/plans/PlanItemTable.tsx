@@ -26,11 +26,11 @@ function ExerciseCell({ cell, exercise }: { cell: string; exercise: Exercise }) 
 }
 
 /**
- * Generyczny renderer {title, columns, rows, notes} — `variant: 'table' | 'cards'`
- * (docs/technical/frontend.md sekcja 11): mobile renderuje listę card-per-row (etykieta
- * kolumny + wartość, jak definition list) zamiast poziomego scrolla w `<table>`.
- * Komórki pierwszej kolumny dopasowane do katalogu ćwiczeń stają się linkami do
- * `/exercises/:slug` (ADR-14 nowelizacja 2026-08-23).
+ * Generic {title, columns, rows, notes} renderer — `variant: 'table' | 'cards'`
+ * (docs/technical/frontend.md section 11): mobile renders a card-per-row list
+ * (column label + value, like a definition list) instead of horizontal scroll inside
+ * `<table>`. Cells in the first column matched against the exercise catalog become
+ * links to `/exercises/:slug` (ADR-14 update 2026-08-23).
  */
 export function PlanItemTable({ content, variant }: PlanItemTableProps) {
   const isMobile = useIsMobile();

@@ -1,390 +1,276 @@
-# Log decyzji architektonicznych (ADR)
+# Architecture Decision Log (ADR)
 
-## ADR-1: Generowanie planu — bez osobnego workera na Render
+## ADR-1: Plan generation — without a separate worker on Render
 
-**Status:** zaakceptowane (potwierdzone przez użytkownika).
+**Status:** accepted (confirmed by the user).
 
-**Kontekst:** generowanie planu tygodnia/miesiąca to potencjalnie długo trwająca operacja (dziesiątki sekund do kilku minut). Render nie ma darmowego tieru dla Background Workers (min. Starter $7/mies.).
+**Context:** weekly/monthly plan generation is potentially a long-running operation (tens of seconds to several minutes). Render has no free tier for Background Workers (min. Starter $7/month).
 
-**Decyzja:** wykonanie w tym samym procesie co API (`BackgroundTasks` FastAPI), opakowane w trwałe tabele `plan_generation_jobs`/`plan_generation_job_personas` (nie tylko kolumna `plans.status`) — daje widoczność, retry per-persona i partial-success bez kosztu drugiego serwisu.
+**Decision:** execution in the same process as the API (FastAPI `BackgroundTasks`), wrapped in durable `plan_generation_jobs`/`plan_generation_job_personas` tables (not just a `plans.status` column) — gives visibility, per-persona retry and partial-success at no cost of a second service.
 
-**Konsekwencje:** wymaga reapera przy starcie aplikacji (zawieszone joby po restarcie → `error`) i pilnowania, żeby ciężkie/blokujące operacje nie zamrażały aktywnych streamów SSE w tym samym procesie (`asyncio.to_thread` dla sync fragmentów).
+**Consequences:** requires a reaper on app startup (jobs hung after restart → `error`) and making sure heavy/blocking operations do not freeze active SSE streams in the same process (`asyncio.to_thread` for sync fragments).
 
-**Próg migracji:** gdy czas generowania zacznie zbliżać się do kilkunastu minut albo obciążenie RAM/CPU zacznie wpływać na responsywność czatu → wydzielić osobny Render Background Worker konsumujący tę samą tabelę `jobs` jako kolejkę (`SELECT ... FOR UPDATE SKIP LOCKED`). Schemat bazy już to wspiera bez zmian.
-
----
-
-## ADR-2: Generowanie planu — trzy etapy, priorytet: synchronizacja między personami
-
-**Status:** zaakceptowane.
-
-**Kontekst:** pojedynczy mega-prompt ze wszystkimi personami naraz ryzykuje ucięcie JSON (20-45k tokenów output przy 5 personach/miesiąc) i "rozmycie" jakości dla dalszych person w kolejce. Jednocześnie priorytetem produktowym jest spójność planu między personami (dieta pod trening, regeneracja), nie tylko jakość pojedynczej persony w izolacji.
-
-**Decyzja:** pipeline 3-etapowy — (1) coordinator pass (tani model, wspólny szkielet), (2) per-persona generacja równoległa (`PLANNER_MODEL`, `asyncio.gather`), (3) harmonizacja ("zarządca kalendarza" — przegląd całości, targeted patche dla konfliktów).
-
-**Konsekwencje:** dodatkowe wywołanie LLM (etap 3) zwiększa koszt generacji o ok. jedno wywołanie plannera, ale adresuje wymóg synchronizacji explicite, zamiast liczyć na to, że model sam to zapewni w izolowanych wywołaniach per-persona.
+**Migration threshold:** when generation time starts approaching several minutes or RAM/CPU load starts impacting chat responsiveness → split out a separate Render Background Worker consuming the same `jobs` table as a queue (`SELECT ... FOR UPDATE SKIP LOCKED`). The database schema already supports this without changes.
 
 ---
 
-## ADR-3: RLS jako rzeczywista bariera — backend łączy się jako authenticated user
+## ADR-2: Plan generation — three stages, priority: synchronization between personas
 
-**Status:** zaakceptowane.
+**Status:** accepted.
 
-**Kontekst:** backend połączony domyślnie przez `service_role` unieważniłby RLS jako mechanizm ochrony — każdy bug w kodzie stałby się potencjalnym wyciekiem danych między userami.
+**Context:** a single mega-prompt with all personas at once risks cutting off JSON (20–45k output tokens for 5 personas/month) and "diluting" quality for later personas in the queue. At the same time, the product priority is plan consistency between personas (diet matching training, regeneration), not just the quality of a single persona in isolation.
 
-**Decyzja:** backend łączy się per-request jako authenticated user (`SET LOCAL` + `set_config('request.jwt.claims', ...)` z JWT, w ramach jednej transakcji). `service_role` wyłącznie do Supabase Admin API i `/admin/*`, z jawną kodową weryfikacją `profiles.is_admin`.
+**Decision:** 3-stage pipeline — (1) coordinator pass (cheap model, shared skeleton), (2) per-persona generation in parallel (`PLANNER_MODEL`, `asyncio.gather`), (3) harmonization ("calendar steward" — full review, targeted patches for conflicts).
 
-**Konsekwencje:** wymaga `NullPool` + `statement_cache_size=0` w `asyncpg` (kompatybilność z Supavisor transaction mode) i obowiązkowego testu kontraktu RLS w CI.
-
----
-
-## ADR-4: Trzy warstwy obrony przed jailbreakiem/nadużyciami
-
-**Status:** zaakceptowane.
-
-**Kontekst:** persony są edytowalne i udostępnialne między userami — dwuwarstwowe zabezpieczenie (preambuł + moderacja przy tworzeniu) chroni tylko `system_prompt` w momencie tworzenia, nie chroni przed jailbreakiem wpisanym jako wiadomość w trakcie czatu.
-
-**Decyzja:** dodanie warstwy C — runtime guard (heurystyka + próbkowany klasyfikator) na każdej wiadomości czatu, plus recheck moderacji przy **każdej edycji** persony (nie tylko tworzeniu), plus `preamble_version` do wymuszenia re-checku po zmianie preambułu platformy.
-
-**Konsekwencje:** dodatkowy koszt (heurystyka tania, klasyfikator tylko przy trafieniu) i tabela `moderation_events` z wymogami retencji/RBAC ze względu na potencjalnie wrażliwe treści (RODO).
+**Consequences:** an additional LLM call (stage 3) increases generation cost by about one planner call, but addresses the synchronization requirement explicitly, instead of counting on the model to provide that on its own in isolated per-persona calls.
 
 ---
 
-## ADR-5: Autentykacja — wyłącznie Google OAuth, bez magic linka
+## ADR-3: RLS as a real barrier — backend connects as the authenticated user
 
-**Status:** zaakceptowane (potwierdzone przez użytkownika).
+**Status:** accepted.
 
-**Kontekst:** oryginalna specyfikacja zakładała magic link + Google OAuth.
+**Context:** a backend connected by default through `service_role` would invalidate RLS as a protection mechanism — any bug in the code would become a potential data leak between users.
 
-**Decyzja:** wyłącznie Google OAuth przez Supabase Auth. Upraszcza UI logowania i eliminuje potrzebę obsługi maili transakcyjnych na starcie.
+**Decision:** backend connects per-request as the authenticated user (`SET LOCAL` + `set_config('request.jwt.claims', ...)` from JWT, within a single transaction). `service_role` only for Supabase Admin API and `/admin/*`, with explicit in-code verification of `profiles.is_admin`.
 
-**Konsekwencje:** brak fallbacku logowania dla userów bez konta Google — akceptowalne przy skali 2-5 znanych userów.
-
----
-
-## ADR-6: `log_result` jako narzędzie batch, nie pojedynczy wpis
-
-**Status:** zaakceptowane.
-
-**Kontekst:** poleganie na tym, że model sam zbatchuje wiele wywołań `log_result` w jednej rundzie nie jest gwarantowanym zachowaniem — modele często wywołują narzędzia sekwencyjnie.
-
-**Decyzja:** `log_result(entries: list[...])` przyjmujące 1-N wpisów w jednym wywołaniu, z walidacją i wynikiem per-entry (częściowy sukces możliwy).
-
-**Konsekwencje:** limit rund tool-callingu (3-5) staje się czystym bezpiecznikiem przeciw pętlom, nie realnym ograniczeniem normalnej ścieżki (np. logowanie całego treningu).
-
-**Nowelizacja 2026-08-17:** `log_result` dostaje również **Goat** (wcześniej tylko trenerzy). W sesji `general` user raportuje wynik kierownikowi, a po ograniczeniu `consult_persona` do rzadkich przypadków nie było komu zapisać. Wpisy Goata idą z `source_persona_id=NULL` (sentinel `__team_lead__` nie jest rekordem w `personas`, kolumna ma FK). Spec: [2026-08-17-mobile-history-and-goat-log-result-design.md](../superpowers/specs/2026-08-17-mobile-history-and-goat-log-result-design.md).
+**Consequences:** requires `NullPool` + `statement_cache_size=0` in `asyncpg` (Supavisor transaction mode compatibility) and a mandatory RLS contract test in CI.
 
 ---
 
-## ADR-7: Bez rolling summary czatu w MVP
+## ADR-4: Three layers of defense against jailbreak/abuse
 
-**Status:** zaakceptowane.
+**Status:** accepted.
 
-**Kontekst:** rolling summary (LLM-owa sumaryzacja starszej historii) wymaga osobnego async pipeline'u, wprowadza niedeterminizm i jest kosztem uzasadnionym dopiero przy realnie długich konwersacjach.
+**Context:** personas are editable and shareable between users — a two-layer safeguard (preamble + moderation on creation) protects only the `system_prompt` at creation time, it does not protect against a jailbreak entered as a message during conversation.
 
-**Decyzja:** start z samym sliding window ostatnich M wiadomości. Rolling summary dodane później, data-driven, gdy produkcja pokaże realne ucinanie istotnego kontekstu.
+**Decision:** add layer C — runtime guard (heuristics + sampled classifier) on every chat message, plus re-moderation on **every** persona edit (not only creation), plus `preamble_version` to force re-check after a platform preamble change.
 
-**Konsekwencje:** przy bardzo długich sesjach czatu starszy kontekst będzie tracony bez streszczenia — akceptowalne ryzyko na start.
-
----
-
-## ADR-8: Route guard "min. 1 aktywna persona" — odłożony
-
-**Status:** zaakceptowane (potwierdzone przez użytkownika).
-
-**Decyzja:** guard blokujący `/chat`/`/plans` bez aktywnej persony implementowany po tym, jak core flow (persony → czat → wyniki → plan) działa end-to-end, nie jako blocker pierwszej iteracji.
+**Consequences:** additional cost (heuristics cheap, classifier only on hit) and `moderation_events` table with retention/RBAC requirements due to potentially sensitive content (GDPR).
 
 ---
 
-## ADR-9: Adherence tracking i wykresy w `/results` — w zakresie MVP
+## ADR-5: Authentication — Google OAuth only, no magic link
 
-**Status:** zaakceptowane (potwierdzone przez użytkownika).
+**Status:** accepted (confirmed by the user).
 
-**Decyzja:** `/plans` day panel pokazuje "Zaplanowane" (plan_item) obok "Zrealizowane" (results z tego dnia) jako prosta juxtapozycja, bez złożonej analityki. `/results` dostaje wykresy trendu per metryka (`recharts`/shadcn `Chart`) — bez zmian schematu, tylko indeks `results_user_category_metric_date`.
+**Context:** the original spec assumed magic link + Google OAuth.
 
----
+**Decision:** Google OAuth only via Supabase Auth. Simplifies the login UI and removes the need to handle transactional emails at the start.
 
-## ADR-10: Cotygodniowy recap i integracje zewnętrzne — poza zakresem
-
-**Status:** zaakceptowane (potwierdzone przez użytkownika).
-
-**Decyzja:** cotygodniowy recap od persony — nie wchodzi do MVP, nie jest nawet planowany jako post-MVP. Import/synchronizacja Garmin/Strava/Apple Health — "może kiedyś", bez wpływu na architekturę teraz.
+**Consequences:** no login fallback for users without a Google account — acceptable at the scale of 2–5 known users.
 
 ---
 
-## ADR-11: Profil użytkownika (biometria) — wspólna tabela, wypełniana konwersacyjnie przez tool call
+## ADR-6: `log_result` as a batch tool, not a single entry
 
-**Status:** zaakceptowane (potwierdzone przez użytkownika, dodane przed wdrożeniem na chmurę).
+**Status:** accepted.
 
-**Kontekst:** bez danych biometrycznych (waga, wzrost, wiek, poziom aktywności, cel) generowany trening/dieta nie może być realnie spersonalizowany. Wymóg: persona ma "dopytać" usera o te dane przy konfiguracji, nie wymagać wypełnienia formularza z góry.
+**Context:** relying on the model batching multiple `log_result` calls in one round is not guaranteed behavior — models often call tools sequentially.
 
-**Decyzja:** wspólna, jedna na usera tabela `user_profile` (nie per-persona — dane biometryczne są wspólne niezależnie od tego, z którą personą user rozmawia; odróżnić od `personas.persona_constraints`, które jest specyficzne dla danej persony i **niedostępne dla end-usera** w API/UI — patrz `ai-pipeline.md`). Wypełniana przez nowe narzędzie `update_user_profile` (ta sama klasa co `log_result` — walidacja, częściowa aktualizacja, błąd wraca do modelu jako tool response), dostępne dla każdej persony. `ContextBuilder` wykrywa niekompletny profil i dokleja dynamiczną instrukcję "dopytaj naturalnie o brakujące dane" do promptu — znika automatycznie, gdy profil się uzupełni. Formularz `/profile` jako fallback dla userów wolących wypełnić dane wprost.
+**Decision:** `log_result(entries: list[...])` accepting 1-N entries in a single call, with validation and per-entry result (partial success possible).
 
-**Konsekwencje:** `PlanOrchestrator` (etapy 1-2) dostaje `user_profile` obok `persona_constraints` jako dodatkowy kontekst personalizacji. Brak kompletnego profilu nie blokuje generowania planu (zgodnie z ADR-8 — brak nowych twardych blokad w MVP), planner dostaje informację o brakach i może to zaznaczyć w notatkach planu.
+**Consequences:** the tool-calling round limit (3–5) becomes a pure safeguard against loops, not a real restriction of the normal path (e.g. logging a whole workout).
 
----
-
-## ADR-12: Limit aktywnych person — per konto, edytowalny przez admina (nie globalna stała)
-
-**Status:** zaakceptowane.
-
-**Kontekst:** limit 5 aktywnych person na usera był dotąd zakodowaną na sztywno stałą (trigger DB `enforce_persona_limit` + `PersonaService.MAX_ACTIVE_PERSONAS`). Przy 2-5 userach (Vercel Hobby) admin chce móc dać wybranemu userowi więcej (lub mniej) niż domyślne 5, bez zmiany kodu/deployu.
-
-**Decyzja:** nowa kolumna `profiles.max_active_personas` (domyślnie 5, `CHECK` 0-50) — jedna wartość per konto, trwała niezależnie od okresu rozliczeniowego (celowo NIE w `usage_limits`, którego PK `(user_id, period_start)` resetuje się co miesiąc — złe miejsce na ustawienie mające trwać). Trigger `enforce_persona_limit` czyta wartość z `profiles` zamiast hardkodowanej `5`; `PersonaService.assert_can_activate_persona` w backendzie robi to samo przez `ProfilesRepo`, dając czytelny komunikat 409 przed uderzeniem w bazę. Admin edytuje przez `PATCH /api/v1/admin/users/{user_id}/persona-limit`, zapisywane w `admin_audit_log` (`action='edit_persona_limit'`) jak każda inna akcja administracyjna.
-
-**Konsekwencje:** trigger w bazie pozostaje ostateczną linią obrony (spójne nawet przy buggy/pominiętej walidacji API), backend jest tylko szybszą, czytelniejszą warstwą przed nim — ten sam wzorzec co pierwotny limit "5". Wymaga `ProfilesRepo` (dotąd nieistniejące, blokowało też `require_admin`) — dodane w tej samej zmianie.
+**Amendment 2026-08-17:** `log_result` is also given to **Goat** (previously trainers only). In the `general` session the user reports the result to the team lead, and after limiting `consult_persona` to rare cases there was no one to save it. Goat's entries go with `source_persona_id=NULL` (the sentinel `__team_lead__` is not a record in `personas`, the column has an FK). Spec: [2026-08-17-mobile-history-and-goat-log-result-design.md](../superpowers/specs/2026-08-17-mobile-history-and-goat-log-result-design.md).
 
 ---
 
-## ADR-13: "Ogólna rozmowa" (auto-routing) + wywołanie persony komendą `/slug`
+## ADR-7: No chat rolling summary in MVP
 
-**Status:** zaakceptowane (potwierdzone przez użytkownika, na bazie makiety `Coach App - Makiety.dc.html`).
+**Status:** accepted.
 
-**Kontekst:** makieta wprowadza tryb czatu nieprzypisany do jednej persony ("Ogólna rozmowa"), w którym
-user zadaje pytanie bez wybierania konkretnego trenera, a system sam decyduje, kto ma odpowiedzieć —
-oraz mechanizm jawnego wywołania konkretnej persony przez `/{slug} treść wiadomości`. Obecny model
-(`chat_sessions.persona_id NOT NULL`, 1 persona/sesja, brak atrybucji persony per wiadomość) fizycznie
-tego nie obsługuje. Pierwotna makieta pokazywała DWIE persony odpowiadające pod rząd na jedną
-wiadomość — zespół (audyt architektoniczny + UX) zarekomendował uproszczenie do jednej persony na
-turę ze względu na ryzyko dezorientacji usera (sprzeczne rady, niejasność "z kim rozmawiam") i koszt;
-użytkownik potwierdził ten kierunek.
+**Context:** a rolling summary (LLM summarization of older history) requires a separate async pipeline, introduces non-determinism and is justified only with realistically long conversations.
 
-**Decyzja:**
+**Decision:** start with just a sliding window of the last M messages. Rolling summary added later, data-driven, when production shows real cutting of important context.
 
-- `chat_sessions.persona_id` nullable + `session_type` (`'persona'` | `'general'`) — sesja `general`
-  ma `persona_id = NULL` (schemat skonsolidowany w `0001_init.sql` — patrz uwaga w nagłówku
-  tego pliku migracji: projekt nie był jeszcze wdrożony, więc historia przyrostowych ALTER-ów
-  z wczesnych iteracji została scalona w jedną bazową migrację zamiast trzymana osobno).
-- `chat_messages.persona_id` (atrybucja per wiadomość — w sesji `general` różne wiadomości `assistant`
-  mogą pochodzić od różnych person) + `chat_messages.invoked_via` (`'auto_routed'` | `'slash_command'`).
-- `personas.slug`, unikalny per user, generowany z `type + name` przy tworzeniu i **regenerowany przy
-  zmianie nazwy** (kolizje rozwiązywane numerycznym suffixem w `PersonaService`).
-- **Routing — jedna lub wiele person sekwencyjnie na turę użytkownika** (max 3 przy
-  auto-routingu), wybierane przez lekki "menadżer rozmowy": (1) parsowanie jednego lub
-  wielu `/slug` na początku wiadomości (kolejność = kolejność odpowiedzi,
-  `invoked_via='multi_slash'` gdy ≥2); (2) w braku slashy — klasyfikator zwraca
-  `persona_ids[]` (1..N gdy pytanie styka się z ≥2 rolami); (3) każda wybrana persona
-  odpowiada przez ISTNIEJĄCY `ChatOrchestrator.handle_message` sekwencyjnie —
-  wiele `persona_turn_start`, **jedno** `done` na końcu.
-- **Fallback przy niepewnym/braku trafienia klasyfikatora:** persona, która ostatnio odpowiadała w tej
-  sesji `general` (kontynuacja kontekstu); jeśli to pierwsza wiadomość sesji bez wcześniejszej historii
-  — pierwsza aktywna persona usera (deterministyczne, bez dodatkowego pytania zwrotnego w MVP).
-- `ContextBuilder` budując system prompt dla persony X w sesji `general` filtruje historię: wszystkie
-  `role='user'` (wspólne) + `role in ('assistant','tool')` WHERE `persona_id = X` — inaczej persona X
-  "widziałaby" w historii odpowiedzi innych person jako własne.
-- Kontrakt SSE (`architecture.md` §3) rozszerzony o `persona_id`/`persona_label` w eventach oraz
-  event `persona_turn_start {persona_id, persona_label}` przed tokenami każdej tury persony.
-- Frontend: input czatu w sesji `general` ma autouzupełnianie po wpisaniu `/`; przy multi-reply
-  finalizuje poprzednią odpowiedź do cache historii przed kolejnym `persona_turn_start`.
-- Toole planu w czacie: `get_plan`, `upsert_plan_items`, `rebuild_plan` (pełny pipeline 1–3).
-
-**Konsekwencje:** multi-persona zwiększa koszt/latencję (N wywołań LLM) względem pierwotnego
-uproszczenia „1 persona”; limit 3 oraz sekwencyjność chronią UX i budżet. Wymaga statusów
-streamu (Faza 1) i aktualizacji `frontend.md` / `ai-pipeline.md`.
+**Consequences:** with very long chat sessions the older context will be lost without a summary — acceptable risk at the start.
 
 ---
 
-## ADR-14: Katalog ćwiczeń — nowa domena treści referencyjnych
+## ADR-8: "Min. 1 active persona" route guard — deferred
 
-**Status:** zaakceptowane (potwierdzone przez użytkownika).
+**Status:** accepted (confirmed by the user).
 
-**Kontekst:** makieta (zakładka Ustawienia, `catalogExercisesAll`) pokazuje przeszukiwalną galerię
-ćwiczeń (kategorie, poziom trudności, opis wykonania, częste błędy, zdjęcie), powiązaną z typem persony
-(trener motoryczny / trener badmintona). To całkowicie nieobecna domena w obecnym schemacie bazy.
-
-**Decyzja:** nowa tabela `exercises` (migracja `0002_exercise_catalog.sql`) — statyczna treść
-referencyjna, seedowana migracją (analogicznie do `persona_templates`/`plan_templates`), bez własnego
-serwisu domenowego (brak logiki biznesowej poza filtrowaniem — cienki router + repozytorium
-wystarczą). Kategorie jako `text[]` (mała, znana z góry lista, bez osobnej tabeli słownikowej). Jeden
-endpoint `GET /exercises` zwracający pełne obiekty (katalog rzędu kilkudziesięciu pozycji — brak
-potrzeby paginacji/detail-fetch). Zdjęcia w Supabase Storage (bucket publiczny `exercise-photos`),
-dodawane ręcznie przy seedowaniu — brak endpointu uploadu w MVP. **Katalog pozostaje w zakładce
-Ustawienia** (zgodnie z makietą — użytkownik świadomie utrzymał to umiejscowienie mimo alternatywy
-zaproponowanej w audycie UX, tj. osobnej trasy linkowanej z `/plans`/konfiguracji persony).
-
-**Konsekwencje:** RLS SELECT publiczne dla `authenticated`, brak INSERT/UPDATE/DELETE dla zwykłego
-usera (treść zarządzana wyłącznie przez migracje/seed, jak pozostałe "gotowce"). Edytowalność przez
-admina/użytkownika — świadomie odłożona, wymaga osobnej decyzji gdy pojawi się taka potrzeba.
-
-**Nowelizacja (2026-08-23, import free-exercise-db):** skala katalogu rośnie z 5 do ~873 pozycji
-([yuhonas/free-exercise-db](https://github.com/yuhonas/free-exercise-db), licencja **Unlicense** —
-domena publiczna, bez atrybucji; wcześniejszy pomysł hasaneyldrm/openGym odrzucony licencyjnie).
-Zmiany względem pierwotnej decyzji:
-
-- `common_mistakes` **nullable** (migracja `0012`) — dataset nie zawiera tej treści; nie zmyślamy
-  porad technicznych. Ręcznie kuratorowane wpisy zachowują wartość.
-- Nowa kolumna **`source`** (`'manual'` | `'free_exercise_db'`) — provenance + ochrona ręcznych
-  wpisów przy re-importach (`ON CONFLICT (slug) DO NOTHING` nigdy ich nie nadpisze).
-- Import = **skrypt-generator** (`scripts/import_free_exercise_db.py`) → wygenerowany seed
-  `0013_*.sql` w repo (nie „dodawane ręcznie przy seedowaniu" i nie INSERT prosto do bazy —
-  artefakt w git jest jedyną prawdą, działa lokalnie i na cloudzie przez SQL Editor).
-  Zdjęcia (pierwsze z dwóch) uploaduje ten sam skrypt do bucketa `exercise-photos`
-  (service role z env, bez supabase-py). Re-import: `DELETE WHERE source='free_exercise_db'` + rerun.
-- **Duplikaty EN/PL świadome:** ręczne PL wpisy `przysiad-ze-sztanga` / `wyciskanie-sztangi-lezac` /
-  `martwy-ciag` **usunięte** w `0012` (decyzja usera) — zostają EN odpowiedniki z datasetu.
-  Wpisy `badminton_coach` nietknięte (dataset ich nie pokrywa).
-- Treść importowana **po polsku** (nowelizacja 2026-08-23, decyzja usera): nazwa + krótki opis +
-  kroki wykonania tłumaczone LLM **przy generacji seeda** (offline, cache `.tmp/`, skrypt
-  `scripts/translate_exercises.py` przez OpenRouter) — zero wywołań LLM w runtime; oryginał EN
-  zostaje w `name_en` (dopasowanie klikalnych linków z planów). Filtr kategorii w UI: Select z
-  grupowaniem (nie chipy). Szczegóły ćwiczenia: wspólna strona `/exercises/:slug` (dialog usunięty),
-  klikalna też z tabel planów przez `lib/exercise-matcher.ts`. Skala ~870 pozycji nie
-  wymaga paginacji: `loading="lazy"` na `<img>`, gzip na API, filtr klient-side z `useDeferredValue`.
-- Założenie „katalog rzędu kilkudziesięciu pozycji — brak potrzeby paginacji/detail-fetch"
-  przestaje być prawdziwe co do skali, ale decyzja o braku paginacji zostaje potwierdzona
-  (lazy images + gzip; split lista/detale odłożony do momentu realnego problemu).
+**Decision:** the guard blocking `/chat`/`/plans` without an active persona is implemented after the core flow (personas → chat → results → plan) works end-to-end, not as a blocker for the first iteration.
 
 ---
 
-## ADR-15: `/settings` — ustawienia konta (nick, motyw) jako nowa trasa
+## ADR-9: Adherence tracking and charts in `/results` — in MVP scope
 
-**Status:** zaakceptowane (potwierdzone przez użytkownika).
+**Status:** accepted (confirmed by the user).
 
-**Kontekst:** makieta wprowadza zakładkę Ustawienia z edycją nicku i przełącznikiem motywu
-jasny/ciemny, nieobecną w `frontend.md` §1 (routing) ani w `profiles`.
-
-**Decyzja:** nowa kolumna `profiles.nick` (nullable, fallback do nazwy z Google OAuth — migracja
-schemat skonsolidowany w `0001_init.sql`), nowy, oddzielny endpoint `GET/PATCH /api/v1/account`
-(celowo NIE rozszerzenie `/api/v1/profile`, zarezerwowanego pod biometrię usera — ADR-11, inna
-odpowiedzialność). Motyw jasny/ciemny: **bez persystencji w bazie** — czysto `localStorage` po stronie
-frontendu; przy skali kilku znanych userów i typowo jednym urządzeniu synchronizacja między
-urządzeniami nie uzasadnia round-tripu do API. Katalog ćwiczeń (ADR-14) współdzieli tę stronę w UI, ale
-pozostaje niezależną domeną API.
-
-**Konsekwencje:** nowa trasa `/settings` (chroniona, auth) w `frontend.md` §1. Jeśli w przyszłości motyw
-ma być trwały między urządzeniami — trywialne dodanie `profiles.theme` bez wpływu na resztę
-architektury.
+**Decision:** `/plans` day panel shows "Planned" (plan_item) next to "Completed" (results from that day) as a simple juxtaposition, without complex analytics. `/results` gets trend charts per metric (`recharts`/shadcn `Chart`) — without schema changes, only an index `results_user_category_metric_date`.
 
 ---
 
-## ADR-16: Limit użycia jako budżet w USD per konto (nie plany Free/Pro)
+## ADR-10: Weekly recap and external integrations — out of scope
 
-**Status:** zaakceptowane (potwierdzone przez użytkownika).
+**Status:** accepted (confirmed by the user).
 
-**Kontekst:** makieta panelu admina pokazywała zużycie jako kwotę dolarową z etykietą planu
-("Free"/"Pro" — `$4.20 / $10.00`), co sugerowało płatne plany subskrypcyjne nieobecne nigdzie indziej
-w specyfikacji (MVP ma być non-commercial, `usage_limits` śledziło dotąd tylko liczby: wiadomości,
-tokeny, generacje planu). Użytkownik doprecyzował: kwota dolarowa ma być **realnym, egzekwowanym
-budżetem ochronnym przed nadmiernym zużyciem API** (nie mechanizmem rozliczeniowym/subskrypcyjnym) —
-domyślnie $10 na konto, edytowalnym przez admina. Etykiety planów "Free"/"Pro" z makiety odrzucone jako
-mylące (sugerują subskrypcję, której nie ma).
-
-**Decyzja:** nowa kolumna `profiles.usage_budget_usd` (domyślnie `10.00`, `CHECK` 0-1000) — wzorzec
-identyczny jak `profiles.max_active_personas` (ADR-12): jeden wiersz per konto, trwały niezależnie od
-okresu rozliczeniowego, edytowalny przez admina (`PATCH /api/v1/admin/users/{user_id}/usage-budget`,
-zapisywane w `admin_audit_log` jak każda inna akcja administracyjna). Nowa kolumna
-`usage_limits.cost_usd_used` — faktyczny koszt zużyty w bieżącym okresie, liczony z odpowiedzi
-OpenRoutera (`prompt_tokens`/`completion_tokens` × cennik modelu, pobierany i cache'owany z
-`/api/v1/models` OpenRoutera — nie hardkodowany). `UsageLimitService.check_and_increment_message`
-odrzuca (429) gdy `cost_usd_used + szacowany_koszt_tury > usage_budget_usd`, analogicznie do
-istniejącego mechanizmu liczników. Kolumna `usage_limits.tier` (niewykorzystany koncept planów)
-usunięta.
-
-**Konsekwencje:** panel admina pokazuje `cost_usd_used`/`usage_budget_usd` (kwota + edytowalny limit),
-BEZ etykiet "Free"/"Pro". Wymaga rozszerzenia `ai-pipeline.md` o sposób liczenia kosztu z cennika
-OpenRoutera i utrzymywania cache'u cen modeli.
+**Decision:** weekly recap from a persona — not entering MVP, not even planned as post-MVP. Garmin/Strava/Apple Health import/sync — "maybe someday", with no impact on the architecture now.
 
 ---
 
-## ADR-17: Kierownik Zespołu (Goat) — koordynacja sesji `general`
+## ADR-11: User profile (biometrics) — shared table, filled conversationally via tool call
 
-**Status:** zaakceptowane (wdrożone 2026-08-04; **nowelizowane 2026-08-16**, delta 2026-08-17).
+**Status:** accepted (confirmed by the user, added before cloud deployment).
 
-**Kontekst:** W sesji `general` (ADR-13) klasyfikator routingu wybierał persony, ale każda
-odpowiadała w izolacji — bez briefu kierownika. Potem (2026-08-04) Goat robił relay cytatów
-trenerów (`format_goat_relay`) — feeling „odzywa się dietetyk” przy pytaniu o motorykę.
-User oczekuje rozmowy **z kierownikiem**; eksperci tylko na żądanie Goata albo przez `/slug`.
+**Context:** without biometric data (weight, height, age, activity level, goal) the generated training/diet cannot be really personalized. Requirement: the persona should "ask" the user for these data during configuration, not require filling out a form up-front.
 
-**Decyzja:**
+**Decision:** a shared, one-per-user `user_profile` table (not per-persona — biometric data is shared regardless of which persona the user talks to; distinguish from `personas.persona_constraints`, which is specific to a given persona and **not accessible to the end-user** in the API/UI — see `ai-pipeline.md`). Filled via a new `update_user_profile` tool (same class as `log_result` — validation, partial update, error returned to the model as tool response), available to every persona. `ContextBuilder` detects an incomplete profile and appends a dynamic instruction "ask naturally about missing data" to the prompt — disappears automatically when the profile is filled. `/profile` form as a fallback for users who prefer to enter data directly.
 
-- **Goat** — systemowa rola (`TeamLeadSpeaker`, prompt w kodzie). Nie jest personą usera w DB.
-- **Widoczność (2026-08-16):** W `general` bez slashy **jedna tura** `TeamLeadSpeaker`
-  (`persona_id=null`). Specjalista: tool **`consult_persona`** (slug z rosteru aktywnych person
-  **tego usera** — w tym `custom`; backstage, bez widocznej wiadomości trenera). Status UX:
-  `Goat konsultuje z {etykieta}…`. Roundtable = N consultów + **jeden** bubble Goata.
-- **Wyjątek:** `/slug` / multi-slash / sesja `persona` — user widzi personę bezpośrednio; Goat
-  nie startuje.
-- **Plan:** Goat woła `rebuild_plan` w swojej turze (bez osobnej pętli trenerów jako mówców).
-  Opcjonalne `user_brief` (np. „bez badmintona”) trafia do joba generacji; role wykluczone
-  briefem nie generują pozycji. Etap 3 = **Goat** (ostateczny głos: patche update/delete).
-- **Narzędzia:** Goat — `get_plan`, `rebuild_plan`, `update_user_profile`, `consult_persona`
-  (max 5/turę; **domyślnie bez consult**), **`upsert_plan_items`** (dowolna aktywna persona);
-  trenerzy — reszta **bez** `rebuild_plan` i `consult_persona`.
-- **Granice ról:** `[ZAKRES ROLI]` (`persona_scope.py`) + overlay safety (migracja `0009`).
-- **Kontekst:** `ContextBuilder` dokleja `[PLAN TRENINGOWY]` i `[OSTATNIE WYNIKI UŻYTKOWNIKA]`.
-- **SSE:** `persona_status` / `tool_result` dla consult z etykietą Goata; `persona_id: null`.
-- **Tura w tle:** `chat_sessions.turn_in_progress`; FE: `useChatTurnRunner` w AppShell.
-  Status startowy: „Goat przygotowuje odpowiedź…” (nie „uzgadnia z zespołem”).
-  Postęp planu: wiersz `Goat · Kierownik Zespołu` przy harmonizacji.
-
-**Konsekwencje:** 0..N dodatkowych wywołań LLM tylko gdy Goat woła `consult_persona` (nie zawsze
-+1 klasyfikator JSON). ADR-13 pozostaje źródłem prawdy dla modelu sesji i `/slug`.
-Dokumentacja: `docs/technical/team-lead.md`. Spec: `docs/superpowers/specs/2026-08-16-goat-consult-persona-design.md`.
-
-**Supersedes (2026-08-16):** `format_goat_relay`, `TeamLeadService.plan_consultation` jako wybór
-mówcy, bypass „1 aktywna persona = tura tej persony”, design „kierownik niewidoczny”.
+**Consequences:** `PlanOrchestrator` (stages 1-2) gets `user_profile` alongside `persona_constraints` as additional personalization context. Lack of a complete profile does not block plan generation (consistent with ADR-8 — no new hard blocks in MVP), the planner receives information about gaps and can note that in the plan's notes.
 
 ---
 
-## ADR-18: Mobile viewport — `dvh` + visualViewport, bez page-scroll na czacie
+## ADR-12: Active persona limit — per account, admin-editable (not a global constant)
 
-**Status:** zaakceptowane (2026-08-16).
+**Status:** accepted.
 
-**Kontekst:** Na telefonach Android/iOS historia czatu nie była widoczna od razu. `h-svh` +
-`main overflow-y-auto` + trzy poziomy `overflow-hidden` zjadały wysokość `MessageList`.
-Wirtualizacja (`estimateSize: 88`) i `scrollToIndex` w `useEffect` startowały od złego
-offsetu. Brak `viewport-fit=cover` i `env(safe-area-inset-*)`.
+**Context:** the limit of 5 active personas per user was a hard-coded constant (DB trigger `enforce_persona_limit` + `PersonaService.MAX_ACTIVE_PERSONAS`). With 2–5 users (Vercel Hobby) the admin wants to be able to give a chosen user more (or less) than the default 5, without a code change/deploy.
 
-**Decyzja:**
+**Decision:** new column `profiles.max_active_personas` (default 5, `CHECK` 0-50) — one value per account, persistent regardless of billing period (intentionally NOT in `usage_limits`, whose PK `(user_id, period_start)` resets monthly — wrong place for a persistent setting). Trigger `enforce_persona_limit` reads the value from `profiles` instead of the hardcoded `5`; `PersonaService.assert_can_activate_persona` in the backend does the same via `ProfilesRepo`, producing a readable 409 message before hitting the DB. Admin edits via `PATCH /api/v1/admin/users/{user_id}/persona-limit`, saved in `admin_audit_log` (`action='edit_persona_limit'`) like any other admin action.
 
-- Shell: `h-dvh` + CSS var `--app-height` z `window.visualViewport` (klawiatura kurczy layout).
-- Na `/chat` i `/chat/:id` `main` = `overflow-hidden flex flex-col`; inne trasy zostają
-  `overflow-y-auto`.
-- Historia: kotwica na dole (`scrollIntoView`), bez wirtualizacji w MVP.
-- Composer i strony: safe area; touch target ≥44px.
-- Bottom nav (Czat / Plan / Wyniki) — odłożone; nie dopieszczamy 6-linkowego paska jako
-  „docelowej” IA na telefon.
-
-**Konsekwencje:** czat nie scrolluje całej strony; inne ekrany scrollują w `main`. Bottom
-nav to osobna zmiana IA (kolejny sprint).
+**Consequences:** the DB trigger remains the last line of defense (consistent even with buggy/skipped API validation), the backend is only a faster, cleaner layer in front of it — same pattern as the original "5" limit. Requires `ProfilesRepo` (nonexistent until now, also blocking `require_admin`) — added in the same change.
 
 ---
 
-## ADR-19: Lampka cold startu API — tylko gdy backend nie odpowiada
+## ADR-13: "General conversation" (auto-routing) + persona invocation via `/slug`
 
-**Status:** zaakceptowane (2026-08-16).
+**Status:** accepted (confirmed by the user, based on `Coach App - Makiety.dc.html` mockups).
 
-**Kontekst:** Render Free usypia Web Service po ~15 min. SPA na Vercelu jest od razu
-dostępne, więc pierwsze requesty do API wiszą 30–60 s. User odświeża stronę, bo nie
-wie, że to cold start, a nie awaria.
+**Context:** the mockup introduces a chat mode not assigned to a single persona ("General conversation"), where the user asks a question without picking a specific trainer and the system decides who answers — and an explicit persona invocation mechanism via `/{slug} message content`. The current model (`chat_sessions.persona_id NOT NULL`, 1 persona/session, no per-message persona attribution) physically doesn't support this. The original mockup showed TWO personas answering one message in a row — the team (architectural audit + UX) recommended simplifying to one persona per turn due to the risk of user disorientation (contradictory advice, unclear "who am I talking to") and cost; the user confirmed this direction.
 
-**Decyzja:** frontend woła `GET /api/health` **tylko w oknie wybudzania** (mount AppShell
-albo błąd sieci w prawdziwym requeście). Lampka **tylko** gdy 200 nie wraca ≥ 2 s.
-Hover/tap: „Budzimy aplikację, poczekaj chwilę.” Po 200 — stop sondy, lampka znika,
-TanStack Query refetchuje. Po ~90 s bez 200 — czerwień i stop automatu (tap = jedno
-nowe okno). Karta w tle i sam `/login` **nie** pingują. Brak zielonej lampki, bannera,
-overlaya, `refetchInterval` i keep-alive — Render ma móc usnąć po 15 min.
+**Decision:**
 
-**Konsekwencje:** sonda nie jest heartbeatem. Lokalnie lampka się nie pokazuje. Spec:
-`docs/superpowers/specs/2026-08-16-api-status-lamp-design.md`.
+- `chat_sessions.persona_id` nullable + `session_type` (`'persona'` | `'general'`) — `general` session has `persona_id = NULL` (schema consolidated in `0001_init.sql` — see note at the top of that migration file: the project hadn't been deployed yet, so the history of incremental ALTERs from early iterations was merged into a single base migration instead of being kept separate).
+- `chat_messages.persona_id` (per-message attribution — in a `general` session different `assistant` messages can come from different personas) + `chat_messages.invoked_via` (`'auto_routed'` | `'slash_command'`).
+- `personas.slug`, unique per user, generated from `type + name` on creation and **regenerated on name change** (collisions resolved by numeric suffix in `PersonaService`).
+- **Routing — one or many personas sequentially per user turn** (max 3 for auto-routing), chosen by a lightweight "conversation manager": (1) parsing one or many `/slug` at the start of the message (order = order of responses, `invoked_via='multi_slash'` when ≥2); (2) lacking slashes — classifier returns `persona_ids[]` (1..N when the question touches ≥2 roles); (3) each selected persona answers through the EXISTING `ChatOrchestrator.handle_message` sequentially — many `persona_turn_start`, **one** `done` at the end.
+- **Fallback on uncertain/no classifier hit:** the persona that most recently answered in this `general` session (context continuation); if this is the first message of the session without previous history — the user's first active persona (deterministic, without an additional clarifying question in MVP).
+- `ContextBuilder` when building the system prompt for persona X in a `general` session filters history: all `role='user'` (shared) + `role in ('assistant','tool')` WHERE `persona_id = X` — otherwise persona X would "see" other personas' answers in history as its own.
+- SSE contract (`architecture.md` §3) extended with `persona_id`/`persona_label` in events and an event `persona_turn_start {persona_id, persona_label}` before each persona's tokens.
+- Frontend: chat input in a `general` session has autocomplete on typing `/`; on multi-reply it finalizes the previous answer to the history cache before the next `persona_turn_start`.
+- Plan tools in chat: `get_plan`, `upsert_plan_items`, `rebuild_plan` (full 1–3 pipeline).
+
+**Consequences:** multi-persona increases cost/latency (N LLM calls) versus the original simplification "1 persona"; the limit of 3 and sequentiality protect UX and budget. Requires stream statuses (Phase 1) and updates to `frontend.md` / `ai-pipeline.md`.
 
 ---
 
-## ADR-20: Graft jako lokalna mapa kodu dla agenta (nie runtime)
+## ADR-14: Exercise catalog — new domain of reference content
 
-**Status:** zaakceptowane (2026-08-23).
+**Status:** accepted (confirmed by the user).
 
-**Kontekst:** każda nowa rozmowa z agentem startuje na zimno i płaci koszt eksploracji repo (grep, otwieranie plików). [Graft](https://github.com/nanonets/graft) buduje raz lokalny graf (tree-sitter, bez LLM) i serwuje go agentowi przez CLI / MCP.
+**Context:** the mockup (Settings tab, `catalogExercisesAll`) shows a searchable gallery of exercises (categories, difficulty level, execution description, common mistakes, photo), linked to the persona type (motor coach / badminton coach). This is a completely absent domain in the current database schema.
 
-**Decyzja:**
+**Decision:** new `exercises` table (migration `0002_exercise_catalog.sql`) — static reference content, seeded by migration (analogously to `persona_templates`/`plan_templates`), without a separate domain service (no business logic beyond filtering — a thin router + repository suffice). Categories as `text[]` (small, known list, no separate dictionary table). One endpoint `GET /exercises` returning full objects (catalog of a few dozen entries — no pagination/detail-fetch needed). Photos in Supabase Storage (public bucket `exercise-photos`), added manually during seeding — no upload endpoint in MVP. **Catalog stays in the Settings tab** (per mockup — user consciously kept this placement despite the alternative proposed in the UX audit, i.e. a separate route linked from `/plans`/persona configuration).
 
-- Graft jest **toolingiem deweloperskim** — zero wpływu na backend, frontend, Supabase, Vercel, Render, CI.
-- Domyślnie warstwa **structural** (`graft build`, $0, bez klucza). `--deep` (LLM) tylko świadomie, klucz wyłącznie lokalnie.
-- Graf `graft/` = lokalny cache jak `node_modules` — **w `.gitignore`**, nigdy w commicie. Teammate / nowa maszyna: `graft build`.
-- Commitowany jest tylko wiring Cursora: `.cursor/rules/graft.mdc`, `.cursor/mcp.json`.
-- Telemetria wyłączona (`graft telemetry disable`).
-- `graft build` okresowo: start sesji przy dryfie (`graft check`), po merżu / dużym refaktorze, gdy wyniki `ask`/`callers` wyglądają nieaktualnie — nie po każdej linijce.
-- Zasada globalna (wszystkie repo, greenfield i brownfield): `~/.cursor/rules/graft.mdc`.
+**Consequences:** SELECT RLS public for `authenticated`, no INSERT/UPDATE/DELETE for a regular user (content managed only by migrations/seed, like the rest of the "ready-made" items). Editability by admin/user — consciously deferred, requires a separate decision when that need arises.
 
-**Konsekwencje:** nowa sesja Cursora wymaga restartu, żeby załadować MCP. Setup krok po kroku: [`local-setup.md`](../technical/local-setup.md) §G.
+**Amendment (2026-08-23, free-exercise-db import):** catalog scale grows from 5 to ~873 entries ([yuhonas/free-exercise-db](https://github.com/yuhonas/free-exercise-db), license **Unlicense** — public domain, no attribution; earlier idea of hasaneyldrm/openGym rejected on license grounds). Changes from the original decision:
 
+- `common_mistakes` **nullable** (migration `0012`) — the dataset doesn't contain this content; we don't fabricate technical advice. Manually curated entries keep their value.
+- New column **`source`** (`'manual'` | `'free_exercise_db'`) — provenance + protection of manual entries on re-imports (`ON CONFLICT (slug) DO NOTHING` will never overwrite them).
+- Import = **script-generator** (`scripts/import_free_exercise_db.py`) → generated seed `0013_*.sql` in the repo (not "added manually during seeding" and not INSERT directly into the DB — the artifact in git is the only truth, works locally and on cloud via SQL Editor). Photos (first of two) are uploaded by the same script to the `exercise-photos` bucket (service role from env, without supabase-py). Re-import: `DELETE WHERE source='free_exercise_db'` + rerun.
+- **Conscious EN/PL duplicates:** manual PL entries `przysiad-ze-sztanga` / `wyciskanie-sztangi-lezac` / `martwy-ciag` **removed** in `0012` (user's decision) — the EN counterparts from the dataset stay. `badminton_coach` entries untouched (not covered by the dataset).
+- Imported content **in Polish** (amendment 2026-08-23, user's decision): name + short description + execution steps translated via LLM **when generating the seed** (offline, cache in `.tmp/`, script `scripts/translate_exercises.py` via OpenRouter) — zero LLM calls in runtime; the EN original stays in `name_en` (matches clickable links from plans). Category filter in UI: Select with grouping (not chips). Exercise detail: shared page `/exercises/:slug` (dialog removed), also clickable from plan tables via `lib/exercise-matcher.ts`. The scale of ~870 entries doesn't require pagination: `loading="lazy"` on `<img>`, gzip on the API, client-side filter with `useDeferredValue`.
+- The assumption "catalog of a few dozen entries — no pagination/detail-fetch needed" stops being true at scale, but the decision to skip pagination is confirmed (lazy images + gzip; split list/detail deferred until a real problem appears).
+
+---
+
+## ADR-15: `/settings` — account settings (nickname, theme) as a new route
+
+**Status:** accepted (confirmed by the user).
+
+**Context:** the mockup introduces a Settings tab with nickname editing and light/dark theme toggle, missing from `frontend.md` §1 (routing) and from `profiles`.
+
+**Decision:** new column `profiles.nick` (nullable, fallback to name from Google OAuth — schema consolidated in `0001_init.sql`), new separate endpoint `GET/PATCH /api/v1/account` (intentionally NOT an extension of `/api/v1/profile`, reserved for user biometrics — ADR-11, different responsibility). Light/dark theme: **without DB persistence** — purely `localStorage` on the frontend; with the scale of a few known users and typically one device, cross-device synchronization doesn't justify an API round-trip. Exercise catalog (ADR-14) shares this page in the UI but remains an independent API domain.
+
+**Consequences:** new route `/settings` (protected, auth) in `frontend.md` §1. If the theme should be persistent across devices in the future — trivial addition of `profiles.theme` without impacting the rest of the architecture.
+
+---
+
+## ADR-16: Usage limit as USD budget per account (not Free/Pro plans)
+
+**Status:** accepted (confirmed by the user).
+
+**Context:** the admin panel mockup showed usage as a dollar amount with a plan label ("Free"/"Pro" — `$4.20 / $10.00`), suggesting paid subscription plans absent everywhere else in the spec (MVP is supposed to be non-commercial, `usage_limits` previously tracked only counts: messages, tokens, plan generations). User clarified: the dollar amount should be a **real, enforced protective budget against excessive API usage** (not a billing/subscription mechanism) — default $10 per account, admin-editable. "Free"/"Pro" plan labels from the mockup rejected as misleading (suggesting a subscription that doesn't exist).
+
+**Decision:** new column `profiles.usage_budget_usd` (default `10.00`, `CHECK` 0-1000) — pattern identical to `profiles.max_active_personas` (ADR-12): one row per account, persistent regardless of billing period, admin-editable (`PATCH /api/v1/admin/users/{user_id}/usage-budget`, saved in `admin_audit_log` like any other admin action). New column `usage_limits.cost_usd_used` — actual cost used in the current period, counted from OpenRouter responses (`prompt_tokens`/`completion_tokens` × model pricing, fetched and cached from `/api/v1/models` OpenRouter — not hardcoded). `UsageLimitService.check_and_increment_message` rejects (429) when `cost_usd_used + estimated_turn_cost > usage_budget_usd`, analogously to the existing counter mechanism. Column `usage_limits.tier` (unused plans concept) removed.
+
+**Consequences:** admin panel shows `cost_usd_used`/`usage_budget_usd` (amount + editable limit), WITHOUT "Free"/"Pro" labels. Requires extending `ai-pipeline.md` with how cost is counted from OpenRouter pricing and maintaining the model price cache.
+
+---
+
+## ADR-17: Team Lead (Goat) — coordination of `general` sessions
+
+**Status:** accepted (implemented 2026-08-04; **amended 2026-08-16**, delta 2026-08-17).
+
+**Context:** In the `general` session (ADR-13) the routing classifier chose personas, but each answered in isolation — without a lead's brief. Then (2026-08-04) Goat relayed trainer quotes (`format_goat_relay`) — the "the dietitian is speaking" feeling on a motor skills question. The user expects a conversation **with the team lead**; experts only at Goat's request or via `/slug`.
+
+**Decision:**
+
+- **Goat** — system role (`TeamLeadSpeaker`, prompt in code). Not a user's persona in DB.
+- **Visibility (2026-08-16):** In `general` without slashes **one turn** of `TeamLeadSpeaker` (`persona_id=null`). Specialist: tool **`consult_persona`** (slug from the active personas roster **of this user** — including `custom`; backstage, without a visible trainer message). UX status: `Goat is consulting with {label}…`. Roundtable = N consults + **one** Goat bubble.
+- **Exception:** `/slug` / multi-slash / `persona` session — the user sees the persona directly; Goat doesn't start.
+- **Plan:** Goat calls `rebuild_plan` in its turn (without a separate trainer loop as speakers). Optional `user_brief` (e.g. "no badminton") goes to the generation job; roles excluded by the brief don't generate items. Stage 3 = **Goat** (final voice: update/delete patches).
+- **Tools:** Goat — `get_plan`, `rebuild_plan`, `update_user_profile`, `consult_persona` (max 5/turn; **default without consult**), **`upsert_plan_items`** (any active persona); trainers — the rest **without** `rebuild_plan` and `consult_persona`.
+- **Role boundaries:** `[ROLE SCOPE]` (`persona_scope.py`) + safety overlay (migration `0009`).
+- **Context:** `ContextBuilder` appends `[TRAINING PLAN]` and `[USER RECENT RESULTS]`.
+- **SSE:** `persona_status` / `tool_result` for consult with Goat label; `persona_id: null`.
+- **Background turn:** `chat_sessions.turn_in_progress`; FE: `useChatTurnRunner` in AppShell. Initial status: "Goat is preparing a response…" (not "agreeing with the team"). Plan progress: row `Goat · Team Lead` during harmonization.
+
+**Consequences:** 0..N additional LLM calls only when Goat calls `consult_persona` (not always +1 JSON classifier). ADR-13 remains the source of truth for the session model and `/slug`. Documentation: `docs/technical/team-lead.md`. Spec: `docs/superpowers/specs/2026-08-16-goat-consult-persona-design.md`.
+
+**Supersedes (2026-08-16):** `format_goat_relay`, `TeamLeadService.plan_consultation` as speaker selection, bypass "1 active persona = that persona's turn", "invisible lead" design.
+
+---
+
+## ADR-18: Mobile viewport — `dvh` + visualViewport, no page-scroll on chat
+
+**Status:** accepted (2026-08-16).
+
+**Context:** On Android/iOS phones the chat history wasn't immediately visible. `h-svh` + `main overflow-y-auto` + three levels of `overflow-hidden` ate `MessageList`'s height. Virtualization (`estimateSize: 88`) and `scrollToIndex` in `useEffect` started from the wrong offset. Lack of `viewport-fit=cover` and `env(safe-area-inset-*)`.
+
+**Decision:**
+
+- Shell: `h-dvh` + CSS var `--app-height` from `window.visualViewport` (keyboard shrinks layout).
+- On `/chat` and `/chat/:id` `main` = `overflow-hidden flex flex-col`; other routes stay `overflow-y-auto`.
+- History: anchor at the bottom (`scrollIntoView`), without virtualization in MVP.
+- Composer and pages: safe area; touch target ≥44px.
+- Bottom nav (Chat / Plan / Results) — deferred; not polishing a 6-link bar as "target" IA on phones.
+
+**Consequences:** chat doesn't scroll the whole page; other screens scroll in `main`. Bottom nav is a separate IA change (next sprint).
+
+---
+
+## ADR-19: API cold-start lamp — only when the backend doesn't respond
+
+**Status:** accepted (2026-08-16).
+
+**Context:** Render Free sleeps the Web Service after ~15 min. The SPA on Vercel is immediately available, so the first API requests hang for 30–60 s. The user refreshes the page because they don't know it's a cold start, not an outage.
+
+**Decision:** frontend calls `GET /api/health` **only in the wake-up window** (AppShell mount or a network error on a real request). Lamp **only** when 200 doesn't come back within ≥ 2 s. Hover/tap: "Waking up the application, please wait." After 200 — stop probing, lamp disappears, TanStack Query refetches. After ~90 s without 200 — red and stop automatic (tap = one new window). Background tab and `/login` alone **don't** ping. No green lamp, banner, overlay, `refetchInterval`, or keep-alive — Render must be able to fall asleep after 15 min.
+
+**Consequences:** the probe is not a heartbeat. Locally the lamp doesn't appear. Spec: `docs/superpowers/specs/2026-08-16-api-status-lamp-design.md`.
+
+---
+
+## ADR-20: Graft as local code map for the agent (not runtime)
+
+**Status:** accepted (2026-08-23).
+
+**Context:** every new agent conversation starts cold and pays the cost of repo exploration (grep, opening files). [Graft](https://github.com/nanonets/graft) builds a local graph once (tree-sitter, no LLM) and serves it to the agent via CLI / MCP.
+
+**Decision:**
+
+- Graft is **developer tooling** — zero impact on backend, frontend, Supabase, Vercel, Render, CI.
+- Default **structural** layer (`graft build`, $0, no key). `--deep` (LLM) only consciously, key only locally.
+- Graph `graft/` = local cache like `node_modules` — **in `.gitignore`**, never in a commit. Teammate / new machine: `graft build`.
+- Only Cursor wiring is committed: `.cursor/rules/graft.mdc`, `.cursor/mcp.json`.
+- Telemetry disabled (`graft telemetry disable`).
+- `graft build` periodically: at session start on drift (`graft check`), after merge / large refactor, when `ask`/`callers` results look stale — not after every line.
+- Global rule (all repos, greenfield and brownfield): `~/.cursor/rules/graft.mdc`.
+
+**Consequences:** a new Cursor session requires a restart to load MCP. Step-by-step setup: [`local-setup.md`](../technical/local-setup.md) §G.

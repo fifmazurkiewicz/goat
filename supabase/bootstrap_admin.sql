@@ -1,13 +1,13 @@
--- Jednorazowo w SQL Editor (bez pełnego wipe), gdy konto już istnieje:
--- ustawia is_admin=true TYLKO dla fmazurkiewicz@gmail.com, resztę na false.
--- Wymaga istniejących wierszy w profiles (trigger przy rejestracji).
+-- One-off in SQL Editor (without a full wipe) when the account already exists:
+-- sets is_admin=true ONLY for fmazurkiewicz@gmail.com, everyone else to false.
+-- Requires existing rows in profiles (trigger on signup).
 
 update public.profiles p
 set is_admin = (lower(coalesce(u.email, '')) = 'fmazurkiewicz@gmail.com')
 from auth.users u
 where u.id = p.id;
 
--- Jeśli po wipe brakuje wiersza profilu dla zalogowanego usera:
+-- If after a wipe a profile row is missing for a logged-in user:
 insert into public.profiles (id, is_admin)
 select
   u.id,

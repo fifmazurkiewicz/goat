@@ -1,139 +1,139 @@
-# Design: Goat — ostateczny głos nad planem (czat + harmonizacja)
+# Design: Goat — final voice over the plan (chat + harmonization)
 
-**Data:** 2026-08-17  
-**Status:** zaakceptowane / wdrożone (2026-08-17)  
-**Powiązane:** [ADR-17](../../adr/decisions.md#adr-17-kierownik-zespołu-goat--koordynacja-sesji-general), [team-lead.md](../../technical/team-lead.md), [2026-08-16-goat-consult-persona-design.md](./2026-08-16-goat-consult-persona-design.md), ADR-2 (pipeline 3-etapowy)
+**Date:** 2026-08-17  
+**Status:** accepted / implemented (2026-08-17)  
+**Related:** [ADR-17](../../adr/decisions.md#adr-17-kierownik-zespołu-goat--koordynacja-sesji-general), [team-lead.md](../../technical/team-lead.md), [2026-08-16-goat-consult-persona-design.md](./2026-08-16-goat-consult-persona-design.md), ADR-2 (3-stage pipeline)
 
-> **Delta:** Goat nie tylko odpala `rebuild_plan`. Ma **ostateczny głos** nad treścią planu: (1) w czacie może modyfikować pozycje dowolnej persony, (2) etap harmonizacji w Plany jest jawnie rolą Goata i respektuje `user_brief`. Persony nadal generują i mogą `upsert_plan_items`; Goat może nadpisać / wyciąć.
+|> **Delta:** Goat doesn't just trigger `rebuild_plan`. It has the **final voice** over plan content: (1) in chat it can modify entries of any persona, (2) the harmonization stage in Plans is explicitly Goat's role and respects `user_brief`. Personas still generate and can `upsert_plan_items`; Goat can overwrite / cut.
 
 ## Problem
 
-User w czacie uzgadnia z Goatem twarde ograniczenia (np. zero badmintona do września). Goat obiecuje przebudowę. W zakładce Plany widać jednak, że **poszczególne persony** (w tym trener badmintona) generują własne fragmenty, a „Harmonizacja planu…” jest anonimowym krokiem — nie wygląda na decyzję Kierownika. Goat w czacie **nie ma** `upsert_plan_items`, więc nie może szybko poprawić karty bez kolejnego pełnego generate.
+In chat, the user agrees on hard constraints with Goat (e.g. zero badminton until September). Goat promises a rebuild. In the Plans tab you can see that **individual personas** (including the badminton trainer) generate their own fragments, and "Plan harmonization…" is an anonymous step — it doesn't look like the Lead's decision. Goat in chat **doesn't** have `upsert_plan_items`, so it can't quickly fix a card without another full generate.
 
-Feeling: „kierownik mówi, że ogarnie”, a UI pokazuje autonomiczne persony bez jego kontroli.
+Feeling: "the lead says he'll handle it", yet the UI shows autonomous personas without his control.
 
-## Cel
+## Goal
 
-| Sytuacja | Kto ma ostateczny głos |
-|----------|------------------------|
-| Generowanie planu (pipeline) | Persony = szkice; **Goat** = etap 3 (harmonizacja / patche / wycięcia wg briefu) |
-| Czat `general` | **Goat** może czytać i **modyfikować** pozycje dowolnej aktywnej persony |
-| Czat `/slug` lub sesja `persona` | Persona może `upsert_plan_items` (bez zmian); Goat nie startuje |
-| Brief usera (np. bez badmintona) | `user_brief` + wykluczenie ról przed generacją **oraz** Goat w harmonizacji egzekwuje brief |
+| Situation | Who has the final voice |
+|-----------|-------------------------|
+| Plan generation (pipeline) | Personas = drafts; **Goat** = stage 3 (harmonization / patches / cuts per brief) |
+| `general` chat | **Goat** can read and **modify** entries of any active persona |
+| `/slug` chat or `persona` session | Persona can `upsert_plan_items` (unchanged); Goat doesn't start |
+| User brief (e.g. no badminton) | `user_brief` + role exclusion before generation **and** Goat in harmonization enforces brief |
 
-UI: w postępie joba widoczny wiersz **Goat · Kierownik Zespołu** (harmonizuje / gotowe), zamiast samej anonimowej pigułki „Harmonizacja planu…”.
+UI: in the job progress a visible row **Goat · Team Lead** (harmonizing / done), instead of just an anonymous pill "Plan harmonization…".
 
-## Wymagania (Given / When / Then)
+## Requirements (Given / When / Then)
 
-### GWT-1 — Goat upsert w czacie
+### GWT-1 — Goat upsert in chat
 
-**Given** sesja `general`, Goat w turze, aktywne persony usera  
-**When** Goat woła `upsert_plan_items` z `persona_id` (lub slug→id) aktywnej persony i poprawnymi entries  
-**Then** pozycje tej persony są zapisane / nadpisane  
-**And** FE pokazuje chip jak przy innych toolach planu (np. „Plany”)  
-**And** opcjonalnie odpala się lekka harmonizacja dni (jak dziś po upsert trenera)
+**Given** `general` session, Goat in turn, user's active personas  
+**When** Goat calls `upsert_plan_items` with `persona_id` (or slug→id) of an active persona and valid entries  
+**Then** that persona's entries are saved / overwritten  
+**And** FE shows a chip like for other plan tools (e.g. "Plans")  
+**And** optionally a light day harmonization fires (as today after trainer upsert)
 
-### GWT-2 — trener nadal może zapisywać
+### GWT-2 — trainer can still save
 
-**Given** tura trenera (`/slug` lub consult backstage)  
-**When** trener woła `upsert_plan_items` dla **swojego** `persona_id`  
-**Then** zapis działa jak dziś (bez uprawnień do cudzych person)
+**Given** trainer turn (`/slug` or consult backstage)  
+**When** the trainer calls `upsert_plan_items` for **their own** `persona_id`  
+**Then** save works as today (no permissions to others' personas)
 
-### GWT-3 — harmonizacja = Goat w UI
+### GWT-3 — harmonization = Goat in UI
 
-**Given** job `plan_generate` po zakończeniu generacji wszystkich person  
-**When** startuje etap 3  
-**Then** UI postępu pokazuje etap Goata: etykieta `Goat · Kierownik Zespołu`, status w stylu „harmonizuje…” → „Gotowe”  
-**And** copy nie sugeruje anonimowego „zarządcy” bez Kierownika
+**Given** `plan_generate` job after all personas finish generation  
+**When** stage 3 starts  
+**Then** the progress UI shows Goat's stage: label `Goat · Team Lead`, status like "harmonizing…" → "Done"  
+**And** the copy doesn't suggest an anonymous "steward" without the Lead
 
-### GWT-4 — brief egzekwowany w harmonizacji
+### GWT-4 — brief enforced in harmonization
 
-**Given** `rebuild_plan` z `user_brief` zawierającym wykluczenie badmintona (i/lub skip `badminton_coach` przed generacją)  
-**When** job kończy się success/partial  
-**Then** w gotowym planie **nie ma** kart badmintona na objętych dniach  
-**And** jeśli szkic persony naruszył brief, patche Goata usuwają lub zastępują te pozycje
+**Given** `rebuild_plan` with `user_brief` containing a badminton exclusion (and/or skip `badminton_coach` before generation)  
+**When** the job ends in success/partial  
+**Then** in the ready plan **there are no** badminton cards on the covered days  
+**And** if a persona's draft violated the brief, Goat's patches remove or replace those entries
 
-### GWT-5 — ostateczny głos bez blokady person
+### GWT-5 — final voice without blocking personas
 
-**Given** persona zapisała fragment, potem user prosi Goata o korektę w czacie  
-**When** Goat robi `upsert_plan_items` / przebudowę z briefem  
-**Then** wynik w Plany odzwierciedla decyzję Goata (nadpisanie persony)
+**Given** a persona saved a fragment, then the user asks Goat in chat for a correction  
+**When** Goat does `upsert_plan_items` / rebuild with brief  
+**Then** the result in Plans reflects Goat's decision (persona override)
 
-### GWT-6 — brak regresji tooli
+### GWT-6 — no tool regression
 
 **Given** Goat  
-**When** lista tooli  
-**Then** ma: `get_plan`, `rebuild_plan`, `update_user_profile`, `consult_persona`, **`upsert_plan_items`**  
-**And** nadal **nie** ma `log_result`  
-**And** trener nadal **nie** ma `rebuild_plan` / `consult_persona`
+**When** tool list  
+**Then** has: `get_plan`, `rebuild_plan`, `update_user_profile`, `consult_persona`, **`upsert_plan_items`**  
+**And** still **doesn't** have `log_result`  
+**And** the trainer still **doesn't** have `rebuild_plan` / `consult_persona`
 
-## Podejście (wariant 1 — zaakceptowany)
+## Approach (variant 1 — accepted)
 
 ```mermaid
 sequenceDiagram
     participant U as User
     participant G as Goat chat
-    participant P as Persony (szkice)
-    participant H as Goat harmonizacja
+    participant P as Personas (drafts)
+    participant H as Goat harmonization
 
-    U->>G: bez badmintona / przebuduj
+    U->>G: no badminton / rebuild
     G->>P: rebuild_plan + user_brief
     P-->>H: draft items
-    H->>H: patche / delete wg briefu
-    H-->>U: plan w Plany
-    opt korekta w czacie
-        U->>G: popraw dzień X
-        G->>G: upsert_plan_items (dowolna persona)
+    H->>H: patches / delete per brief
+    H-->>U: plan in Plans
+    opt correction in chat
+        U->>G: fix day X
+        G->>G: upsert_plan_items (any persona)
     end
 ```
 
 ### Chat
 
-- Dodać `upsert_plan_items` do `TEAM_LEAD_CHAT_TOOL_NAMES` / `get_team_lead_plan_tools()`.
-- Handler: Goat może wskazać **dowolne** `persona_id` z aktywnego rosteru (walidacja jak dziś `allowed_persona_ids`).
-- Prompt Goata: persony mogą zapisywać szkice; **ostateczny układ** ustala Goat (`upsert` lub `rebuild_plan` + brief).
-- `consult_persona` nadal rzadko (bez zmiany z 2026-08-17).
+- Add `upsert_plan_items` to `TEAM_LEAD_CHAT_TOOL_NAMES` / `get_team_lead_plan_tools()`.
+- Handler: Goat may point to **any** `persona_id` from the active roster (validation as today's `allowed_persona_ids`).
+- Goat's prompt: personas can save drafts; the **final layout** is set by Goat (`upsert` or `rebuild_plan` + brief).
+- `consult_persona` still rare (no change from 2026-08-17).
 
-### Pipeline (bez zmiany kolejności ADR-2)
+### Pipeline (no change to ADR-2 ordering)
 
-1. Coordinator skeleton (może dostać `user_brief` — już częściowo).  
-2. Per-persona generate (z briefem; skip ról wykluczonych).  
-3. Harmonizacja: **prompt i semantyka = Goat · Kierownik** (nie „anonimowy zarządca”); input = draft + brief; output = targeted patches (+ ewentualnie delete pustych / konfliktowych pozycji jeśli schema na to pozwala — minimalnie: patch title/rows na regenerację / rest).
+1. Coordinator skeleton (can receive `user_brief` — partially already).
+2. Per-persona generate (with brief; skip excluded roles).
+3. Harmonization: **prompt and semantics = Goat · Lead** (not "anonymous steward"); input = draft + brief; output = targeted patches (+ optionally delete empty / conflicting entries if schema allows — minimally: patch title/rows on regeneration / rest).
 
-### Frontend Plany
+### Frontend Plans
 
-- `PlanGenerationPersonaProgress`: zamiast / obok pigułki „Harmonizacja planu…” — wiersz **Goat · Kierownik Zespołu** z fazą harmonizacji.  
-- Źródło statusu: istniejący sygnał joba (gdy persony 100% i job jeszcze `running` / flaga harmonizacji) albo jawne pole w API joba jeśli potrzebne (preferuj bez migracji: heurystyka FE `personas all done && job running` → Goat harmonizuje).
+- `PlanGenerationPersonaProgress`: instead of / alongside the "Plan harmonization…" pill — row **Goat · Team Lead** with harmonization phase.  
+- Status source: existing job signal (when personas 100% and job still `running` / harmonization flag) or explicit field in job API if needed (prefer without migration: FE heuristic `personas all done && job running` → Goat is harmonizing).
 
-### Poza zakresem (tej iteracji)
+### Out of scope (this iteration)
 
-- Osobna tabela „Goat plan items” / `persona_id` systemowy w DB.  
-- Wariant 2 (Goat-first skeleton jako osobny pełny pass przed personami).  
-- Dezaktywacja persony badminton w profilu usera (brief + skip + harmonizacja wystarczą).
+- Separate "Goat plan items" table / system `persona_id` in DB.
+- Variant 2 (Goat-first skeleton as a separate full pass before personas).
+- Deactivating the badminton persona in the user profile (brief + skip + harmonization suffice).
 
-## Pliki (orientacyjnie)
+## Files (orientation)
 
-| Warstwa | Pliki |
-|---------|--------|
-| Tools / orchestrator chat | `tools.py`, `orchestrator.py`, `team_lead.py` (prompt) |
+| Layer | Files |
+|-------|-------|
+| Tools / chat orchestrator | `tools.py`, `orchestrator.py`, `team_lead.py` (prompt) |
 | Plan pipeline | `plans/orchestrator.py` (`_run_harmonization` prompt + brief) |
-| FE | `PlanGenerationPersonaProgress.tsx`, ewentualnie `chat-status.ts` |
-| Testy | `test_chat_tools_schema.py`, testy promptu Goata, unit harmonizacji brief→exclude, FE status |
+| FE | `PlanGenerationPersonaProgress.tsx`, possibly `chat-status.ts` |
+| Tests | `test_chat_tools_schema.py`, Goat prompt tests, brief→exclude harmonization unit, FE status |
 | Docs | `team-lead.md`, ADR-17 delta, `ai-pipeline.md` § plan |
 
-## Decyzje
+## Decisions
 
-| Data | Decyzja | Dlaczego |
-|------|---------|----------|
-| 2026-08-17 | Wariant 1 (nie Goat-first / nie Goat-only writer) | Mały diff, ADR-2 zostaje, persony zostają autorami szkiców |
-| 2026-08-17 | Persony **mogą** `upsert`; Goat ma **ostateczny głos** | Product: eksperci zapisują, kierownik koryguje |
-| 2026-08-17 | Harmonizacja UI = Goat, nie anonim | Feeling „kierownik ogarnia” spójny z czatem |
-| 2026-08-17 | Bez nowej migracji jeśli da się heurystyką FE + prompt BE | Szybkość; job personas już istnieją |
+| Date | Decision | Why |
+|------|----------|-----|
+| 2026-08-17 | Variant 1 (not Goat-first / not Goat-only writer) | Small diff, ADR-2 stays, personas stay authors of drafts |
+| 2026-08-17 | Personas **can** `upsert`; Goat has **final voice** | Product: experts save, lead corrects |
+| 2026-08-17 | Harmonization UI = Goat, not anonymous | Feeling "lead handles it" consistent with chat |
+| 2026-08-17 | No new migration if FE heuristic + BE prompt suffice | Speed; personas jobs already exist |
 
-## Ryzyka
+## Risks
 
-| Ryzyko | Mitygacja |
-|--------|-----------|
-| Badminton „błyska” w postępie zanim Goat wytnie | `user_brief` skip roli przed generate + egzekucja w harmonizacji |
-| Goat upsert złej persony | Twarda walidacja `allowed_persona_ids` / roster |
-| Schema patches nie umie „delete” | Patch na rest/empty + ewentualnie rozszerzenie schema o `action: delete` w tej samej iteracji jeśli test tego wymaga |
+| Risk | Mitigation |
+|------|------------|
+| Badminton "flashes" in progress before Goat cuts it | `user_brief` role skip before generate + enforcement in harmonization |
+| Goat upserts a wrong persona | Hard `allowed_persona_ids` / roster validation |
+| Patches schema can't "delete" | Patch on rest/empty + possibly extending schema with `action: delete` in this iteration if tests require |

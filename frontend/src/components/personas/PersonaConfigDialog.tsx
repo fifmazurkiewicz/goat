@@ -12,7 +12,7 @@ interface PersonaConfigDialogProps {
   onEdit?: (persona: Persona) => void;
 }
 
-/** Konfiguracja persony — warstwa usera (styl, profil, detail). Bez safety/constraints. */
+/** Persona configuration — user-facing layer (style, profile, detail). No safety/constraints. */
 export function PersonaConfigDialog({ persona, onOpenChange, onEdit }: PersonaConfigDialogProps) {
   const { data: userProfile } = useUserProfile();
 

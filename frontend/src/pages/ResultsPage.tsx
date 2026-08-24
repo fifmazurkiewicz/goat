@@ -19,9 +19,9 @@ import { PAGE_SHELL_CLASS, PAGE_TITLE_CLASS } from "@/lib/layout";
 import type { ResultCategory } from "@/types/api";
 
 /**
- * Taby kategorii z aktywnych person usera (+ kategorie z już zapisanych wyników),
- * wykres liniowy per metryka (ADR-9) i tabela z edycją inline
- * (docs/technical/frontend.md sekcja 6).
+ * Category tabs from the user's active personas (+ categories from already saved results),
+ * per-metric line chart (ADR-9) and table with inline editing
+ * (docs/technical/frontend.md section 6).
  */
 export default function ResultsPage() {
   const { data: personasData, isLoading: personasLoading } = usePersonas();

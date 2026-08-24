@@ -47,9 +47,9 @@ function makeDayButton(items: PlanItem[]) {
 }
 
 /**
- * Desktop opcja — `react-day-picker` / shadcn `Calendar` WYŁĄCZNIE dla `MonthGridView`
- * (docs/technical/frontend.md sekcja 5). Kropka pod dniem sygnalizuje istnienie
- * `plan_item` bez otwierania panelu.
+ * Desktop option — `react-day-picker` / shadcn `Calendar` ONLY for `MonthGridView`
+ * (docs/technical/frontend.md section 5). A dot under the day signals that a
+ * `plan_item` exists without opening a panel.
  */
 export function MonthGridView({ month, selectedDate, onSelectDate, onMonthChange, items }: MonthGridViewProps) {
   return (

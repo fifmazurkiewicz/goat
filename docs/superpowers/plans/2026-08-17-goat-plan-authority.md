@@ -2,20 +2,20 @@
 
 > **For agentic workers:** TDD per task. Spec: `docs/superpowers/specs/2026-08-17-goat-plan-authority-design.md`
 
-**Goal:** Goat ma ostateczny głos nad planem — `upsert_plan_items` w czacie + harmonizacja pipeline jako Goat (+ egzekucja `user_brief`).
+**Goal:** Goat has the final voice over the plan — `upsert_plan_items` in chat + pipeline harmonization as Goat (+ `user_brief` enforcement).
 
-**Architecture:** ADR-2 bez zmiany kolejności. Persony szkicują; Goat patchuje/usuwa. FE pokazuje wiersz Goata w postępie.
+**Architecture:** ADR-2 without changing the order. Personas sketch; Goat patches/removes. FE shows Goat's row in progress.
 
-**Tech Stack:** FastAPI, OpenRouter planer, React/Vite Plans UI
+**Tech Stack:** FastAPI, OpenRouter planner, React/Vite Plans UI
 
 ## Global Constraints
 
-- Persony nadal mogą `upsert_plan_items` (tylko swoje).
-- Goat: `upsert` na dowolną aktywną personę (wymagane `persona_id` w entry).
-- Bez migracji DB jeśli da się heurystyką FE.
-- PL copy: `Goat · Kierownik Zespołu`
+- Personas can still `upsert_plan_items` (their own only).
+- Goat: `upsert` on any active persona (`persona_id` required in entry).
+- No DB migration if FE heuristic is enough.
+- PL copy: `Goat · Team Lead`
 
-### Task 1: Tools — Goat ma upsert
-### Task 2: Harmonizacja Goat + brief delete
-### Task 3: FE postęp
+### Task 1: Tools — Goat has upsert
+### Task 2: Harmonization Goat + brief delete
+### Task 3: FE progress
 ### Task 4: Docs + verify + push

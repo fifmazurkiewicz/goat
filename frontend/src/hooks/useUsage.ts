@@ -7,9 +7,9 @@ import type { UsageLimits } from "@/types/api";
 export const USAGE_QUERY_KEY = ["usage"] as const;
 
 /**
- * Budżet USD per konto (`profiles.usage_budget_usd`, ADR-16) + zużycie bieżącego okresu.
- * Zasila `useUsageLimitsStore` (badge "90% budżetu"). Odświeżany też po 429
- * (`useChatStream` wywołuje `queryClient.invalidateQueries(USAGE_QUERY_KEY)`).
+ * USD budget per account (`profiles.usage_budget_usd`, ADR-16) + current period usage.
+ * Feeds `useUsageLimitsStore` ("90% of budget" badge). Also refreshed after 429
+ * (`useChatStream` calls `queryClient.invalidateQueries(USAGE_QUERY_KEY)`).
  */
 export function useUsage() {
   const setLimits = useUsageLimitsStore((state) => state.setLimits);

@@ -1,9 +1,10 @@
-"""Kontrakt `GET /exercises` — `common_mistakes` nullable (import free-exercise-db, 2026-08-23).
+"""Contract for `GET /exercises` — `common_mistakes` nullable (free-exercise-db import, 2026-08-23).
 
-Import ~868 ćwiczeń z yuhonas/free-exercise-db (Unlicense) ma `common_mistakes = NULL`
-(dataset nie zawiera tej treści — nie zmyślamy porad technicznych). Regresja, którą łapie
-ten test: bez `str | None` w `ExerciseOut` FastAPI wywaliłby się na walidacji albo FE
-(types/api.ts) kłamałby typem `string`, a sekcja „Częste błędy" renderowałaby pusty tekst.
+The import of ~868 exercises from yuhonas/free-exercise-db (Unlicense) has
+`common_mistakes = NULL` (the dataset lacks this content — we don't fabricate technical tips).
+Regression this test catches: without `str | None` in `ExerciseOut` FastAPI would crash on
+validation, or the FE (types/api.ts) would lie about the `string` type and the "Common mistakes"
+section would render empty text.
 """
 
 from __future__ import annotations
@@ -37,7 +38,7 @@ def _exercise_row(*, slug: str, common_mistakes: str | None, raw_id: object) -> 
 
 @pytest.fixture
 def _patched(monkeypatch: pytest.MonkeyPatch):
-    """Fake repo + RLS + auth dla routera list_exercises."""
+    """Fake repo + RLS + auth for the list_exercises router."""
 
     @asynccontextmanager
     async def fake_rls(_claims: object):
@@ -49,17 +50,17 @@ def _patched(monkeypatch: pytest.MonkeyPatch):
 
         async def list_all(self, **_kwargs: object):
             return [
-                # Importowany z datasetu — brak treści "Częste błędy".
+                # Imported from the dataset — no "Common mistakes" content.
                 _exercise_row(
                     slug="barbell-squat",
                     common_mistakes=None,
-                    # Symulacja prawdziwej kolumny `uuid` w DB — asyncpg/SQLAlchemy
-                    # zwracają UUID, nie str. Konwersja musi działać w `_to_out`,
-                    # bo inaczej Pydantic rzuci ValidationError i endpoint zwróci 500
-                    # z maskowanym body (handle_unexpected_error). Regresja z 2026-08-24.
+                    # Simulation of a real `uuid` column in DB — asyncpg/SQLAlchemy
+                    # return UUID, not str. Conversion must work in `_to_out`,
+                    # otherwise Pydantic raises ValidationError and the endpoint returns
+                    # 500 with masked body (handle_unexpected_error). Regression from 2026-08-24.
                     raw_id=UUID("f9c6dcdc-f3f6-4134-8aae-f6908ffb49ac"),
                 ),
-                # Ręczny wpis kuratorowany — wartość obecna, klasyczny string-id.
+                # Manually curated entry — value present, classic string-id.
                 _exercise_row(
                     slug="serw-krotki-technika",
                     common_mistakes="Zbyt duży zamach.",
@@ -93,7 +94,7 @@ async def test_exercises_endpoint_serializes_null_common_mistakes(_patched) -> N
     assert imported["name"] == "Przysiad ze sztangą"
     assert imported["name_en"] == "Barbell Squat"
     assert str(imported["photo_path"]).endswith("free-exercise-db/Barbell_Squat/0.jpg")
-    # UUID z DB musi być serializowany jako string w JSON, nie rzucony do klienta.
+    # UUID from DB must be serialized as a string in JSON, not thrown at the client.
     assert imported["id"] == "f9c6dcdc-f3f6-4134-8aae-f6908ffb49ac"
     assert isinstance(imported["id"], str)
     manual = next(e for e in exercises if e["slug"] == "serw-krotki-technika")

@@ -1,8 +1,8 @@
-"""Wspólne mapowanie typów asyncpg → DTO (str/float).
+"""Shared asyncpg -> DTO type coercion (str/float).
 
-asyncpg zwraca `uuid.UUID` i `Decimal` — Pydantic `response_model` z polami `str`/`float`
-rzuca ResponseValidationError (500). Przeglądarka często pokazuje to jako „CORS Missing
-Allow Origin”, bo odpowiedź błędu bywa bez ACAO. Ten sam wzorzec co w `templates_repo`.
+asyncpg returns `uuid.UUID` and `Decimal` — Pydantic `response_model` with `str`/`float`
+fields throws ResponseValidationError (500). Browsers often display this as "CORS Missing
+Allow Origin", because the error response is missing the ACAO header. Same pattern as in `templates_repo`.
 """
 
 from __future__ import annotations

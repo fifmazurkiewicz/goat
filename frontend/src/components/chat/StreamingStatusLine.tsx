@@ -5,7 +5,7 @@ interface StreamingStatusLineProps {
   className?: string;
 }
 
-/** Jedna linia statusu podczas ciszy streamu (routing / myślenie / tool) — znika przy tokenach. */
+/** Single status line shown during stream silence (routing / thinking / tool) — disappears when tokens arrive. */
 export function StreamingStatusLine({ label, className }: StreamingStatusLineProps) {
   return (
     <div

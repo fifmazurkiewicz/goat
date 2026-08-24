@@ -1,130 +1,130 @@
-# Design: Goat konsultuje personę (tool `consult_persona`)
+# Design: Goat consults a persona (tool `consult_persona`)
 
-**Data:** 2026-08-16  
-**Status:** wdrożone (2026-08-16)  
-**Kanon po wdrożeniu:** [docs/technical/team-lead.md](../../technical/team-lead.md) · ADR-17 (nowelizacja)
+**Date:** 2026-08-16  
+**Status:** implemented (2026-08-16)  
+**Canon after implementation:** [docs/technical/team-lead.md](../../technical/team-lead.md) · ADR-17 (amendment)
 
-> **Delta względem** [2026-08-04-team-lead-chat-design.md](./2026-08-04-team-lead-chat-design.md): w sesji `general` **bez `/slug`** Goat nie jest już relayerem cytatów trenerów. Jest jedynym głosem; specjalistę dopytuje narzędziem `consult_persona`.
+> **Delta relative to** [2026-08-04-team-lead-chat-design.md](./2026-08-04-team-lead-chat-design.md): in `general` session **without `/slug`** Goat is no longer a relayer of trainer quotes. It is the only voice; it consults a specialist with the `consult_persona` tool.
 
 ## Problem
 
-User rozmawia o motoryce, a w czacie „odzywa się” dietetyk. Przyczyna: `TeamLeadService.plan_consultation` **najpierw wybiera mówcę**, potem tura tej persony (nawet backstage) ląduje w UI jako treść Goata (`format_goat_relay`). Fallback przy błędzie LLM to `ids[0]` (często dietetyk). Feeling: rozmowa z trenerem, nie z kierownikiem.
+The user talks about motor skills, and the dietitian "speaks up" in chat. Cause: `TeamLeadService.plan_consultation` **first picks the speaker**, then that persona's turn (even backstage) lands in the UI as Goat content (`format_goat_relay`). The fallback on LLM error is `ids[0]` (often the dietitian). Feeling: a conversation with the trainer, not with the lead.
 
-## Cel
+## Goal
 
-| Sytuacja | Kto mówi userowi |
-|----------|------------------|
-| Ogólna rozmowa, **bez** `/slug` | **Wyłącznie Goat** (`persona_id=null`) |
-| Goat potrzebuje eksperta | Tool `consult_persona` — trener za kulisami; Goat składa odpowiedź |
-| `/slug` / multi-slash | Wybrana persona bezpośrednio (bez zmian) |
-| Sesja `persona` (1:1) | Persona; Goat nie uczestniczy |
-| Prośba o plan | Goat woła `rebuild_plan` w **swojej** turze (bez osobnej pętli trenerów) |
+| Situation | Who speaks to the user |
+|-----------|------------------------|
+| General conversation, **without** `/slug` | **Goat exclusively** (`persona_id=null`) |
+| Goat needs an expert | Tool `consult_persona` — trainer backstage; Goat composes the answer |
+| `/slug` / multi-slash | Selected persona directly (unchanged) |
+| `persona` session (1:1) | Persona; Goat doesn't participate |
+| Plan request | Goat calls `rebuild_plan` in **its own** turn (without a separate trainer loop) |
 
-UX statusu (akceptacja 2026-08-16): **„Goat konsultuje z {etykieta persony}…”**.
+Status UX (acceptance 2026-08-16): **"Goat is consulting with {persona label}…"**.
 
-## Wymagania (Given / When / Then)
+## Requirements (Given / When / Then)
 
-### GWT-1 — domyślny głos to Goat
+### GWT-1 — default voice is Goat
 
-**Given** sesja `session_type=general` i wiadomość bez `/slug`  
-**When** user wysyła dowolne pytanie (w tym motoryka, dieta, siła)  
-**Then** każda widoczna wiadomość asystenta ma `persona_id=null` i etykietę `Goat · Kierownik Zespołu`  
-**And** w UI nie pojawia się bubble z etykietą trenera (Dietetyk / Motoryka itd.)
+**Given** `session_type=general` session and a message without `/slug`  
+**When** the user sends any question (including motor skills, diet, strength)  
+**Then** every visible assistant message has `persona_id=null` and label `Goat · Team Lead`  
+**And** no bubble with a trainer label appears in the UI (Dietitian / Motor Skills etc.)
 
-### GWT-2 — motoryka nie woła dietetyka jako mówcy
+### GWT-2 — motor skills doesn't call the dietitian as a speaker
 
-**Given** aktywne persony: dietetyk + `motor_coach` (i opcjonalnie inne)  
-**When** user pyta o plyometrię / motorykę / skok / bieganie (bez slashy)  
-**Then** jeśli Goat konsultuje, `consult_persona` wskazuje `motor_coach` (slug tej persony), **nie** dietetyka  
-**And** user nadal widzi tylko Goata; status: `Goat konsultuje z {Trener motoryczny}…`
+**Given** active personas: dietitian + `motor_coach` (and optionally others)  
+**When** the user asks about plyometrics / motor skills / jumping / running (without slash)  
+**Then** if Goat consults, `consult_persona` points to `motor_coach` (that persona's slug), **not** the dietitian  
+**And** the user still sees only Goat; status: `Goat is consulting with {Motor Skills Trainer}…`
 
-### GWT-3 — tool consult
+### GWT-3 — consult tool
 
-**Given** tura Goata w `general` bez slashy  
-**When** model woła `consult_persona` z `slug` aktywnej persony i `question`  
-**Then** serwer uruchamia turę tej persony **bez** streamu tokenów do usera (`client_visible=false`)  
-**And** wynik wraca jako tool response (tekst trenera) do Goata  
-**And** Goat kontynuuje stream i odpowiada userowi swoim głosem  
-**And** odpowiedź trenera **nie** jest zapisywana jako widoczna wiadomość `assistant` w sesji
+**Given** Goat's turn in `general` without slash  
+**When** the model calls `consult_persona` with the slug of an active persona and `question`  
+**Then** the server runs that persona's turn **without** a token stream to the user (`client_visible=false`)  
+**And** the result returns as a tool response (trainer text) to Goat  
+**And** Goat continues streaming and answers the user in its own voice  
+**And** the trainer's answer **is not** saved as a visible `assistant` message in the session
 
-### GWT-4 — zły slug / nieaktywna persona
+### GWT-4 — bad slug / inactive persona
 
-**Given** Goat woła `consult_persona` z nieistniejącym lub nieaktywnym slugiem  
-**When** serwer waliduje argumenty  
-**Then** tool response to JSON `{ "error": "…" }` (bez 500)  
-**And** tura Goata trwa dalej
+**Given** Goat calls `consult_persona` with a non-existent or inactive slug  
+**When** the server validates arguments  
+**Then** tool response is JSON `{ "error": "…" }` (no 500)  
+**And** Goat's turn continues
 
-### GWT-5 — slash bez zmian
+### GWT-5 — slash unchanged
 
-**Given** wiadomość `/motoryka …` (lub inny slug aktywnej persony)  
-**When** tura się wykonuje  
-**Then** user widzi tę personę bezpośrednio (`persona_id` ustawione)  
-**And** `consult_persona` nie jest używane (Goat nie startuje)
+**Given** a message `/motor-skills …` (or another slug of an active persona)  
+**When** the turn runs  
+**Then** the user sees that persona directly (`persona_id` set)  
+**And** `consult_persona` isn't used (Goat doesn't start)
 
 ### GWT-6 — roundtable
 
-**Given** user prosi „niech każdy” / o skład zespołu  
-**When** Goat odpowiada  
-**Then** Goat konsultuje **wszystkich** aktywnych trenerów (kolejne `consult_persona` w tej samej turze)  
-**And** user dostaje **jedną** wiadomość Goata (jeden bubble), nie N cytatów trenerów
+**Given** the user asks for "let everyone speak" / for a team composition  
+**When** Goat answers  
+**Then** Goat consults **all** active trainers (consecutive `consult_persona` in the same turn)  
+**And** the user gets **one** Goat message (one bubble), not N trainer quotes
 
 ### GWT-7 — plan
 
-**Given** „ułóż plan na sierpień” bez pytań merytorycznych  
-**When** Goat ma `rebuild_plan`  
-**Then** woła `rebuild_plan` i potwierdza; nie musi konsultować trenerów  
-**And** gdy w tej samej wiadomości jest też pytanie merytoryczne — może dodatkowo `consult_persona`
+**Given** "build a plan for August" without merit questions  
+**When** Goat has `rebuild_plan`  
+**Then** calls `rebuild_plan` and confirms; doesn't have to consult trainers  
+**And** when the same message also includes a merit question — it may additionally `consult_persona`
 
-### GWT-8 — trener nie konsultuje
+### GWT-8 — trainer doesn't consult
 
-**Given** tura persony (slash lub sesja 1:1 lub zagnieżdżony consult)  
-**When** model próbuje `consult_persona`  
-**Then** narzędzie nie jest w schemacie trenera; jeśli mimo to wywołane — `{ "error": "…" }`
+**Given** a persona turn (slash or 1:1 session or nested consult)  
+**When** the model tries `consult_persona`  
+**Then** the tool isn't in the trainer's schema; if it's called anyway — `{ "error": "…" }`
 
-## Architektura
+## Architecture
 
 ```mermaid
 sequenceDiagram
     actor U as User
     participant GO as Goat
     participant T as consult_persona
-    participant TR as Trener (backstage)
+    participant TR as Trainer (backstage)
 
-    U->>GO: wiadomość (general, bez slash)
-    GO-->>U: tokeny (głos Goata)
-    opt potrzebny ekspert
+    U->>GO: message (general, no slash)
+    GO-->>U: tokens (Goat's voice)
+    opt expert needed
         GO->>T: slug + question
         T->>TR: handle_message client_visible=false
-        TR-->>T: tekst
+        TR-->>T: text
         T-->>GO: tool response
-        Note over U: status „Goat konsultuje z {persona}…”
-        GO-->>U: dalsze tokeny (synteza)
+        Note over U: status "Goat is consulting with {persona}…"
+        GO-->>U: further tokens (synthesis)
     end
 ```
 
-Jedna tura SSE: `persona_turn_start` **tylko** dla Goata (`persona_id: null`). Zagnieżdżony trener **nie** emituje `persona_turn_start` / `token` na kolejkę usera.
+One SSE turn: `persona_turn_start` **only** for Goat (`persona_id: null`). A nested trainer **doesn't** emit `persona_turn_start` / `token` on the user queue.
 
-### Komponenty
+### Components
 
-| Jednostka | Odpowiedzialność | Zależności |
-|-----------|------------------|------------|
+| Unit | Responsibility | Dependencies |
+|------|----------------|--------------|
 | `consult_persona` schema | OpenRouter function: `slug`, `question` | `tools.py` |
-| `ChatOrchestrator._run_single_tool` | Walidacja slug → aktywna persona; uruchomienie backstage | `handle_message` z `client_visible=false`, **osobna** kolejka (discard) albo flaga `emit_sse=false` |
-| `run_chat_turn` (`general`, bez slash) | **Tylko** `TeamLeadSpeaker` — bez pętli trenerów, bez `format_goat_relay` | `parse_multi_slash_command` zostaje dla slash |
-| Prompt Goata | Roster aktywnych (slug, typ, zakres z `persona_scope`) + kiedy konsultować | `TEAM_LEAD_SYSTEM` zastępuje klasyfikator JSON |
-| FE status/chip | `consult_persona` → „Goat konsultuje z {label}…” / chip „Konsultacja” | `chat-status.ts`, payload `tool_result.summary` z BE |
+| `ChatOrchestrator._run_single_tool` | Slug validation → active persona; run backstage | `handle_message` with `client_visible=false`, **separate** queue (discard) or flag `emit_sse=false` |
+| `run_chat_turn` (`general`, without slash) | **Only** `TeamLeadSpeaker` — no trainer loop, no `format_goat_relay` | `parse_multi_slash_command` stays for slash |
+| Goat prompt | Active roster (slug, type, scope from `persona_scope`) + when to consult | `TEAM_LEAD_SYSTEM` replaces the JSON classifier |
+| FE status/chip | `consult_persona` → "Goat is consulting with {label}…" / "Consultation" chip | `chat-status.ts`, payload `tool_result.summary` from BE |
 
 ### Tool `consult_persona`
 
 ```json
 {
   "name": "consult_persona",
-  "description": "Dopytaj jednego aktywnego trenera usera (za kulisami). Wołaj gdy potrzebujesz szczegółu z JEGO zakresu. Motoryka/plyometria/bieganie/skok → motor_coach; dieta/makro → dietitian; siła/hipertrofia → personal_trainer. Nie wołaj złej roli. Po wyniku odpowiedz userowi SAM jako Goat — nie cytuj trenera w całości.",
+  "description": "Ask one of the user's active trainers (backstage). Call when you need a detail from THEIR scope. Motor skills/plyometrics/running/jump → motor_coach; diet/macros → dietitian; strength/hypertrophy → personal_trainer. Don't call the wrong role. After the result, answer the user YOURSELF as Goat — don't quote the trainer in full.",
   "parameters": {
     "type": "object",
     "properties": {
-      "slug": { "type": "string", "description": "Slug aktywnej persony z rosteru." },
-      "question": { "type": "string", "description": "Konkretne pytanie / brief do trenera." }
+      "slug": { "type": "string", "description": "Slug of an active persona from the roster." },
+      "question": { "type": "string", "description": "Specific question / brief to the trainer." }
     },
     "required": ["slug", "question"],
     "additionalProperties": false
@@ -132,80 +132,80 @@ Jedna tura SSE: `persona_turn_start` **tylko** dla Goata (`persona_id: null`). Z
 }
 ```
 
-**Tylko Goat.** Dodać do `TEAM_LEAD_CHAT_TOOL_NAMES` / `get_team_lead_plan_tools()`. Nie dodawać do `get_chat_tools()` ogólnego zestawu trenerów (albo dodać do pełnej listy i wyciąć u trenerów — byle trener nie miał tego toola).
+**Goat only.** Add to `TEAM_LEAD_CHAT_TOOL_NAMES` / `get_team_lead_plan_tools()`. Don't add to the generic trainer `get_chat_tools()` set (or add to the full list and cut out for trainers — as long as the trainer doesn't have this tool).
 
-**Limit:** max **5** wywołań `consult_persona` na turę Goata (= max person usera). Twardy licznik w `_run_single_tool`; dalsze → error JSON. Preferowane: Goat emituje N tool_calls w **jednej** rundzie (orchestrator i tak wykonuje je sekwencyjnie). `chat_max_tool_rounds` (4) zostaje jako bezpiecznik rund LLM Goata.
+**Limit:** max **5** `consult_persona` calls per Goat turn (= max personas per user). Hard counter in `_run_single_tool`; further → error JSON. Preferred: Goat emits N tool_calls in **one** round (the orchestrator runs them sequentially anyway). `chat_max_tool_rounds` (4) stays as the LLM round safety catch for Goat.
 
-**Rekurencja:** zagnieżdżona tura trenera **nie** dostaje `consult_persona`. Brak consult-in-consult.
+**Recursion:** a nested trainer turn **does not** receive `consult_persona`. No consult-in-consult.
 
-**Persistencja consultu:** ephemeral. Nie `insert_assistant_message` z `persona_id` trenera do sesji `general` (to pokazałoby dietetyka w historii). Kontekst trenera: system prompt (profil, plan, wyniki) jak dziś; historia 1:1 tej persony **nie** jest wymagana w v1.
+**Consult persistence:** ephemeral. No `insert_assistant_message` with the trainer's `persona_id` to the `general` session (that would show the dietitian in history). Trainer context: system prompt (profile, plan, results) as today; that persona's 1:1 history **is not** required in v1.
 
-**SSE przy consult:**
+**SSE on consult:**
 
 ```ts
 { type: "tool_call_start", name: "consult_persona" }
-{ type: "persona_status", persona_id: null, persona_label: "Goat · Kierownik Zespołu",
-  phase: "tool", message: "Goat konsultuje z Anna · Trener motoryczny…", tool_name: "consult_persona" }
-{ type: "tool_result", tool_name: "consult_persona", summary: "Skonsultowano: Anna · Trener motoryczny", success: true }
+{ type: "persona_status", persona_id: null, persona_label: "Goat · Team Lead",
+  phase: "tool", message: "Goat is consulting with Anna · Motor Skills Trainer…", tool_name: "consult_persona" }
+{ type: "tool_result", tool_name: "consult_persona", summary: "Consulted: Anna · Motor Skills Trainer", success: true }
 ```
 
-`persona_id` w tych eventach zawsze `null` (Goat). Etykieta trenera jest **w tekście statusu**, nie jako mówca.
+`persona_id` in these events is always `null` (Goat). The trainer's label is **in the status text**, not as a speaker.
 
-### Routing slash (bez zmian)
+### Slash routing (unchanged)
 
-`parse_multi_slash_command` → pętla person z `client_visible=true`. Multi-slash: sekwencja widocznych tur person (nie Goat). Plan-only + slash: Goat nie przejmuje — user wybrał persony; `rebuild_plan` nadal tylko u Goata, więc w slash persona może tylko `upsert_plan_items` / odesłać do Ogólnej rozmowy (istniejący trade-off ADR-17; nie rozszerzamy w tej iteracji).
+`parse_multi_slash_command` → persona loop with `client_visible=true`. Multi-slash: sequence of visible persona turns (not Goat). Plan-only + slash: Goat doesn't take over — the user selected personas; `rebuild_plan` is still only Goat's, so in slash a persona can only `upsert_plan_items` / refer back to General conversation (existing ADR-17 trade-off; not extended in this iteration).
 
-### Usunięcia (ta iteracja)
+### Removals (this iteration)
 
-| REMOVED z ścieżki `general` bez slash | Powód |
-|--------------------------------------|--------|
-| `TeamLeadService.plan_consultation` jako wybór mówcy | Goat sam decyduje toolami |
-| `format_goat_relay` / `_relay_trainer_response_via_goat` | Koniec cytatów „Po konsultacji z Dietetykiem przekazuję” |
-| Pętla trenerów po klasyfikatorze | Źródło feeling „odzywa się dietetyk” |
-| Bypass „1 aktywna persona = tura tej persony” | Nadal Goat; może skonsultować jedyną personę |
-| Status `{slug} analizuje…` | Zawsze „Goat + akcja” |
+| REMOVED from `general` without slash path | Why |
+|----------------------------------------|-----|
+| `TeamLeadService.plan_consultation` as speaker selection | Goat decides with tools itself |
+| `format_goat_relay` / `_relay_trainer_response_via_goat` | End to "After consultation with Dietitian I pass on" quotes |
+| Trainer loop after classifier | Source of the feeling "dietitian speaks up" |
+| "1 active persona = that persona's turn" bypass | Still Goat; can consult the single persona |
+| Status `{slug} is analyzing…` | Always "Goat + action" |
 
-Heurystyki `user_requests_plan_rebuild` / `user_requests_all_trainers` **zostają** jako wskazówki w system prompt Goata (nie jako wybór speakerów). `build_plan_only_consultation` — usunąć z `run_chat_turn` (plan = tool w turze Goata).
+Heuristics `user_requests_plan_rebuild` / `user_requests_all_trainers` **stay** as hints in Goat's system prompt (not as speaker selection). `build_plan_only_consultation` — remove from `run_chat_turn` (plan = tool in Goat's turn).
 
-`TeamLeadService.complete_json` — martwy na happy path; usunąć lub zostawić nieużywany tylko jeśli testy slash nadal go wołają. Slash nie potrzebuje LLM konsultacji — `plan_consultation` dziś już omija LLM przy slash. Po zmianie `run_chat_turn` nie woła `plan_consultation` wcale.
+`TeamLeadService.complete_json` — dead on happy path; remove or leave unused only if slash tests still call it. Slash doesn't need consultation LLM — `plan_consultation` today already bypasses LLM on slash. After the change `run_chat_turn` doesn't call `plan_consultation` at all.
 
-## Błędy
+## Errors
 
-| Przypadek | Zachowanie |
-|-----------|------------|
-| Zły slug / nieaktywna | tool JSON error, Goat kontynuuje |
-| Timeout / błąd LLM trenera | tool JSON error; Goat mówi, że nie udało się skonsultować, odpowiada na poziomie ogólnym albo proponuje `/slug` |
-| Limit 5 consultów | tool JSON error |
-| `consult_persona` u trenera | brak w schema / error |
-| Budget exceeded w zagnieżdżonej turze | jak dziś (`error` SSE) — tura Goata się kończy błędem budżetu |
+| Case | Behavior |
+|------|----------|
+| Bad slug / inactive | tool JSON error, Goat continues |
+| Timeout / trainer LLM error | tool JSON error; Goat says it failed to consult, answers at a general level or suggests `/slug` |
+| 5 consults limit | tool JSON error |
+| `consult_persona` from a trainer | not in schema / error |
+| Budget exceeded in nested turn | as today (SSE `error`) — Goat's turn ends with budget error |
 
-## Testy
+## Tests
 
-- Backend: schema — Goat ma `consult_persona`, trener nie.
-- Backend: `_run_single_tool` — happy path mock LLM trenera; zły slug; limit 3.
-- Backend: `run_chat_turn` general bez slash — **zero** `persona_turn_start` z nie-null `persona_id`; po motoryce mock Goat woła slug `motor_coach`, nie dietitian.
-- Backend: slash — `persona_id` trenera jak dziś.
-- FE: `toolActionLabel("consult_persona")` + chip; status zawiera „konsultuje z”.
-- Istniejące `test_team_lead.py`: zdjąć asercje relay/klasyfikatora speakerów; zostawić slash, heurystyki planu, `persona_display_label`.
+- Backend: schema — Goat has `consult_persona`, trainer doesn't.
+- Backend: `_run_single_tool` — happy path with mock trainer LLM; bad slug; limit 3.
+- Backend: `run_chat_turn` general without slash — **zero** `persona_turn_start` with non-null `persona_id`; after motor skills mock Goat calls slug `motor_coach`, not dietitian.
+- Backend: slash — trainer `persona_id` as today.
+- FE: `toolActionLabel("consult_persona")` + chip; status contains "is consulting with".
+- Existing `test_team_lead.py`: drop relay/classifier assertions; keep slash, plan heuristics, `persona_display_label`.
 
-## Poza zakresem
+## Out of scope
 
-- Równoległe consulty (zostaje sekwencja w rundzie tooli).
-- Persystencja historii trenera z consultów (v1 ephemeral).
-- Zmiana sesji 1:1 i galerii person.
-- Nowy model LLM / zmiana env.
-- `upsert_plan_items` / `log_result` u Goata — nadal nie; zapis wyniku i pozycji planu zostaje u trenera (consult może je wykonać za kulisami; chip tool_result trenera **nie** wycieka do UI — tylko chip `consult_persona`. Jeśli trener w consultcie zapisze wynik, Goat dostaje to w tekście tool response i może powiedzieć „zapisaliśmy”). Szczegół: zagnieżdżony `handle_message` nie emituje `tool_result` na kolejkę usera.
+- Parallel consults (stays as a sequence in tool round).
+- Trainer history persistence from consults (v1 ephemeral).
+- Changing 1:1 session and persona gallery.
+- New LLM model / env change.
+- `upsert_plan_items` / `log_result` for Goat — still no; result and plan entry saving remains with the trainer (consult can do them backstage; the trainer's `tool_result` chip **doesn't** leak to UI — only the `consult_persona` chip. If a trainer in a consult saves a result, Goat gets it in the tool response text and can say "we saved it"). Detail: nested `handle_message` doesn't emit `tool_result` on the user queue.
 
-## ADR (nowelizacja ADR-17)
+## ADR (ADR-17 amendment)
 
-**Zmiana decyzji (2026-08-16):** W `general` bez slashy **nie ma klasyfikatora speakerów**. Jedna tura `TeamLeadSpeaker` z toolami `get_plan`, `rebuild_plan`, `update_user_profile`, **`consult_persona`**. Trenerzy mówią userowi wyłącznie przez `/slug` lub sesję `persona`.
+**Decision change (2026-08-16):** In `general` without slash **there is no speaker classifier**. One `TeamLeadSpeaker` turn with tools `get_plan`, `rebuild_plan`, `update_user_profile`, **`consult_persona`**. Trainers speak to the user only via `/slug` or `persona` session.
 
-**Supersedes:** `format_goat_relay`, `plan_consultation` jako routing tury, bypass jednej aktywnej persony jako speaker.
+**Supersedes:** `format_goat_relay`, `plan_consultation` as turn routing, bypass of one active persona as speaker.
 
-## Dokumenty do aktualizacji przy wdrożeniu
+## Documents to update on implementation
 
-- `docs/technical/team-lead.md` — nowy diagram + tabela tooli
+- `docs/technical/team-lead.md` — new diagram + tool table
 - `docs/technical/ai-pipeline.md` §1a
 - `docs/adr/decisions.md` ADR-17
 - `docs/technical/architecture.md` §3a (delta)
-- `AGENTS.md` — Goat: consult tool, nie relay
+- `AGENTS.md` — Goat: consult tool, not relay

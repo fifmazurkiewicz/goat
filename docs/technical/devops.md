@@ -1,112 +1,112 @@
-# DevOps i deploy
+# DevOps and deploy
 
 ## 1. Render (backend)
 
-| Ustawienie | Wartość |
+| Setting | Value |
 |---|---|
-| Typ | Web Service, Docker |
+| Type | Web Service, Docker |
 | Root Directory | `backend/` |
 | Region | Frankfurt |
-| Plan | Free na start |
+| Plan | Free at start |
 | Health Check | `/api/health` |
-| Build Filter | `backend/**` (zmiany w frontend/docs nie triggerują redeployu) |
+| Build Filter | `backend/**` (changes in frontend/docs don't trigger redeploy) |
 
-`backend/Dockerfile` z `ca-certificates` (SSL do Supabase), `uvicorn` bindujący `0.0.0.0:$PORT`.
+`backend/Dockerfile` with `ca-certificates` (SSL to Supabase), `uvicorn` binding to `0.0.0.0:$PORT`.
 
-**Decyzja: BEZ osobnego Render Background Workera.** Generowanie planu w tym samym procesie web (`BackgroundTasks`), tabela `plan_generation_jobs`/`plan_generation_job_personas` daje widoczność/retry/partial-success bez potrzeby drugiego serwisu. Uzasadnienie i próg migracji: [`../adr/decisions.md`](../adr/decisions.md#adr-1-generowanie-planu-bez-osobnego-workera).
+**Decision: NO separate Render Background Worker.** Plan generation in the same web process (`BackgroundTasks`), the `plan_generation_jobs`/`plan_generation_job_personas` table gives visibility/retry/partial-success without needing a second service. Justification and migration threshold: [`../adr/decisions.md`](../adr/decisions.md#adr-1-generowanie-planu-bez-osobnego-workera).
 
-**Do zweryfikowania empirycznie po pierwszym wdrożeniu:** czy aktywny `BackgroundTasks` (bez otwartego requestu HTTP) liczy się jako "ruch" chroniący Render Free przed autosleep po 15 min bezczynności. Jeśli nie — długi job może zostać przerwany w połowie; reaper przy starcie aplikacji oznaczy go jako `error` (user klika "generuj ponownie" ręcznie na MVP, bez automatycznego requeue).
+**To be verified empirically after the first deploy:** whether an active `BackgroundTasks` (without an open HTTP request) counts as "traffic" protecting Render Free from autosleep after 15 min of inactivity. If not — a long job may be interrupted mid-way; the reaper on app startup marks it as `error` (user clicks "regenerate" manually in MVP, no automatic requeue).
 
-## 2. SSE na Render Free
+## 2. SSE on Render Free
 
-Realny problem: proxy zrywa idle SSE connections. Rozwiązanie: heartbeat co 15s (`sse-starlette` ma to wbudowane przez `ping=15`), `Cache-Control: no-cache`, `X-Accel-Buffering: no`. Do potwierdzenia empirycznie z symulowaną ciszą 20-30s przed produkcją.
+Real problem: the proxy drops idle SSE connections. Solution: heartbeat every 15s (`sse-starlette` has this built in via `ping=15`), `Cache-Control: no-cache`, `X-Accel-Buffering: no`. To be confirmed empirically with simulated 20–30 s silence before production.
 
 ## 3. Vercel (frontend)
 
-| Ustawienie | Wartość |
+| Setting | Value |
 |---|---|
 | Framework | Vite |
 | Root Directory | `frontend/` |
 | Build/Output | `npm run build` / `dist` |
 | Env prefix | `VITE_` |
-| Plan | **Hobby** (potwierdzone — skala 2-5 userów, użytek niekomercyjny) |
-| Ignored Build Step | pomija build gdy zmiany tylko w `backend/`/`docs/`/`supabase/` |
+| Plan | **Hobby** (confirmed — 2–5 user scale, non-commercial use) |
+| Ignored Build Step | skips build when changes are only in `backend/`/`docs/`/`supabase/` |
 
-SPA (Vite), żadnych Vercel Serverless Functions — wywołania API bezpośrednio z przeglądarki do Render.
+SPA (Vite), no Vercel Serverless Functions — API calls directly from the browser to Render.
 
-**SPA fallback:** `frontend/vercel.json` z `rewrites` → `/index.html` (React Router `createBrowserRouter`). Bez tego odświeżenie `/settings`, `/personas` itd. kończy się `404: NOT_FOUND` na CDN Vercel.
+**SPA fallback:** `frontend/vercel.json` with `rewrites` → `/index.html` (React Router `createBrowserRouter`). Without this, refreshing `/settings`, `/personas` etc. ends with `404: NOT_FOUND` on Vercel CDN.
 
-## 4. Uruchomienie lokalne — WYMAGANE (backend i frontend)
+## 4. Local run — REQUIRED (backend and frontend)
 
-Pełna checklista w [`local-setup.md`](local-setup.md). Zasada: projekt musi dać się uruchomić lokalnie bez Dockera i bez deployu — produkcja nie jest jedynym sposobem pracy.
+Full checklist in [`local-setup.md`](local-setup.md). Rule: the project must run locally without Docker and without deploy — production is not the only way to work.
 
-## 5. Sekrety i zmienne środowiskowe
+## 5. Secrets and environment variables
 
-| Zmienna | Gdzie żyje | Uwagi |
+| Variable | Where it lives | Notes |
 |---|---|---|
-| `DATABASE_URL` | lokalny `.env` (localhost:5432 lub Supabase dev) / Render | Render: przez Supavisor pooler, nie bezpośrednio `db.<ref>.supabase.co` (IPv6-only) |
-| `SUPABASE_URL` | lokalny / Render | |
-| `SUPABASE_JWKS_URL` | lokalny / Render | `PyJWKClient(cache_keys=True, lifespan=300)` — cache, nie fetch przy każdym requeście |
-| `SUPABASE_SERVICE_ROLE_KEY` | **tylko** Render (secret) | Backend-only, Admin API. Nigdy w repo/frontendzie |
+| `DATABASE_URL` | local `.env` (localhost:5432 or Supabase dev) / Render | Render: through Supavisor pooler, not directly `db.<ref>.supabase.co` (IPv6-only) |
+| `SUPABASE_URL` | local / Render | |
+| `SUPABASE_JWKS_URL` | local / Render | `PyJWKClient(cache_keys=True, lifespan=300)` — cache, no fetch per request |
+| `SUPABASE_SERVICE_ROLE_KEY` | **only** Render (secret) | Backend-only, Admin API. Never in repo/frontend |
 | `OPENROUTER_API_KEY` | Render (secret) | |
-| `OPENROUTER_CHAT_MODEL` / `OPENROUTER_PLANNER_MODEL` | Render + `.env.example` | env-driven, nie hardkodowane |
-| `CORS_ORIGINS` | Render | `https://goat.fmazurkiewicz.dev` (+ `http://localhost:3000` gdy testujesz API lokalnie) + regex `*.vercel.app` dla preview |
-| `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_BASE_URL` | Vercel + `frontend/.env.local` | Publiczne, bezpieczne w bundlu (chronione przez RLS) |
-| `APP_VERSION` | opcjonalnie Render/Vercel build | Nadpisuje `backend/VERSION` (semver); domyślnie plik w repo |
+| `OPENROUTER_CHAT_MODEL` / `OPENROUTER_PLANNER_MODEL` | Render + `.env.example` | env-driven, not hardcoded |
+| `CORS_ORIGINS` | Render | `https://goat.fmazurkiewicz.dev` (+ `http://localhost:3000` when testing API locally) + regex `*.vercel.app` for preview |
+| `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_BASE_URL` | Vercel + `frontend/.env.local` | Public, safe in bundle (protected by RLS) |
+| `APP_VERSION` | optionally Render/Vercel build | Overrides `backend/VERSION` (semver); default file in repo |
 
-Zasady: `SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`, `DATABASE_URL`, `SUPABASE_ACCESS_TOKEN` (CLI) — nigdy do repo/frontendu. `.gitignore` obejmuje `.env`, `.env.*` poza `!.env.example`, `frontend/.env.local`, oraz **`/graft/`** (lokalny cache Grafta — ADR-20; nie CI, nie deploy).
+Rules: `SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`, `DATABASE_URL`, `SUPABASE_ACCESS_TOKEN` (CLI) — never in repo/frontend. `.gitignore` covers `.env`, `.env.*` except `!.env.example`, `frontend/.env.local`, and **`/graft/`** (local Graft cache — ADR-20; not CI, not deploy).
 
-### Wersjonowanie semver (panel Admin)
+### Semver versioning (Admin panel)
 
-| Artefakt | Rola |
+| Artifact | Role |
 |---|---|
-| `backend/VERSION` | **Jedyne źródło prawdy** — np. `0.2.0` (MAJOR.MINOR.PATCH) |
-| `backend/pyproject.toml` + `frontend/package.json` | Trzymaj zgodne z `VERSION` (informacyjnie) |
-| Admin → Wersja aplikacji | Wyświetla **v{semver}**; commit GitHub jako metadane diagnostyczne |
+| `backend/VERSION` | **Single source of truth** — e.g. `0.2.0` (MAJOR.MINOR.PATCH) |
+| `backend/pyproject.toml` + `frontend/package.json` | Keep aligned with `VERSION` (informational) |
+| Admin → App version | Displays **v{semver}**; GitHub commit as diagnostic metadata |
 
-Przy release: podnieś `backend/VERSION`, zsynchronizuj `pyproject.toml` / `package.json`, commit, deploy FE + BE. Format: `X.Y.Z` lub pre-release `X.Y.Z-beta.1`.
+On release: bump `backend/VERSION`, synchronize `pyproject.toml` / `package.json`, commit, deploy FE + BE. Format: `X.Y.Z` or pre-release `X.Y.Z-beta.1`.
 
-## 6. Migracje Supabase
+## 6. Supabase migrations
 
-Projekt Supabase: **`goat`** (jeden cloud na start; osobny `goat-dev` tylko gdy świadomie rozdzielisz środowiska). `supabase/migrations/*.sql` jako jedyne źródło prawdy (**nie** Alembic).
+Supabase project: **`goat`** (one cloud at start; separate `goat-dev` only when you consciously split environments). `supabase/migrations/*.sql` as the single source of truth (**not** Alembic).
 
-1. Cloud (aktualny setup): migracje przez SQL Editor albo `supabase link` + `supabase db push` — patrz [`cloud-setup.md`](cloud-setup.md).
-2. CI (`migrations-check` przy każdym PR): Postgres w kontenerze CI, aplikacja migracji od zera.
-3. Kolejne migracje na prod: **ręczny, świadomy krok**, nie auto-apply na push do main.
+1. Cloud (current setup): migrations via SQL Editor or `supabase link` + `supabase db push` — see [`cloud-setup.md`](cloud-setup.md).
+2. CI (`migrations-check` on every PR): Postgres in a CI container, applying all migrations from scratch.
+3. Subsequent migrations to prod: **manual, conscious step**, not auto-applied on push to main.
 
-## 7. Autentykacja — Google OAuth (bez magic linka)
+## 7. Authentication — Google OAuth (no magic link)
 
-**Decyzja:** wyłącznie Google OAuth przez Supabase Auth. Redirecty: `https://goat.fmazurkiewicz.dev/**` (prod); `http://localhost:3000/**` dodajesz gdy wrócisz do local. Szczegóły: [`cloud-setup.md`](cloud-setup.md).
+**Decision:** Google OAuth only via Supabase Auth. Redirects: `https://goat.fmazurkiewicz.dev/**` (prod); add `http://localhost:3000/**` when you go back to local. Details: [`cloud-setup.md`](cloud-setup.md).
 
 ## 8. CI/CD — `.github/workflows/ci.yml`
 
-Trzy równoległe joby (path-filtered):
+Three parallel jobs (path-filtered):
 - `backend-lint-test` — `ruff check`, `ruff format --check`, `mypy` (min. `domain/`, `llm/`), `pytest`.
 - `frontend-lint-build` — `eslint`, `vite build`.
-- `migrations-check` — Postgres w kontenerze CI, aplikacja wszystkich migracji od zera.
+- `migrations-check` — Postgres in a CI container, applying all migrations from scratch.
 
-Deploy do prod automatyczny przez natywne integracje Render/Vercel po merge; migracje prod pozostają ręcznym krokiem (sekcja 6).
+Deploy to prod automatically via native Render/Vercel integrations after merge; prod migrations remain a manual step (section 6).
 
 ## 9. Monitoring
 
-Logi Render (wbudowane), Sentry free tier (backend Python SDK + frontend React SDK), health check monitorowany natywnie przez Render, limit wydatków ustawiony w panelu OpenRouter (soft limit + alert mailowy) — bez budowania własnej infrastruktury alertingu.
+Render logs (built-in), Sentry free tier (backend Python SDK + frontend React SDK), health check monitored natively by Render, spending limit set in OpenRouter panel (soft limit + email alert) — without building your own alerting infrastructure.
 
-**Cold start (ADR-19):** SPA pokazuje lampkę, gdy w oknie wybudzania `GET /api/health`
-nie wraca ≥ 2 s. Po 200 (albo ~90 s / karta w tle) **zero** dalszych pingów — Render
-Free ma usnąć po 15 min. To UX, nie keep-alive. Spec:
+**Cold start (ADR-19):** SPA shows the lamp when, in the wake-up window, `GET /api/health`
+doesn't return for ≥ 2 s. After 200 (or ~90 s / background tab) **zero** further pings — Render
+Free should sleep after 15 min. This is UX, not keep-alive. Spec:
 [`../superpowers/specs/2026-08-16-api-status-lamp-design.md`](../superpowers/specs/2026-08-16-api-status-lamp-design.md).
 
 ## 10. Cloudflare DNS
 
-| Typ | Nazwa | Wartość | Proxy |
+| Type | Name | Value | Proxy |
 |---|---|---|---|
 | CNAME | `goat` | `cname.vercel-dns.com` | DNS only |
-| CNAME | `api-goat` | `<service>.onrender.com` | DNS only (podwójny proxy koliduje z SSE) |
+| CNAME | `api-goat` | `<service>.onrender.com` | DNS only (double proxy conflicts with SSE) |
 
-## 11. Koszt
+## 11. Cost
 
-~$0-10/mies. na fazę dev/testów (tylko OpenRouter). Pierwszy próg płatności: **Supabase Pro $25/mies.** przy wyjściu z czystego testowania (Free pauzuje projekt po 7 dniach bezczynności). Render Starter $7/mies. dopiero gdy cold start realnie przeszkadza. Bez Render Workera (decyzja) — nie ma tego kosztu w ogóle.
+~$0–10/month at the dev/test stage (OpenRouter only). First paid threshold: **Supabase Pro $25/month** when leaving pure testing (Free pauses the project after 7 days of inactivity). Render Starter $7/month only when cold start really bothers. Without Render Worker (decision) — that cost doesn't exist at all.
 
-## 12. Poza zakresem MVP
+## 12. Out of MVP scope
 
-Import/synchronizacja Garmin/Strava/Apple Health — "może kiedyś", brak wpływu na architekturę teraz (generyczny model `results` to udźwignie).
+Garmin/Strava/Apple Health import/sync — "maybe someday", no impact on architecture now (the generic `results` model will carry it).

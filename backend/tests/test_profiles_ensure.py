@@ -1,4 +1,4 @@
-"""ProfilesRepo.ensure — odtwarzanie brakującego wiersza po wipe DB."""
+"""ProfilesRepo.ensure — recreating a missing row after a DB wipe."""
 
 from __future__ import annotations
 

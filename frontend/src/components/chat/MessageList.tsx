@@ -22,9 +22,9 @@ interface MessageListProps {
 }
 
 /**
- * `MessageList` — historia w DOM (typowa sesja coachingu nie wymaga wirtualizacji).
- * Kotwica na dole (`chat-history-end`) pokazuje ostatnie wiadomości od razu.
- * `aria-live="polite"` tylko na streamującej wiadomości.
+ * `MessageList` — history rendered directly in the DOM (a typical coaching session
+ * does not need virtualization). A bottom anchor (`chat-history-end`) keeps the most
+ * recent messages visible. `aria-live="polite"` only on the streaming message.
  */
 export function MessageList({ messages, personaLabelFor, streaming }: MessageListProps) {
   const endRef = useRef<HTMLDivElement>(null);

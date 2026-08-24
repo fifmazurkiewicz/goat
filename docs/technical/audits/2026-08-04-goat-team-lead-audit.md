@@ -1,74 +1,74 @@
-# Audyt: Goat (Kierownik Zespołu) — 2026-08-04
+# Audit: Goat (Team Lead) — 2026-08-04
 
-**Zakres:** sesja `general`, koordynacja multi-persona, operacje na planie, SSE, granice ról.  
-**Referencje:** [ADR-17](../adr/decisions.md#adr-17-kierownik-zespołu-goat--koordynacja-sesji-general), [team-lead.md](../team-lead.md).
+**Scope:** `general` session, multi-persona coordination, plan operations, SSE, role boundaries.  
+**References:** [ADR-17](../adr/decisions.md#adr-17-kierownik-zespołu-goat--koordynacja-sesji-general), [team-lead.md](../team-lead.md).
 
-## Metadane audytu
+## Audit metadata
 
-| Pole | Wartość |
-|------|---------|
-| Data wykonania | 2026-08-04 |
-| Środowisko | code review (local) |
-| Wykonawca | zespół agentów (architektura, AI/Python, frontend, docs) |
-| Migracje wymagane | `0008_background_jobs`, `0009_persona_role_boundaries`, `0010_drop_personas_chat_model` |
+| Field | Value |
+|-------|-------|
+| Date performed | 2026-08-04 |
+| Environment | code review (local) |
+| Performer | agent team (architecture, AI/Python, frontend, docs) |
+| Required migrations | `0008_background_jobs`, `0009_persona_role_boundaries`, `0010_drop_personas_chat_model` |
 
-## Werdykt
+## Verdict
 
-**Pass z uwagami (P1/P2)** — happy path działa; dokumentacja i testy uzupełnione w tej sesji. Pozostają trade-offy UX i dług techniczny routingu.
-
----
-
-## 1. Co działa dobrze
-
-1. **Podział ról** — Goat ma wyłącznie `get_plan` + `rebuild_plan`; trenerzy bez `rebuild_plan`.
-2. **Widoczność w UI** — etykieta „Goat · Kierownik Zespołu” przy operacjach planu (`persona_id=null` w DB/SSE).
-3. **Koordynacja między trenerami** — brief kierownika + `prior_summaries` w jednej turze.
-4. **Bypass deterministyczny** — slash/multi-slash i 1 persona omijają LLM konsultacji.
-5. **Granice ról** — `persona_scope.py` + migracja `0009` we wszystkich template safety.
+**Pass with notes (P1/P2)** — happy path works; documentation and tests completed in this session. UX trade-offs and routing technical debt remain.
 
 ---
 
-## 2. Ryzyka i luki
+## 1. What works well
 
-| # | Opis | Severity | Status |
-|---|------|----------|--------|
-| 1 | **Multi-slash + plan-only** — `/dietetyk /trener ułóż plan` → tylko Goat, trenerzy pominięci mimo slashy. Świadomy trade-off (plan = Goat), ale może mylić usera. | Średnia | Udokumentowane w [team-lead.md](../team-lead.md) |
-| 2 | **Podwójny koszt LLM** przy plan-only | Średnia | **Zrobione** — `build_plan_only_consultation` pomija LLM konsultacji |
-| 3 | **Heurystyki planu** — substring matching; ryzyko false positive/negative. | Średnia | Testy w `test_team_lead.py` |
-| 4 | **`ChatRoutingService` martwy** | Średnia | **Zrobione** — deprecated w `routing.py` |
-| 5 | **Fallback konsultacji** — błąd LLM → pierwsza persona, nie „ostatnio odpowiadająca” (ADR-13). | Średnia | P2 |
-| 6 | **Retry nie idempotentny** — ponowne `rebuild_plan` przy retry streamu. | Średnia | Udokumentowane |
-| 7 | **Sesja persona + plan** — brak `rebuild_plan` w czacie 1:1. | Niska | Udokumentowane w team-lead.md |
-| 8 | **`invoked_via=team_lead`** mapowane na `auto_routed` w DB. | Niska | Observability |
+1. **Role split** — Goat has exclusively `get_plan` + `rebuild_plan`; trainers without `rebuild_plan`.
+2. **Visibility in UI** — "Goat · Team Lead" label on plan operations (`persona_id=null` in DB/SSE).
+3. **Inter-trainer coordination** — lead's brief + `prior_summaries` in a single turn.
+4. **Deterministic bypass** — slash/multi-slash and 1 persona bypass the LLM consultation.
+5. **Role boundaries** — `persona_scope.py` + migration `0009` in all template safety.
 
 ---
 
-## 3. Checklist weryfikacji manualnej
+## 2. Risks and gaps
 
-### Backend — flow kierownika
+| # | Description | Severity | Status |
+|---|-------------|----------|--------|
+| 1 | **Multi-slash + plan-only** — `/dietitian /trainer build a plan` → only Goat, trainers skipped despite slashes. Conscious trade-off (plan = Goat), but may confuse the user. | Medium | Documented in [team-lead.md](../team-lead.md) |
+| 2 | **Double LLM cost** with plan-only | Medium | **Done** — `build_plan_only_consultation` skips the consultation LLM |
+| 3 | **Plan heuristics** — substring matching; risk of false positive/negative. | Medium | Tests in `test_team_lead.py` |
+| 4 | **`ChatRoutingService` dead code** | Medium | **Done** — deprecated in `routing.py` |
+| 5 | **Consultation fallback** — LLM error → first persona, not "last responding" (ADR-13). | Medium | P2 |
+| 6 | **Retry not idempotent** — re-`rebuild_plan` on stream retry. | Medium | Documented |
+| 7 | **Persona session + plan** — no `rebuild_plan` in 1:1 chat. | Low | Documented in team-lead.md |
+| 8 | **`invoked_via=team_lead`** mapped to `auto_routed` in DB. | Low | Observability |
 
-- [ ] `TeamLeadService.plan_consultation` — LLM wybiera 1..N person (≥2 aktywne persony)
-- [ ] Bypass `/slug` — deterministyczny wybór
-- [ ] Bypass multi-slash — kolejność = kolejność slashy
-- [ ] 1 aktywna persona — bez LLM kierownika
+---
+
+## 3. Manual verification checklist
+
+### Backend — lead flow
+
+- [ ] `TeamLeadService.plan_consultation` — LLM picks 1..N personas (≥2 active personas)
+- [ ] `/slug` bypass — deterministic selection
+- [ ] Multi-slash bypass — order = order of slashes
+- [ ] 1 active persona — without lead LLM
 - [ ] `team_phase`: `planning` → `delegating`
-- [ ] `team_status` z `consultation.status_message`
+- [ ] `team_status` with `consultation.status_message`
 
-### Backend — ścieżka planu (Goat widoczny)
+### Backend — plan path (Goat visible)
 
-- [ ] „Generuj zharmonizowany plan na sierpień” → tylko Goat, bez dietetyka
-- [ ] „Ułóż plan i co jeść” → Goat + trenerzy
-- [ ] Goat nie ma `log_result` / `update_user_profile`
-- [ ] Trenerzy nie wołają `rebuild_plan` po `[NOTATKA KIEROWNIKA]`
-- [ ] Wiadomość Goata: `persona_id=NULL`
+- [ ] "Generate a harmonized plan for August" → only Goat, without dietitian
+- [ ] "Build a plan and what to eat" → Goat + trainers
+- [ ] Goat doesn't have `log_result` / `update_user_profile`
+- [ ] Trainers don't call `rebuild_plan` after `[LEAD'S NOTE]`
+- [ ] Goat message: `persona_id=NULL`
 
 ### Frontend
 
-- [ ] Nagłówek „Goat · Kierownik Zespołu” w historii i streamingu
-- [ ] Status „Goat analizuje…” przed tokenami
-- [ ] Trenerzy nadal z etykietą `Imię · Rola`
+- [ ] Header "Goat · Team Lead" in history and streaming
+- [ ] Status "Goat is analyzing…" before tokens
+- [ ] Trainers still have `Name · Role` label
 
-### Testy automatyczne (2026-08-04)
+### Automated tests (2026-08-04)
 
 - [x] `backend/tests/test_team_lead.py`
 - [x] `backend/tests/test_orchestrator_team_lead.py`
@@ -80,20 +80,20 @@
 
 ---
 
-## 4. Decyzje follow-up (P2)
+## 4. Follow-up decisions (P2)
 
-1. ~~Pominąć `plan_consultation` LLM gdy `is_plan_coordination_only`~~ — zrobione (`build_plan_only_consultation`).
-2. ~~Zdeprecjonować `ChatRoutingService`~~ — zrobione (`DeprecationWarning`).
-3. Przywrócić fallback `get_last_responding_persona` — zrobione w `TeamLeadService`.
-4. Guard idempotencji `rebuild_plan` przy retry (sprawdzenie aktywnego joba).
+1. ~~Skip `plan_consultation` LLM when `is_plan_coordination_only`~~ — done (`build_plan_only_consultation`).
+2. ~~Deprecate `ChatRoutingService`~~ — done (`DeprecationWarning`).
+3. Restore fallback `get_last_responding_persona` — done in `TeamLeadService`.
+4. `rebuild_plan` idempotency guard on retry (active job check).
 
 ---
 
-## 5. Zespół audytu
+## 5. Audit team
 
-| Rola | Zakres | Wynik |
-|------|--------|-------|
-| Lead AI / Python | `team_lead.py`, orchestrator, tools | Pass + 8 ryzyk |
-| Lead Architect | ADR-17, SSE, edge cases | Pass + drift docs |
-| Lead Frontend | Etykiety, streaming, typy SSE | Pass + typy nullable |
+| Role | Scope | Result |
+|------|-------|--------|
+| Lead AI / Python | `team_lead.py`, orchestrator, tools | Pass + 8 risks |
+| Lead Architect | ADR-17, SSE, edge cases | Pass + docs drift |
+| Lead Frontend | Labels, streaming, SSE types | Pass + nullable types |
 | Documentation Architect | Plan docs, checklist | team-lead.md, ADR-17 |

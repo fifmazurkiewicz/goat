@@ -1,4 +1,4 @@
-"""Testy `UsageLimitService` — atomowy check+increment budżetu USD (ADR-16,
+"""Tests for `UsageLimitService` — atomic check+increment of USD budget (ADR-16,
 architecture.md §9)."""
 
 from __future__ import annotations
@@ -28,8 +28,8 @@ class _FakeProfile:
 
 
 class _FakeUsageRepo:
-    """Symuluje bramkę budżetową bazy: `try_reserve` odrzuca (`None`) gdy przekroczyłoby
-    budżet, inaczej atomowo inkrementuje `cost_usd_used`."""
+    """Simulates the database budget gate: `try_reserve` rejects (`None`) when it would
+    exceed the budget, otherwise atomically increments `cost_usd_used`."""
 
     def __init__(self, budget: float, already_used: float = 0.0) -> None:
         self._budget = budget
@@ -88,7 +88,7 @@ async def test_reserve_estimated_cost_raises_when_over_budget() -> None:
     with pytest.raises(UsageLimitExceededError):
         await service.reserve_estimated_cost(user_id="u1", estimated_cost_usd=0.5)
 
-    # Odrzucona rezerwacja NIE modyfikuje stanu (atomowość — brak częściowego zapisu).
+    # Rejected reservation does NOT modify state (atomicity — no partial write).
     assert usage_repo.row.cost_usd_used == 0.9
 
 
@@ -121,5 +121,5 @@ async def test_estimate_turn_cost_uses_pricing_cache() -> None:
         model="test-model", prompt_text_length_chars=400, max_output_tokens=100
     )
 
-    # 400 znaków / 4 znaki-na-token = 100 tokenów wejścia + 100 tokenów wyjścia = 200 * 0.0001
+    # 400 chars / 4 chars-per-token = 100 input tokens + 100 output tokens = 200 * 0.0001
     assert cost == pytest.approx(0.02)

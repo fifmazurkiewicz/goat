@@ -1,8 +1,8 @@
-"""Hierarchia wyjątków domenowych + globalne exception handlery.
+"""Domain exception hierarchy + global exception handlers.
 
-Zasada z docs/technical/architecture.md sekcja 6 i sekcja 1 (routery "CIENKIE"):
-domena/routery rzucają te wyjątki, NIGDY nie łapią ich lokalnie w try/except —
-mapowanie na odpowiedź HTTP dzieje się wyłącznie centralnie, tutaj.
+Rule from docs/technical/architecture.md section 6 and section 1 ("THIN" routers):
+domain/routers raise these exceptions, NEVER catch them locally in try/except —
+mapping to the HTTP response happens only centrally, here.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ logger = structlog.get_logger(__name__)
 
 
 class AppError(Exception):
-    """Bazowy wyjątek domenowy. Podklasy nadpisują `http_status`/`code`."""
+    """Base domain exception. Subclasses override `http_status`/`code`."""
 
     http_status: int = 500
     code: str = "internal_error"
@@ -27,7 +27,7 @@ class AppError(Exception):
 
 
 class UnauthorizedError(AppError):
-    """Brak/nieprawidłowy/wygasły token — 401 (odróżnione od 403 ForbiddenError)."""
+    """Missing/invalid/expired token — 401 (distinguished from 403 ForbiddenError)."""
 
     http_status = 401
     code = "unauthorized"
@@ -44,22 +44,22 @@ class ForbiddenError(AppError):
 
 
 class PersonaLimitExceededError(AppError):
-    """Limit aktywnych person osiągnięty — per konto (`profiles.max_active_personas`,
-    domyślnie 5, edytowalny przez admina), patrz database-schema.md i ADR-12."""
+    """Active persona limit reached — per account (`profiles.max_active_personas`,
+    default 5, editable by admin), see database-schema.md and ADR-12."""
 
     http_status = 409
     code = "persona_limit_exceeded"
 
 
 class UsageLimitExceededError(AppError):
-    """Limit `usage_limits` (wiadomości/generacje planu) przekroczony — security.md sekcja 4."""
+    """`usage_limits` limit (messages/plan generations) exceeded — security.md section 4."""
 
     http_status = 429
     code = "usage_limit_exceeded"
 
 
 class ModerationRejectedError(AppError):
-    """Treść odrzucona przez warstwę B/C moderacji — security.md sekcja 1."""
+    """Content rejected by moderation layer B/C — security.md section 1."""
 
     http_status = 400
     code = "moderation_rejected"
@@ -71,22 +71,22 @@ class ConflictError(AppError):
 
 
 class ValidationError(AppError):
-    """Walidacja semantyczna spoza Pydantic (np. wpis `results` poza zakresem
-    `allowed_metrics` przy manualnym `POST /results`) — security.md sekcja 3."""
+    """Semantic validation outside Pydantic (e.g. `results` entry outside the
+    `allowed_metrics` range on manual `POST /results`) — security.md section 3."""
 
     http_status = 400
     code = "validation_error"
 
 
 class ExternalServiceError(AppError):
-    """Awaria zewnętrznego serwisu (OpenRouter, Supabase Admin API) — 502."""
+    """External service outage (OpenRouter, Supabase Admin API) — 502."""
 
     http_status = 502
     code = "external_service_error"
 
 
 def _format_validation_error(exc: RequestValidationError) -> str:
-    """Krótki komunikat z pierwszego błędu Pydantic — czytelny w toastach FE."""
+    """Short message from the first Pydantic error — readable in FE toasts."""
     errors = exc.errors()
     if not errors:
         return "Nieprawidłowe dane wejściowe."
@@ -97,7 +97,7 @@ def _format_validation_error(exc: RequestValidationError) -> str:
 
 
 def register_exception_handlers(app: FastAPI) -> None:
-    """Rejestruje globalne handlery w `main.py` — routery pozostają bez try/except."""
+    """Registers global handlers in `main.py` — routers stay without try/except."""
 
     @app.exception_handler(AppError)
     async def handle_app_error(request: Request, exc: AppError) -> JSONResponse:
@@ -120,7 +120,7 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
-        # Pełny traceback tylko do logów (structlog exc_info) — nigdy w treści response.
+        # Full traceback only to logs (structlog exc_info) — never in response body.
         logger.error("unhandled_exception", path=request.url.path, exc_info=exc)
         return JSONResponse(
             status_code=500,

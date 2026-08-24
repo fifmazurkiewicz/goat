@@ -15,7 +15,7 @@ function readPersistedTheme(): Theme {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored === "light" || stored === "dark") return stored;
   } catch {
-    // localStorage niedostępny — fallback do preferencji systemowej.
+    // localStorage unavailable — fallback to system preference.
   }
   if (typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
     return "dark";
@@ -32,14 +32,14 @@ function persistTheme(theme: Theme) {
   try {
     localStorage.setItem(STORAGE_KEY, theme);
   } catch {
-    // tryb prywatny itp. — brak persystencji, nie krytyczne.
+    // private mode etc. — no persistence, not critical.
   }
 }
 
 /**
- * Motyw jasny/ciemny — WYŁĄCZNIE localStorage, bez zapisu w bazie (ADR-15).
- * Przy skali kilku znanych userów i typowo jednym urządzeniu synchronizacja
- * między urządzeniami nie uzasadnia round-tripu do API.
+ * Light/dark theme — localStorage ONLY, with no DB persistence (ADR-15).
+ * At the scale of a few known users and typically one device, cross-device
+ * sync does not justify an API round-trip.
  */
 export const useThemeStore = create<ThemeState>((set, get) => {
   const initial = readPersistedTheme();

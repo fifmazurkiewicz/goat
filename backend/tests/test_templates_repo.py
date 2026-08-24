@@ -1,4 +1,4 @@
-"""Testy mapowania wierszy gotowców — asyncpg zwraca `uuid.UUID`, DTO wymaga `str`."""
+"""Tests for template row mapping — asyncpg returns `uuid.UUID`, the DTO requires `str`."""
 
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
-"""Testy `ChatRoutingService` — multi-slash + classifier `persona_ids[]` (ADR-13 multi).
+"""Tests for `ChatRoutingService` — multi-slash + classifier `persona_ids[]` (ADR-13 multi).
 
-Legacy: `ChatRoutingService` jest deprecated (ADR-17); testy utrzymują regresję parsera slash.
+Legacy: `ChatRoutingService` is deprecated (ADR-17); tests guard against slash-parser regressions.
 """
 
 from __future__ import annotations

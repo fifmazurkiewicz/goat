@@ -29,17 +29,17 @@ const catalog = [
 ];
 
 describe("pickRandomExercises", () => {
-  it("zwraca dokładnie N unikalnych pozycji", () => {
+  it("returns exactly N unique items", () => {
     const picked = pickRandomExercises(catalog, 3, () => 0.5);
     expect(picked).toHaveLength(3);
     expect(new Set(picked.map((e) => e.slug)).size).toBe(3);
   });
 
-  it("gdy katalog jest krótszy niż N, zwraca wszystkie", () => {
+  it("when the catalog is shorter than N, returns all of them", () => {
     expect(pickRandomExercises(catalog.slice(0, 2), 3, () => 0.1)).toHaveLength(2);
   });
 
-  it("kolejne losowania z innym RNG dają inną kolejność/zestaw", () => {
+  it("subsequent draws with a different RNG give a different order/set", () => {
     const first = pickRandomExercises(catalog, 3, () => 0.1).map((e) => e.slug);
     const second = pickRandomExercises(catalog, 3, () => 0.9).map((e) => e.slug);
     expect(first).not.toEqual(second);
@@ -49,7 +49,7 @@ describe("pickRandomExercises", () => {
 describe("visibleExercises", () => {
   const sample = [exercise("a"), exercise("b"), exercise("c")];
 
-  it("przy pustym query pokazuje próbkę, nie cały katalog", () => {
+  it("with an empty query shows the sample, not the whole catalog", () => {
     const shown = visibleExercises({
       all: catalog,
       sample,
@@ -59,7 +59,7 @@ describe("visibleExercises", () => {
     expect(shown.map((e) => e.slug)).toEqual(["a", "b", "c"]);
   });
 
-  it("po wpisaniu słowa filtruje cały katalog (PL/EN)", () => {
+  it("filters the whole catalog after typing a word (PL/EN)", () => {
     const withEn = [
       ...catalog,
       exercise("przysiad", { name: "Przysiad ze sztangą", name_en: "Barbell Squat" }),
@@ -73,7 +73,7 @@ describe("visibleExercises", () => {
     expect(shown.map((e) => e.slug)).toEqual(["przysiad"]);
   });
 
-  it("kategoria bez query pokazuje próbkę z puli (nie cały katalog)", () => {
+  it("category without a query shows a sample from the pool (not the whole catalog)", () => {
     const shown = visibleExercises({
       all: catalog,
       sample: [exercise("uda-1", { categories: ["Uda"] })],

@@ -1,4 +1,4 @@
-"""Testy metadanych deployu."""
+"""Tests for deploy metadata."""
 
 import os
 

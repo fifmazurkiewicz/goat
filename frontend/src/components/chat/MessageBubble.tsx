@@ -7,14 +7,14 @@ import type { ChatMessage } from "@/types/api";
 
 interface MessageBubbleProps {
   message: Pick<ChatMessage, "role" | "content">;
-  /** W sesji 'general' pokazujemy nagłówek persona_label nad odpowiedzią (ADR-13);
-   * w sesji 'persona' pomijany (kontekst już wiadomy z ChatHeader). */
+  /** In a 'general' session we show the persona_label header above the reply (ADR-13);
+   * in a 'persona' session it's omitted (the context is already clear from ChatHeader). */
   personaLabel?: string | null;
 }
 
 /**
- * Bubble wiadomości — treść asystenta/usera jako Markdown (pogrubienie, listy, akapity).
- * Bez `rehype-raw`: tylko bezpieczny subset MD, bez HTML z modelu.
+ * Message bubble — assistant/user content rendered as Markdown (bold, lists, paragraphs).
+ * No `rehype-raw`: only a safe MD subset, no HTML from the model.
  */
 export function MessageBubble({ message, personaLabel }: MessageBubbleProps) {
   const isUser = message.role === "user";

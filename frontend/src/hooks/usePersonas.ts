@@ -17,9 +17,10 @@ const PERSONA_TEMPLATES_KEY = ["persona-templates"] as const;
 const PLAN_TEMPLATES_KEY = ["plan-templates"] as const;
 
 /**
- * Kontrakt docs: `PersonasListResponse` `{ items, max_active_personas }` (ADR-12).
- * Tymczasowa kompatybilność z legacy backendem zwracającym surowe `Persona[]`
- * — fallback `max_active_personas: 5` do usunięcia, gdy API zwróci pełny kształt.
+ * Docs contract: `PersonasListResponse` `{ items, max_active_personas }` (ADR-12).
+ * Temporary compatibility with the legacy backend returning a raw `Persona[]`
+ * — the `max_active_personas: 5` fallback can be removed once the API returns
+ * the full shape.
  */
 export function normalizePersonasListResponse(
   data: PersonasListResponse | Persona[]
@@ -31,9 +32,9 @@ export function normalizePersonasListResponse(
 }
 
 /**
- * Lista person usera — server state przez TanStack Query. `usePersonaStore` (zustand)
- * jest zsynchronizowany w `onSuccess` wyłącznie dla UI state współdzielonego z innymi
- * ekranami (aktywna persona w drawerze czatu itd.), docs/technical/frontend.md sekcja 2.
+ * User's persona list — server state via TanStack Query. `usePersonaStore` (zustand)
+ * is synchronized in `onSuccess` only for UI state shared with other screens
+ * (active persona in the chat drawer, etc.), docs/technical/frontend.md section 2.
  */
 export function usePersonas() {
   const setPersonas = usePersonaStore((state) => state.setPersonas);

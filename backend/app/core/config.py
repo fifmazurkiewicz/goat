@@ -1,4 +1,4 @@
-"""Konfiguracja aplikacji z env — patrz `.env.example` i docs/technical/devops.md sekcja 5."""
+"""Application configuration from env — see `.env.example` and docs/technical/devops.md section 5."""
 
 from __future__ import annotations
 
@@ -18,22 +18,22 @@ class Settings(BaseSettings):
     supabase_jwks_url: str | None = None
     supabase_service_role_key: SecretStr | None = None
 
-    # Lokalny login email/hasło — aktywny wyłącznie przy ENVIRONMENT=local.
+    # Local email/password login — active only when ENVIRONMENT=local.
     dev_auth_email: str | None = None
     dev_auth_password: SecretStr | None = None
     dev_auth_user_id: str = "00000000-0000-4000-8000-000000000001"
     local_jwt_secret: SecretStr = SecretStr("local-dev-jwt-secret-change-me")
 
     openrouter_api_key: SecretStr
-    # Jeden model domyślnie do czatu i planowania — ustaw Grok (lub inny) w OPENROUTER_CHAT_MODEL.
-    # OPENROUTER_PLANNER_MODEL opcjonalny override; pusty = ten sam co chat.
+    # Single model by default for chat and planning — set Grok (or another) in OPENROUTER_CHAT_MODEL.
+    # OPENROUTER_PLANNER_MODEL is an optional override; empty = same as chat.
     openrouter_chat_model: str = "x-ai/grok-4-fast"
     openrouter_planner_model: str = ""
     # Fallback providerzy dla chat_model (ai-pipeline.md §1) — awaria jednego providera
     # nie wywala czatu. Przekazywane jako `extra_body={"models": [...]}` do OpenRoutera.
     openrouter_chat_model_fallbacks: str = "openai/gpt-5-mini"
 
-    # Comma-separated string (format env var) — patrz cors_origins_list poniżej.
+    # Comma-separated string (env var format) — see cors_origins_list below.
     cors_origins: str = "http://localhost:3000"
 
     # --- Chat / SSE (architecture.md §3, security.md §4) ---
@@ -53,18 +53,18 @@ class Settings(BaseSettings):
 
     # --- Cennik modeli OpenRouter (ai-pipeline.md §1b, ADR-16) ---
     model_pricing_refresh_seconds: int = 3600
-    # Konserwatywne górne oszacowanie USD/token gdy cache cen jest pusty (zimny start) —
-    # celowo zawyżone, żeby nie ominąć limitu budżetu przy braku danych z /api/v1/models.
+    # Conservative upper-bound USD/token estimate when the price cache is empty (cold start) —
+    # intentionally overstated to avoid bypassing the budget limit when /api/v1/models has no data.
     model_pricing_fallback_usd_per_token: float = 0.00003
 
     # --- Moderacja (security.md §1, ADR-4) ---
-    # Klasyfikator warstwy C wołany zawsze przy trafieniu heurystyki, dodatkowo losowo
-    # (obrona w głąb) z tym prawdopodobieństwem nawet bez trafienia.
+    # Layer C classifier is always called on a heuristic hit, and additionally sampled
+    # randomly (defense in depth) at this probability even without a hit.
     moderation_random_sample_rate: float = 0.02
 
     @property
     def openrouter_plan_model(self) -> str:
-        """Model planera — domyślnie identyczny jak czat (jeden model w całej apce)."""
+        """Planner model — by default identical to chat (single model across the whole app)."""
         planner = self.openrouter_planner_model.strip()
         return planner if planner else self.openrouter_chat_model
 
@@ -74,7 +74,7 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
-        """Rozbija `CORS_ORIGINS` ("a,b,c") na listę dla CORSMiddleware.allow_origins."""
+        """Splits `CORS_ORIGINS` ("a,b,c") into a list for CORSMiddleware.allow_origins."""
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     @model_validator(mode="after")
@@ -103,7 +103,7 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()  # type: ignore[call-arg]  # pola wymagane pochodzą z env/.env
+    return Settings()  # type: ignore[call-arg]  # required fields come from env/.env
 
 
 settings = get_settings()

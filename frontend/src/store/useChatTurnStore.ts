@@ -33,7 +33,7 @@ interface ChatTurnState {
   error: ChatStreamError | null;
   lastContent: string;
   pending: PendingTurn | null;
-  /** Sesje z turą w tle (po nawigacji poza czat). */
+  /** Sessions with a turn running in the background (after navigating away from chat). */
   backgroundSessionIds: string[];
   queueTurn: (turn: PendingTurn) => void;
   stopTurn: (sessionId: string) => void;

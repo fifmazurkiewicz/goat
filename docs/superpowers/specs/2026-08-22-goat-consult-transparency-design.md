@@ -1,65 +1,65 @@
-# Design: Widoczność konsultacji Goata (odpowiedzi trenerów w `consult_persona`)
+# Design: Visibility of Goat's consultations (trainer answers in `consult_persona`)
 
-**Data:** 2026-08-22
-**Status:** proponowane (do implementacji)
-**Bazuje na:** [2026-08-16-goat-consult-persona-design.md](./2026-08-16-goat-consult-persona-design.md), [team-lead.md](../../technical/team-lead.md)
+**Date:** 2026-08-22
+**Status:** proposed (for implementation)
+**Based on:** [2026-08-16-goat-consult-persona-design.md](./2026-08-16-goat-consult-persona-design.md), [team-lead.md](../../technical/team-lead.md)
 
 ## Problem
 
-Gdy Goat woła `consult_persona`, user widzi tylko status w tle ("Goat konsultuje z {trener}…") i finalną syntezę Goata. Pełna odpowiedź trenera (`answer` w tool response) istnieje — jest nawet zapisywana do bazy (`insert_tool_message`, `role='tool'`) — ale nigdzie nie jest pokazywana userowi: FE jawnie filtruje `role='tool'` (`frontend/src/lib/chat-messages.ts:12`, test `chat-messages.test.ts:19` "ukrywa role=tool").
+When Goat calls `consult_persona`, the user only sees the background status ("Goat is consulting with {trainer}…") and the final synthesis by Goat. The full trainer answer (`answer` in the tool response) exists — it's even saved to the database (`insert_tool_message`, `role='tool'`) — but it's never shown to the user: FE explicitly filters `role='tool'` (`frontend/src/lib/chat-messages.ts:12`, test `chat-messages.test.ts:19` "hides role=tool").
 
-User chce móc **podejrzeć**, co realnie odpowiedział skonsultowany trener, zamiast polegać wyłącznie na syntezie Goata.
+The user wants to be able to **peek** at what the consulted trainer actually answered, instead of relying only on Goat's synthesis.
 
-## Cel / zakres
+## Goal / scope
 
-Dodać **opcjonalny, domyślnie zwinięty** panel pod wiadomością Goata: "Zobacz co odpowiedział {trener}" — per konsultacja, w kolejności wywołań. Dotyczy to:
+Add an **optional, collapsed by default** panel under Goat's message: "See what {trainer} answered" — per consultation, in call order. This covers:
 
-1. **Live** — konsultacje wykonane w bieżącej turze (SSE).
-2. **Historia** — konsultacje z poprzednich tur, po przeładowaniu/otwarciu sesji `general` (`GET /chat/sessions/{id}/messages`).
+1. **Live** — consultations done in the current turn (SSE).
+2. **History** — consultations from previous turns, after reload/opening of the `general` session (`GET /chat/sessions/{id}/messages`).
 
-**Nie zmieniamy** fundamentu ADR-17: Goat pozostaje jedynym "mówcą" domyślnie widocznym; trener nadal nie ma własnej bąbelkowej wiadomości z awatarem jako aktywny uczestnik rozmowy. To, co dodajemy, to **transparentność na żądanie** (rozwijany szczegół), nie zmiana modelu "kto mówi".
+**We do not change** the ADR-17 foundation: Goat remains the only "speaker" visible by default; the trainer still doesn't have their own bubble message with an avatar as an active conversation participant. What we add is **transparency on demand** (expandable detail), not a change of the "who speaks" model.
 
-## Wymagania (Given / When / Then)
+## Requirements (Given / When / Then)
 
-### GWT-1 — konsultacja w bieżącej turze jest widoczna po rozwinięciu
+### GWT-1 — consultation in current turn is visible on expand
 
-**Given** Goat w trakcie tury woła `consult_persona(slug, question)`
-**When** trener zwróci odpowiedź (`status: "ok"`)
-**Then** pod finalną wiadomością Goata pojawia się rozwijany element z etykietą trenera (`persona_label`), domyślnie **zwinięty**
-**And** po rozwinięciu user widzi zarówno **pytanie**, które Goat zadał trenerowi, jak i **pełną odpowiedź** trenera
-**And** element nie wygląda jak osobna wiadomość trenera (bez awatara/nagłówka persony jako "mówcy") — to załącznik do wiadomości Goata
+**Given** during its turn Goat calls `consult_persona(slug, question)`
+**When** the trainer returns an answer (`status: "ok"`)
+**Then** under Goat's final message an expandable element appears with the trainer's label (`persona_label`), **collapsed** by default
+**And** on expand the user sees both the **question** Goat asked the trainer and the **full answer** from the trainer
+**And** the element doesn't look like a separate trainer message (no avatar/persona header as a "speaker") — it's an attachment to Goat's message
 
-### GWT-2 — wiele konsultacji w jednej turze (roundtable)
+### GWT-2 — multiple consultations in a single turn (roundtable)
 
-**Given** Goat konsultuje kilku trenerów w tej samej turze (np. "niech każdy się wypowie")
-**When** tura się kończy
-**Then** pod wiadomością Goata pojawia się **lista** rozwijanych elementów, jeden per konsultacja, w kolejności wywołań
-**And** każdy ma własną etykietę trenera i własne pytanie/odpowiedź
+**Given** Goat consults several trainers in the same turn (e.g. "let everyone speak")
+**When** the turn ends
+**Then** under Goat's message a **list** of expandable elements appears, one per consultation, in call order
+**And** each has its own trainer label and its own question/answer
 
-### GWT-3 — błąd konsultacji nie tworzy załącznika
+### GWT-3 — consultation error creates no attachment
 
-**Given** `consult_persona` zwraca `{"error": ...}` (zły slug, timeout, limit)
-**When** tura się kończy
-**Then** **nie** pojawia się rozwijany element (błąd nadal widoczny wyłącznie jako dotychczasowy chip `tool_result` / komunikat Goata)
+**Given** `consult_persona` returns `{"error": ...}` (bad slug, timeout, limit)
+**When** the turn ends
+**Then** **no** expandable element appears (the error remains visible only as the existing `tool_result` chip / Goat's message)
 
-### GWT-4 — historia sesji po przeładowaniu
+### GWT-4 — session history after reload
 
-**Given** user otwiera ponownie sesję `general` z wcześniejszymi konsultacjami
-**When** FE pobiera `GET /chat/sessions/{id}/messages`
-**Then** wiadomości Goata, po których nastąpiła udana konsultacja, mają ten sam rozwijany element co w trybie live (identyczny content: pytanie + odpowiedź + etykieta)
-**And** kolejność i przypisanie do właściwej wiadomości Goata jest zachowane (parowanie po `tool_call_id`)
+**Given** the user opens the `general` session again with previous consultations
+**When** FE fetches `GET /chat/sessions/{id}/messages`
+**Then** Goat messages after which a successful consultation happened have the same expandable element as in live mode (identical content: question + answer + label)
+**And** the order and assignment to the correct Goat message is preserved (paired by `tool_call_id`)
 
-### GWT-5 — slash / sesja 1:1 bez zmian
+### GWT-5 — slash / 1:1 session unchanged
 
-**Given** wiadomość `/slug` lub sesja `persona`
-**When** tura się wykonuje
-**Then** brak konsultacji, brak nowego elementu UI (funkcja dotyczy wyłącznie ścieżki Goat + `consult_persona`)
+**Given** a `/slug` message or `persona` session
+**When** the turn runs
+**Then** no consultations, no new UI element (the feature applies only to the Goat + `consult_persona` path)
 
-## Architektura
+## Architecture
 
-### Backend — zmiana 1: `question` w tool response `consult_persona`
+### Backend — change 1: `question` in tool response `consult_persona`
 
-`backend/app/domain/chat/orchestrator.py`, `_consult_persona` (~linia 848-857) już zna `question` (rozpakowane z argumentów), ale nie wkłada go do zwracanego JSON-a. Dodać pole `question`, żeby persystowany `tool` message (i SSE event, patrz niżej) niósł komplet danych bez konieczności odczytywania osobno `tool_calls.arguments` z poprzedzającej wiadomości `assistant`:
+`backend/app/domain/chat/orchestrator.py`, `_consult_persona` (~line 848-857) already knows `question` (unpacked from arguments), but doesn't put it in the returned JSON. Add the `question` field, so the persisted `tool` message (and SSE event, see below) carries the complete data without needing to read `tool_calls.arguments` separately from the preceding `assistant` message:
 
 ```python
 return json.dumps(
@@ -67,18 +67,18 @@ return json.dumps(
         "status": "ok",
         "slug": target.slug,
         "persona_label": label,
-        "question": question,      # NOWE
+        "question": question,      # NEW
         "answer": answer.strip(),
     },
     ensure_ascii=False,
 )
 ```
 
-Bez zmian schematu DB — `chat_messages.content` to już `text`/`jsonb`-friendly pole, konsultacje są już persystowane (`insert_tool_message`, linia ~631-638).
+No DB schema change — `chat_messages.content` is already a `text`/`jsonb`-friendly field, consultations are already persisted (`insert_tool_message`, line ~631-638).
 
-### Backend — zmiana 2: nowy SSE event `consult_detail` (live)
+### Backend — change 2: new SSE event `consult_detail` (live)
 
-Nie rozszerzać kontraktu `tool_result` (`_tool_result_event_payload`, `orchestrator.py:149`) — jego docstring jawnie mówi "kontrakt FE (tool_name/summary/success) — nie surowy JSON tool response", to świadoma decyzja i inni konsumenci `tool_result` nie powinni dostawać nagle dużego tekstu. Zamiast tego, w `_consult_persona`, **obok** istniejącego `tool_result`, wyemitować dedykowany event tylko gdy `status == "ok"`:
+Don't extend the `tool_result` contract (`_tool_result_event_payload`, `orchestrator.py:149`) — its docstring explicitly says "FE contract (tool_name/summary/success) — not raw JSON tool response", this is a conscious decision and other `tool_result` consumers shouldn't suddenly receive a large text. Instead, in `_consult_persona`, **alongside** the existing `tool_result`, emit a dedicated event only when `status == "ok"`:
 
 ```python
 if user_queue is not None and ok:
@@ -86,7 +86,7 @@ if user_queue is not None and ok:
         user_queue,
         "consult_detail",
         {
-            "tool_call_id": tool_call_id,   # przekazać przez sygnaturę _consult_persona
+            "tool_call_id": tool_call_id,   # pass via _consult_persona signature
             "slug": target.slug,
             "persona_label": label,
             "question": question,
@@ -95,19 +95,19 @@ if user_queue is not None and ok:
     )
 ```
 
-Wymaga przekazania `tool_call_id` do `_consult_persona` (dziś zna go tylko `_run_single_tool`/pętla w `handle_message`, ~linia 599-610) — dociągnąć jako parametr.
+Requires passing `tool_call_id` to `_consult_persona` (today only `_run_single_tool`/the loop in `handle_message` knows it, ~line 599-610) — pull through as a parameter.
 
-Miejsce w strumieniu: **po** `tool_result` tej konsultacji, przed kontynuacją tokenów Goata (synteza) lub kolejną konsultacją.
+Place in the stream: **after** this consultation's `tool_result`, before continuing Goat's tokens (synthesis) or the next consultation.
 
-### Backend — bez zmian
+### Backend — no changes
 
-- Limit 5 konsultacji/turę — bez zmian.
-- Persystencja — już działa (`role='tool'`), tylko FE dziś to ukrywa.
-- Moderacja — odpowiedź trenera przechodzi ten sam pipeline co dziś (system prompt trenera + `safety_prompt`); nie dodajemy nowej ścieżki treści niezmoderowanej, bo Goat i tak już widzi ten tekst w kontekście (dziś tylko go syntetyzuje zamiast pokazywać 1:1).
+- Limit of 5 consultations/turn — unchanged.
+- Persistence — already works (`role='tool'`), only FE currently hides it.
+- Moderation — the trainer's answer goes through the same pipeline as today (trainer's system prompt + `safety_prompt`); we don't add a new path of unmoderated content, because Goat already sees this text in context (today he just synthesizes it instead of showing it 1:1).
 
 ### Frontend — SSE (live)
 
-`frontend/src/types/chat-stream.ts` — nowy typ:
+`frontend/src/types/chat-stream.ts` — new type:
 
 ```ts
 export interface ChatStreamConsultDetailEvent {
@@ -120,70 +120,70 @@ export interface ChatStreamConsultDetailEvent {
 }
 ```
 
-Dodać do unii `ChatStreamEvent`.
+Add to the `ChatStreamEvent` union.
 
-`frontend/src/hooks/useChatTurnRunner.ts` — zbierać `consult_detail` eventy w buforze per-tura (np. `consultDetails: ChatStreamConsultDetailEvent[]`), analogicznie do akumulacji `tool_calls`/tokenów. Przy finalizacji wiadomości Goata (`done`) dołączyć zebraną listę do obiektu wiadomości w store (np. `message.consultDetails`), żeby `MessageBubble` miał do niej dostęp.
+`frontend/src/hooks/useChatTurnRunner.ts` — collect `consult_detail` events in a per-turn buffer (e.g. `consultDetails: ChatStreamConsultDetailEvent[]`), similar to the accumulation of `tool_calls`/tokens. On finalizing Goat's message (`done`) attach the collected list to the message object in the store (e.g. `message.consultDetails`), so `MessageBubble` has access to it.
 
-### Frontend — historia (reload)
+### Frontend — history (reload)
 
-`frontend/src/lib/chat-messages.ts` — dziś linia 12 odrzuca `role === "tool"` całkowicie. Zmiana: **nie** renderować `role='tool'` jako osobnej wiadomości (to się nie zmienia — nadal brak bąbelka trenera), ale **wyciągnąć** z tych wierszy dane konsultacji i doczepić do poprzedzającej wiadomości `assistant` (Goata) po `tool_call_id`:
+`frontend/src/lib/chat-messages.ts` — today line 12 rejects `role === "tool"` entirely. Change: **don't** render `role='tool'` as a separate message (this doesn't change — still no trainer bubble), but **extract** consultation data from those rows and attach to the preceding `assistant` message (Goat) by `tool_call_id`:
 
-1. Iterować wiadomości w kolejności.
-2. Dla `role='assistant'` z `tool_calls` zawierającymi wywołanie `consult_persona` — zapamiętać `tool_call_id → assistant.id`.
-3. Dla kolejnego `role='tool'` z tym `tool_call_id`, sparsować `content` jako JSON; jeśli ma `status: "ok"` i pole `answer` — zbudować wpis `{persona_label, question, answer}` i dopisać do `consultDetails` odpowiedniej wiadomości Goata z kroku 2.
-4. Wiersze `role='tool'` nadal nie trafiają do listy renderowanych wiadomości (jak dziś).
+1. Iterate messages in order.
+2. For `role='assistant'` with `tool_calls` containing a `consult_persona` call — remember `tool_call_id → assistant.id`.
+3. For the next `role='tool'` with that `tool_call_id`, parse `content` as JSON; if it has `status: "ok"` and an `answer` field — build an entry `{persona_label, question, answer}` and append to `consultDetails` of the corresponding Goat message from step 2.
+4. `role='tool'` rows still don't go to the rendered message list (as today).
 
-Parsowanie odporne na błędy (`try/catch` → pomiń wpis, nie wywalaj całej historii) — ten sam wzorzec co reszta parsowania tool response na FE.
+Parsing resilient to errors (`try/catch` → skip entry, don't break the whole history) — same pattern as the rest of the FE tool response parsing.
 
-### Frontend — komponent UI
+### Frontend — UI component
 
-Nowy komponent, np. `frontend/src/components/chat/ConsultDetails.tsx`:
+New component, e.g. `frontend/src/components/chat/ConsultDetails.tsx`:
 
-- Renderowany pod treścią `MessageBubble` **tylko** dla wiadomości Goata (`persona_id === null`) z niepustym `consultDetails`.
-- Lista rozwijanych elementów (`<details>`/Radix Collapsible/Accordion — użyć istniejącego prymitywu z `components/ui`, jeśli jest w projekcie; sprawdzić `components/ui/accordion.tsx` lub podobne przed pisaniem od zera).
-- Domyślnie **zwinięte**.
-- Nagłówek: etykieta trenera (`persona_label`), np. "Bartek · Trener motoryczny odpowiedział".
-- Po rozwinięciu: pytanie Goata (mniejszym/wyszarzonym tekstem, prefiks "Pytanie:") + odpowiedź trenera (główny tekst).
-- Styl wizualnie odróżniony od `MessageBubble` (np. mniejsza czcionka, ramka, wcięcie) — to ma czytać się jako "podgląd źródła", nie jako kolejna wiadomość w rozmowie.
+- Rendered under the `MessageBubble` body **only** for Goat messages (`persona_id === null`) with non-empty `consultDetails`.
+- List of expandable elements (`<details>`/Radix Collapsible/Accordion — use an existing primitive from `components/ui` if present; check `components/ui/accordion.tsx` or similar before writing from scratch).
+- **Collapsed** by default.
+- Header: trainer label (`persona_label`), e.g. "Bartek · Motor Skills Trainer answered".
+- On expand: Goat's question (smaller/grayed text, prefix "Question:") + trainer's answer (main text).
+- Visually distinguished from `MessageBubble` (e.g. smaller font, border, indent) — it should read as "source preview", not another message in the conversation.
 
-## Błędy
+## Errors
 
-| Przypadek | Zachowanie |
-|-----------|------------|
-| `consult_persona` zwraca error | brak `consult_detail` (live) / brak wpisu w historii (parsowanie JSON bez `answer`) |
-| Malformed JSON w `role='tool'` przy parsowaniu historii | pomiń wpis, nie przerywaj renderowania reszty historii |
-| `consult_detail` przyjdzie bez odpowiadającego `tool_result`/wiadomości Goata (edge case przy przerwanym streamie) | FE ignoruje osierocony `consult_detail` (nie ma do czego doczepić) |
+| Case | Behavior |
+|------|----------|
+| `consult_persona` returns error | no `consult_detail` (live) / no entry in history (JSON parsing without `answer`) |
+| Malformed JSON in `role='tool'` during history parsing | skip entry, don't break rendering of the rest of history |
+| `consult_detail` arrives without a corresponding `tool_result`/Goat message (edge case on interrupted stream) | FE ignores the orphaned `consult_detail` (nothing to attach to) |
 
-## Testy
+## Tests
 
-- Backend: `_consult_persona` zwraca `question` w JSON (happy path).
-- Backend: `consult_detail` event emitowany tylko przy `status: "ok"`, z poprawnym `tool_call_id`.
-- Backend: brak `consult_detail` przy błędzie (zły slug / limit / timeout).
-- FE: `chat-messages.ts` — parowanie `assistant.tool_calls` (`consult_persona`) ↔ `tool` po `tool_call_id`, zbudowanie `consultDetails`.
-- FE: `chat-messages.ts` — malformed JSON w `role='tool'` nie wywala parsowania historii.
-- FE: `useChatTurnRunner` — akumulacja `consult_detail` w trakcie streamu, dołączenie do finalnej wiadomości.
-- FE: `ConsultDetails` — domyślnie zwinięte; rozwinięcie pokazuje pytanie + odpowiedź; nie renderuje się gdy `consultDetails` puste.
-- FE: roundtable — 2+ konsultacje w jednej turze → 2+ elementy w poprawnej kolejności.
+- Backend: `_consult_persona` returns `question` in JSON (happy path).
+- Backend: `consult_detail` event emitted only on `status: "ok"`, with correct `tool_call_id`.
+- Backend: no `consult_detail` on error (bad slug / limit / timeout).
+- FE: `chat-messages.ts` — pairing `assistant.tool_calls` (`consult_persona`) ↔ `tool` by `tool_call_id`, building `consultDetails`.
+- FE: `chat-messages.ts` — malformed JSON in `role='tool'` doesn't crash history parsing.
+- FE: `useChatTurnRunner` — accumulation of `consult_detail` during stream, attachment to the final message.
+- FE: `ConsultDetails` — collapsed by default; expand shows question + answer; doesn't render when `consultDetails` is empty.
+- FE: roundtable — 2+ consultations in one turn → 2+ elements in correct order.
 
-## Poza zakresem (tej iteracji)
+## Out of scope (this iteration)
 
-- Zmiana treści/formatu odpowiedzi trenera pod kątem bezpośredniej czytelności dla usera (dziś `answer` jest pisane jako "brief dla Goata", nie jako user-facing copy — patrz "Otwarte pytanie" niżej).
-- Możliwość odpowiedzi/dopytania trenera bezpośrednio z poziomu tego panelu (to już byłby krok w stronę pełnego multi-agent chatu, poza zakresem tej zmiany).
-- Sesja `persona` (1:1) i slash — bez zmian, tam `consult_persona` nie występuje.
-- Eksport/druk historii z uwzględnieniem konsultacji — nieadresowane.
+- Changing the content/format of the trainer's answer for direct user readability (today `answer` is written as "brief for Goat", not as user-facing copy — see "Open question" below).
+- Ability to reply/ask the trainer directly from this panel (that would already be a step toward full multi-agent chat, out of scope for this change).
+- `persona` session (1:1) and slash — unchanged, `consult_persona` doesn't occur there.
+- Export/print history including consultations — not addressed.
 
-## Otwarte pytanie (do decyzji przed/podczas implementacji)
+## Open question (decide before/during implementation)
 
-`answer` trenera dziś jest generowany z myślą "to czyta Goat, nie user" (prompt trenera w `consult`-turze to zwykły `handle_message`, bez wiedzy że tekst może trafić bezpośrednio przed oczy usera). Po tej zmianie user może zobaczyć surowy tekst. Do rozstrzygnięcia:
+The trainer's `answer` today is generated with the idea "Goat reads this, not the user" (trainer prompt in `consult`-turn is plain `handle_message`, without knowing the text can go directly to the user's eyes). After this change the user may see raw text. To resolve:
 
-- **Opcja A (rekomendowana na start):** nic nie zmieniać w prompcie trenera — to i tak ten sam tekst, na podstawie którego Goat już dziś buduje odpowiedź, więc nie jest to nowa "niekontrolowana" treść, tylko dotąd ukryta. Zaakceptować, że może brzmieć nieco "technicznie"/skrótowo jako podgląd źródła.
-- **Opcja B:** dodać do prompta trenera w trybie `consult` notatkę w stylu "Twoja odpowiedź może być pokazana userowi jako podgląd — pisz zwięźle i zrozumiale" — koszt: dodatkowa gałąź w prompcie, ryzyko zmiany zachowania istniejącej ścieżki konsultacji (dziś zoptymalizowanej pod "brief dla Goata").
+- **Option A (recommended to start):** don't change anything in the trainer's prompt — it's still the same text, on the basis of which Goat already builds the answer today, so this isn't new "uncontrolled" content, just previously hidden. Accept that it may sound slightly "technical"/abbreviated as a source preview.
+- **Option B:** add to the trainer's prompt in `consult` mode a note like "Your answer may be shown to the user as a preview — write concisely and clearly" — cost: extra branch in the prompt, risk of changing the behavior of the existing consultation path (today optimized for "brief for Goat").
 
-Nie blokuje implementacji UI — można wdrożyć z opcją A i ewentualnie przejść na B po obserwacji jakości tekstu w praniu.
+Doesn't block UI implementation — can ship with option A and possibly switch to B after observing text quality in practice.
 
-## Dokumenty do aktualizacji przy wdrożeniu
+## Documents to update on implementation
 
-- `docs/technical/team-lead.md` — nowa sekcja "Widoczność konsultacji" + aktualizacja diagramu SSE (fragment `## SSE`).
-- `docs/technical/ai-pipeline.md` §1a — wzmianka o `consult_detail`.
-- `docs/technical/architecture.md` §3a — dopisać `consult_detail` do listy eventów w "Frontend SSE eventy (kontrakt)".
-- `docs/technical/frontend.md` — nowy komponent `ConsultDetails`, jeśli plik dokumentuje komponenty czatu.
+- `docs/technical/team-lead.md` — new section "Consultation visibility" + update of the SSE diagram (## SSE fragment).
+- `docs/technical/ai-pipeline.md` §1a — mention of `consult_detail`.
+- `docs/technical/architecture.md` §3a — add `consult_detail` to the list of events in "Frontend SSE events (contract)".
+- `docs/technical/frontend.md` — new `ConsultDetails` component, if the file documents chat components.

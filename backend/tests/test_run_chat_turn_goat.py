@@ -1,4 +1,4 @@
-"""Task 4 — routing tury general: Goat vs slash (GWT-1 / GWT-5)."""
+"""Task 4 — general turn routing: Goat vs slash (GWT-1 / GWT-5)."""
 
 from __future__ import annotations
 

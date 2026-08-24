@@ -1,4 +1,4 @@
-"""Testy Kierownika Zespołu — heurystyki i helpery tury Goata."""
+"""Tests for the Team Lead — heuristics and helpers for Goat's turn."""
 
 from __future__ import annotations
 

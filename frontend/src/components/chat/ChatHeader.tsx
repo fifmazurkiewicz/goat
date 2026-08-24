@@ -14,7 +14,7 @@ interface ChatHeaderProps {
   onNewSession?: () => void;
 }
 
-/** Cienki pasek sesji — bez dokumentacji w UI, żeby historia miała miejsce. */
+/** Slim session bar — no in-UI docs to leave room for history. */
 export function ChatHeader({ session, persona, onOpenDrawer, onNewSession }: ChatHeaderProps) {
   const title =
     session.session_type === "persona" && persona

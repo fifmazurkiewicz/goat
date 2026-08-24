@@ -10,8 +10,8 @@ export function resultsKey(category: ResultCategory) {
 export const ALL_RESULTS_KEY = ["results", "all"] as const;
 
 /**
- * Wszystkie wyniki usera (bez filtra kategorii) — do zbudowania tabów gdy agent
- * zapisał wpis w kategorii spoza mapowania person (np. triathlon przy samym motor_coach).
+ * All user results (no category filter) — used to build tabs when the agent
+ * logged an entry in a category outside persona mapping (e.g. triathlon with only motor_coach).
  */
 export function useAllResults() {
   return useQuery({
@@ -21,10 +21,10 @@ export function useAllResults() {
 }
 
 /**
- * `GET /results?category=` — indeks `results_user_category_metric_date`
- * wspiera to zapytanie (docs/technical/frontend.md sekcja 6, ADR-9). Filtrowanie po
- * metryce dla wykresu robione po stronie klienta na już pobranych wynikach kategorii
- * (rząd dziesiątek wpisów, brak potrzeby osobnego requestu per metryka).
+ * `GET /results?category=` — the `results_user_category_metric_date` index
+ * supports this query (docs/technical/frontend.md section 6, ADR-9). Filtering by
+ * metric for the chart is done client-side on the already-fetched category results
+ * (dozens of entries at most, no need for a separate request per metric).
  */
 export function useResults(category: ResultCategory | null | undefined) {
   return useQuery({
@@ -36,8 +36,8 @@ export function useResults(category: ResultCategory | null | undefined) {
 }
 
 /**
- * Wyniki zalogowane KONKRETNEGO dnia (wszystkie kategorie) — `ActualResultsPanel` w
- * `/plans` (ADR-9: "Zrealizowane" obok "Zaplanowane", prosta juxtapozycja plan vs wyniki).
+ * Results logged on a SPECIFIC day (all categories) — `ActualResultsPanel` in
+ * `/plans` (ADR-9: "Completed" next to "Planned", a simple plan vs results juxtaposition).
  */
 export function useResultsByDate(date: string | undefined) {
   return useQuery({

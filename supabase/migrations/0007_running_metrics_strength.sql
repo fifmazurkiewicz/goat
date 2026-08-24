@@ -1,5 +1,5 @@
--- Metryki biegowe pod category=strength (trener motoryczny / kondycja).
--- Bez osobnej kategorii „running” — FE mapuje motor_coach → strength („Trening”).
+-- Running metrics under category=strength (motor coach / conditioning).
+-- Without a separate "running" category — FE maps motor_coach → strength ("Training").
 
 insert into public.allowed_metrics (category, metric_key, unit, value_type, value_min, value_max)
 values

@@ -12,12 +12,12 @@ describe("usePlanGenerationStore", () => {
     resetStore();
   });
 
-  it("zaczyna w stanie idle bez zapisanego jobId", () => {
+  it("starts in the idle state without a saved jobId", () => {
     expect(usePlanGenerationStore.getState().status).toBe("idle");
     expect(usePlanGenerationStore.getState().jobId).toBeNull();
   });
 
-  it("startJob przełącza w stan generating i zapisuje jobId w localStorage", () => {
+  it("startJob switches to the generating state and saves jobId in localStorage", () => {
     usePlanGenerationStore.getState().startJob("job-1");
 
     const state = usePlanGenerationStore.getState();
@@ -26,7 +26,7 @@ describe("usePlanGenerationStore", () => {
     expect(localStorage.getItem("coach.planGeneration.jobId")).toBe("job-1");
   });
 
-  it("setStatus('ready') czyści jobId z localStorage, ale zachowuje go w stanie", () => {
+  it("setStatus('ready') clears jobId from localStorage but keeps it in state", () => {
     usePlanGenerationStore.getState().startJob("job-1");
     usePlanGenerationStore.getState().setStatus("ready");
 
@@ -34,7 +34,7 @@ describe("usePlanGenerationStore", () => {
     expect(localStorage.getItem("coach.planGeneration.jobId")).toBeNull();
   });
 
-  it("setStatus('partial_ready') zapisuje breakdown person i czyści localStorage", () => {
+  it("setStatus('partial_ready') saves the personas breakdown and clears localStorage", () => {
     usePlanGenerationStore.getState().startJob("job-1");
     usePlanGenerationStore.getState().setStatus("partial_ready", [
       { persona_id: "p1", status: "done", retry_count: 0, last_error: null },
@@ -48,7 +48,7 @@ describe("usePlanGenerationStore", () => {
     expect(localStorage.getItem("coach.planGeneration.jobId")).toBeNull();
   });
 
-  it("setStatus('error') czyści persystencję jobId", () => {
+  it("setStatus('error') clears jobId persistence", () => {
     usePlanGenerationStore.getState().startJob("job-1");
     usePlanGenerationStore.getState().setStatus("error");
 
@@ -56,7 +56,7 @@ describe("usePlanGenerationStore", () => {
     expect(localStorage.getItem("coach.planGeneration.jobId")).toBeNull();
   });
 
-  it("reset wraca do stanu idle i czyści breakdown", () => {
+  it("reset returns to the idle state and clears the breakdown", () => {
     usePlanGenerationStore.getState().startJob("job-1");
     usePlanGenerationStore.getState().setStatus("partial_ready", [
       { persona_id: "p1", status: "failed", retry_count: 1, last_error: "boom" },

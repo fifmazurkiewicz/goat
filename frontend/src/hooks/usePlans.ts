@@ -11,7 +11,7 @@ export function planRangeKey(startDate: string, endDate: string) {
   return ["plans", startDate, endDate] as const;
 }
 
-/** `GET /plans?start_date=&end_date=` — plan + plan_items dla widocznego zakresu kalendarza. */
+/** `GET /plans?start_date=&end_date=` — plan + plan_items for the visible calendar range. */
 export function usePlanRange(startDate: string, endDate: string) {
   return useQuery({
     queryKey: planRangeKey(startDate, endDate),
@@ -47,7 +47,7 @@ function applyActiveJob(job: PlanGenerationJob) {
   }
 }
 
-/** Pobiera aktywny job z backendu (gdy localStorage/store nie wiedzą o trwającym generowaniu). */
+/** Fetches the active job from the backend (when localStorage/store don't know about an in-progress generation). */
 export async function syncActivePlanJob(): Promise<PlanGenerationJob | null> {
   const job = await apiFetch<PlanGenerationJob | null>("/api/v1/plans/jobs/active");
   if (job && (job.status === "pending" || job.status === "running")) {
@@ -69,8 +69,8 @@ export function useCancelPlanJob() {
 }
 
 /**
- * Przy starcie appki synchronizuje aktywny job z backendu — naprawia sytuację
- * „Masz już aktywny job” bez widocznego banera (utracony localStorage).
+ * On app startup, synchronizes the active job from the backend — fixes the
+ * "You already have an active job" state without a visible banner (lost localStorage).
  */
 export function usePlanGenerationSync() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated());
@@ -79,16 +79,16 @@ export function usePlanGenerationSync() {
     if (!isAuthenticated) return;
 
     void syncActivePlanJob().catch(() => {
-      // Brak aktywnego joba — normalny stan idle.
+      // No active job — normal idle state.
     });
   }, [isAuthenticated]);
 }
 
 /**
- * Polling `GET /plans/jobs/{id}` — MOUNTOWANY W APP SHELL, nie w /plans
- * (docs/technical/frontend.md sekcja 2 i 5). `/plans` czyta tylko wynikowy stan z
- * `usePlanGenerationStore`, nigdy nie odpytuje samo. Side-effect (toast) żyje tutaj,
- * w miejscu gdzie żyje polling — nie w komponencie strony.
+ * Polling `GET /plans/jobs/{id}` — MOUNTED IN APP SHELL, not in /plans
+ * (docs/technical/frontend.md sections 2 and 5). `/plans` only reads the resulting
+ * state from `usePlanGenerationStore`, it never polls on its own. The side-effect
+ * (toast) lives here, where the polling lives — not in the page component.
  */
 export function usePlanGenerationPolling() {
   const jobId = usePlanGenerationStore((state) => state.jobId);

@@ -1,44 +1,44 @@
-# Spec: rozdział zachowania i zabezpieczeń persony
+# Spec: persona behavior and safety split
 
-**Status:** zaakceptowane (2026-08-04)  
-**Produkt:** goat — Multi-Persona Coaching App
+**Status:** accepted (2026-08-04)  
+**Product:** goat — Multi-Persona Coaching App
 
 ## Problem
 
-Pełny `default_prompt` gotowca (m.in. dietetyk) zawierał jednocześnie:
-- zachowanie / styl / zakres pomocy (OK dla usera),
-- reguły medyczne: lekarz, leki, „czego NIE robisz”, red flags (NIE dla usera).
+The full `default_prompt` of the template (including dietitian) contained at once:
+- behavior / style / scope of help (OK for user),
+- medical rules: doctor, medications, "what you do NOT do", red flags (NOT for user).
 
-User mógł to widzieć i edytować w formularzu persony.
+The user could see and edit this in the persona form.
 
-## Decyzja
+## Decision
 
-| Warstwa | Źródło | Widok API/UI | Edycja end-user |
+| Layer | Source | API/UI view | End-user edit |
 |---|---|---|---|
-| Platform preamble | kod backend | nie | nie |
-| Safety overlay | `app_private.persona_template_safety` | nie | nie |
-| Zachowanie | `personas.system_prompt` ← seed `persona_templates.default_prompt` | tak | tak |
-| Twarde ograniczenia | `personas.persona_constraints` | nie (`PersonaOut`) | nie |
+| Platform preamble | backend code | no | no |
+| Safety overlay | `app_private.persona_template_safety` | no | no |
+| Behavior | `personas.system_prompt` ← seed `persona_templates.default_prompt` | yes | yes |
+| Hard constraints | `personas.persona_constraints` | no (`PersonaOut`) | no |
 
-Skład promptu czatu/planu:
+Chat/plan prompt composition:
 
 ```
-[PLATFORM PREAMBUŁ] + [ZABEZPIECZENIA GOTOWCA] + [ZACHOWANIE PERSONY] + opcjonalnie constraints + profil
+[PLATFORM PREAMBLE] + [TEMPLATE SAFETY] + [PERSONA BEHAVIOR] + optional constraints + profile
 ```
 
-## Baza
+## Database
 
-- `persona_templates`: tylko `default_prompt` (zachowanie) — SELECT publiczny jak dziś.
-- `app_private.persona_template_safety(template_id, safety_prompt)` — brak GRANT dla `anon`/`authenticated`; odczyt wyłącznie przez `service_role` (backend).
-- Reset środowiska: `supabase/reset_public.sql`, potem `0001_init.sql` + `0002_exercise_catalog.sql` (bez osobnego 0003).
+- `persona_templates`: only `default_prompt` (behavior) — public SELECT as today.
+- `app_private.persona_template_safety(template_id, safety_prompt)` — no GRANT for `anon`/`authenticated`; read only via `service_role` (backend).
+- Environment reset: `supabase/reset_public.sql`, then `0001_init.sql` + `0002_exercise_catalog.sql` (without a separate 0003).
 
 ## API / UI
 
-- Formularz: pole „Jak ma się zachowywać” (dawniej system prompt) — treść behawioralna.
-- Brak ekspozycji `safety_prompt` i `persona_constraints` w DTO.
-- Create: wolno wysłać/edytować `system_prompt` (zachowanie); safety zawsze z szablonu po `base_template_id`.
+- Form: "How it should behave" field (formerly system prompt) — behavioral content.
+- No exposure of `safety_prompt` and `persona_constraints` in DTO.
+- Create: may send/edit `system_prompt` (behavior); safety always from template by `base_template_id`.
 
-## Poza zakresem
+## Out of scope
 
-- Panel operatorski do edycji `persona_constraints` / safety.
-- Column-level revoke na `personas.persona_constraints` (własny SELECT i tak widzi kolumnę w Data API — mitigacja: app nie używa Data API do person; dokumentacja świadomego ograniczenia MVP).
+- Operator panel for editing `persona_constraints` / safety.
+- Column-level revoke on `personas.persona_constraints` (own SELECT still sees the column in Data API — mitigation: app doesn't use Data API for personas; documentation of conscious MVP limitation).

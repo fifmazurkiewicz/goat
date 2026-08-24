@@ -32,7 +32,7 @@ const breakdownDone: PlanGenerationJobPersonaBreakdown[] = [
 ];
 
 describe("PlanGenerationPersonaProgress", () => {
-  it("pokazuje Goat · Kierownik podczas harmonizacji", () => {
+  it("shows Goat · Kierownik while harmonizing", () => {
     render(
       <PlanGenerationPersonaProgress
         breakdown={breakdownDone}
@@ -46,7 +46,7 @@ describe("PlanGenerationPersonaProgress", () => {
     expect(screen.queryByText(/Harmonizacja planu/i)).not.toBeInTheDocument();
   });
 
-  it("po ready oznacza Goata jako Gotowe", () => {
+  it("after ready, marks Goat as Done", () => {
     render(
       <PlanGenerationPersonaProgress
         breakdown={breakdownDone}

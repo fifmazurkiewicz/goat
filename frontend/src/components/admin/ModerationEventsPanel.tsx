@@ -12,7 +12,7 @@ const VERDICT_VARIANT: Record<string, "default" | "destructive" | "secondary" | 
   off_topic: "outline",
 };
 
-/** Przegląd `moderation_events` (docs/technical/database-schema.md) — brak dostępu dla zwykłego usera, tylko admin. */
+/** Overview of `moderation_events` (docs/technical/database-schema.md) — no access for regular users, admin only. */
 export function ModerationEventsPanel() {
   const { data: events, isLoading } = useModerationEvents();
 

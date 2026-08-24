@@ -1,23 +1,23 @@
-# Lampka cold startu API — Implementation Plan
+# API cold-start lamp — Implementation Plan
 
-> **For agentic workers:** execute inline with TDD. Nie commituj, dopóki user nie poprosi.
+> **For agentic workers:** execute inline with TDD. Don't commit until the user asks.
 
-**Goal:** Lampka w headerze tylko gdy backend (Render Free) się budzi; po `200` znika i **nie** trzyma serwera przy życiu pingami.
+**Goal:** A lamp in the header only when the backend (Render Free) is waking up; after `200` it disappears and **doesn't** keep the server alive with pings.
 
-**Architecture:** Czysta maszyna stanów w `frontend/src/lib/api-health.ts` (testy Vitest). Hook `useApiHealthProbe` w App interpretuje stany i woła `GET /api/health` wyłącznie w oknie wybudzania. `apiFetch` / SSE zgłaszają błąd sieci lub wolny request → nowe okno. Lampka czyta store; `/login` nie startuje sondy na mount.
+**Architecture:** Pure state machine in `frontend/src/lib/api-health.ts` (Vitest tests). Hook `useApiHealthProbe` in App interprets states and calls `GET /api/health` only in the wake-up window. `apiFetch` / SSE report a network error or slow request → new window. The lamp reads the store; `/login` doesn't start probing on mount.
 
 **Tech Stack:** Vite, React, Zustand, TanStack Query, Vitest, shadcn Popover.
 
 ## Global Constraints
 
-- Tekst waking: `Budzimy aplikację, poczekaj chwilę.`
-- Tekst down: `Nie możemy połączyć się z serwerem. Spróbujemy ponownie.`
-- Waking ≥ 2 s, down ≥ 90 s, timeout próby 8 s, przerwa 4 s.
-- Zakaz `refetchInterval` na health; karta w tle i `/login` mount = zero `/api/health`.
-- Po 200: `queryClient.invalidateQueries`, stop sondy.
+- Waking text: `Waking up the application, please wait.`
+- Down text: `Can't connect to the server. We'll try again.`
+- Waking ≥ 2 s, down ≥ 90 s, attempt timeout 8 s, break 4 s.
+- Forbidden `refetchInterval` on health; background tab and `/login` mount = zero `/api/health`.
+- After 200: `queryClient.invalidateQueries`, stop probing.
 
 ## Status
 
-- [x] Task 1: Maszyna stanów (`api-health.ts` + testy)
-- [x] Task 2: Store + sonda + lampka + wiring (AppShell, apiFetch, SSE, login)
-- [x] Testy / lint / build frontend (2026-08-16)
+- [x] Task 1: State machine (`api-health.ts` + tests)
+- [x] Task 2: Store + probe + lamp + wiring (AppShell, apiFetch, SSE, login)
+- [x] Tests / lint / build frontend (2026-08-16)

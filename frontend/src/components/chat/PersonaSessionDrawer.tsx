@@ -22,7 +22,7 @@ interface SessionGroup {
   sessions: ChatSession[];
 }
 
-/** Collapsible od startu (Sheet z shadcn na mobile), docs/technical/frontend.md sekcja 4. */
+/** Collapsible from the start (shadcn Sheet on mobile), docs/technical/frontend.md section 4. */
 export function PersonaSessionDrawer({
   sessions,
   personas,

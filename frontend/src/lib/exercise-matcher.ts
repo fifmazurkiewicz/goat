@@ -1,9 +1,10 @@
 import type { Exercise } from "@/types/api";
 
 /**
- * Matcher klikalnych ćwiczeń w planach (ADR-14 nowelizacja 2026-08-23): wiersz tabeli
- * planu to wolny tekst od LLM (np. "Przysiad ze sztangą", "barbell squat", "Wyciskanie
- * leżąc 3×8") — dopasowujemy go do katalogu po znormalizowanych nazwach (PL, EN) i slugu.
+ * Matcher for clickable exercises in plans (ADR-14 amendment 2026-08-23): a plan table row
+ * is free-form text from the LLM (e.g. "Barbell squat", "przysiad ze sztanga",
+ * "Wyciskanie lezaco 3x8") — we match it against the catalog by normalized names
+ * (PL, EN) and the slug.
  */
 
 const STOP_WORDS = new Set(["cwiczenie", "exercise"]);
@@ -29,7 +30,7 @@ function exerciseKeys(exercise: Exercise): string[] {
     .filter(Boolean);
 }
 
-/** Indeks: znormalizowany klucz → exercise. Buduj raz per render listy (useMemo). */
+/** Index: normalized key → exercise. Build once per list render (useMemo). */
 export function buildExerciseMatcher(exercises: Exercise[]): (cell: string) => Exercise | null {
   const index = new Map<string, Exercise>();
   for (const exercise of exercises) {
@@ -44,8 +45,8 @@ export function buildExerciseMatcher(exercises: Exercise[]): (cell: string) => E
     const direct = index.get(normalizedCell);
     if (direct) return direct;
 
-    // Fallback: komórka zawiera pełny znormalizowany klucz ćwiczenia
-    // (np. "przysiad ze sztanga 3x8" zawiera "przysiad ze sztanga").
+    // Fallback: the cell contains the full normalized key of an exercise
+    // (e.g. "przysiad ze sztanga 3x8" contains "przysiad ze sztanga").
     for (const [key, exercise] of index) {
       if (key.length >= 5 && normalizedCell.includes(key)) return exercise;
     }

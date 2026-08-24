@@ -1,8 +1,8 @@
 import { useCallback, useState } from "react";
 
 /**
- * Generyczny `useState` persystowany w localStorage — używany np. dla stanu
- * open/closed `PersonaSessionDrawer` (docs/technical/frontend.md sekcja 4).
+ * Generic `useState` persisted in localStorage — used e.g. for the open/closed
+ * state of `PersonaSessionDrawer` (docs/technical/frontend.md section 4).
  */
 export function useLocalStorageState<T>(key: string, initialValue: T) {
   const [value, setValue] = useState<T>(() => {
@@ -21,7 +21,7 @@ export function useLocalStorageState<T>(key: string, initialValue: T) {
         try {
           localStorage.setItem(key, JSON.stringify(resolved));
         } catch {
-          // localStorage niedostępny — brak persystencji, nie krytyczne.
+          // localStorage unavailable — no persistence, not critical.
         }
         return resolved;
       });

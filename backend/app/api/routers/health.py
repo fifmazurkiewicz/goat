@@ -1,6 +1,6 @@
-"""Liveness check — bez zależności od bazy/zewnętrznych usług (proste, szybkie 200).
+"""Liveness check — no DB / external service dependencies (simple, fast 200).
 
-Render Health Check wskazuje na `/api/health` (docs/technical/devops.md sekcja 1).
+Render Health Check points to `/api/health` (docs/technical/devops.md section 1).
 """
 
 from fastapi import APIRouter

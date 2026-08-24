@@ -29,10 +29,10 @@ const NAV_ITEMS = [
 ];
 
 /**
- * App shell / root layout dla tras chronionych. `usePlanGenerationPolling` żyje TUTAJ
- * (nie w /plans) — mountowany raz, przetrwa nawigację między stronami
- * (docs/technical/frontend.md sekcja 2 i 5). `useUsage` odpytuje budżet USD raz na
- * poziomie shellu i zasila `useUsageLimitsStore`. `GET /account` ustawia `isAdmin`.
+ * App shell / root layout for protected routes. `usePlanGenerationPolling` lives HERE
+ * (not inside /plans) — mounted once, it survives navigation between pages
+ * (docs/technical/frontend.md sections 2 and 5). `useUsage` polls the USD budget at the
+ * shell level and feeds `useUsageLimitsStore`. `GET /account` sets `isAdmin`.
  */
 export function AppShell() {
   const location = useLocation();

@@ -1,45 +1,45 @@
-# Architektura frontendu
+# Frontend architecture
 
-Vite + React + TypeScript + Tailwind + shadcn/ui, hosting Vercel (Hobby — skala 2-5 userów, użytek niekomercyjny/testowy).
+Vite + React + TypeScript + Tailwind + shadcn/ui, hosted on Vercel (Hobby — 2–5 user scale, non-commercial/test use).
 
 ## 1. Routing
 
 ```
-/login                → publiczna, jeden przycisk "Zaloguj się przez Google" (Supabase Auth, bez magic linka)
-/onboarding           → chroniona (auth), galeria 6 szablonów person jako pierwszy ekran
-/personas             → chroniona (auth)
-/chat, /chat/:sessionId → chroniona (auth) — sesje 'persona' (1:1) i 'general' (auto-routing, ADR-13)
-/plans                → chroniona (auth)
-/results              → chroniona (auth)
-/profile              → chroniona (auth) — podgląd/edycja `user_profile` (ADR-11); główna ścieżka uzupełniania nadal przez czat
-/settings             → chroniona (auth) — nick (+ Zapisz nick), motyw, katalog ćwiczeń (ADR-14, ADR-15)
-/admin                → chroniona (auth + is_admin); bootstrap: wyłącznie fmazurkiewicz@gmail.com
+/login                → public, single "Sign in with Google" button (Supabase Auth, no magic link)
+/onboarding           → protected (auth), gallery of 6 persona templates as the first screen
+/personas             → protected (auth)
+/chat, /chat/:sessionId → protected (auth) — 'persona' sessions (1:1) and 'general' (auto-routing, ADR-13)
+/plans                → protected (auth)
+/results              → protected (auth)
+/profile              → protected (auth) — preview/edit `user_profile` (ADR-11); main filling path still via chat
+/settings             → protected (auth) — nickname (+ Save nickname), theme, exercise catalog (ADR-14, ADR-15)
+/admin                → protected (auth + is_admin); bootstrap: exclusively fmazurkiewicz@gmail.com
 …
 ```
 
-**Route guard "min. 1 aktywna persona" dla `/chat` i `/plans` — DECYZJA: odłożony, nie blokuje pierwszej iteracji.** Zaimplementować dopiero gdy core flow (persony → czat → wyniki → plan) działa end-to-end. Gdy zostanie dodany: w loaderze route'u (nie w komponencie strony, żeby uniknąć flasha przed redirectem), warunek czytany z `usePersonaStore` (współdzielony z galerią onboardingu, nie duplikowany fetch).
+**Route guard "min. 1 active persona" for `/chat` and `/plans` — DECISION: deferred, doesn't block the first iteration.** Only implement when the core flow (personas → chat → results → plan) works end-to-end. When added: in the route loader (not in the page component, to avoid a flash before redirect), the condition read from `usePersonaStore` (shared with the onboarding gallery, not duplicated fetch).
 
-## 2. State management — rozdział zustand / TanStack Query
+## 2. State management — zustand / TanStack Query split
 
-**Zustand — stan kliencki/UI, globalny:**
+**Zustand — client/UI state, global:**
 - `useAuthStore` — `user`, `session` (Supabase), `isAdmin`.
-- `usePersonaStore` — lista person, `activePersonaId`, computed `hasActivePersona`.
-- `usePlanGenerationStore` — **mountowany w app shell/root layout**, nie w `/plans`. Stan `{status: 'idle'|'generating'|'ready'|'partial_ready'|'error', jobId, startedAt, breakdown}`. Odtwarza stan z `localStorage` (`jobId`) przy starcie appki, żeby polling przetrwał zamknięcie karty. Sam odpala toast przy zmianie statusu (side-effect w miejscu gdzie żyje polling, nie w komponencie).
-- `useUsageLimitsStore` — odświeżany po 429 lub po nagłówkach usage w odpowiedzi API. Zasila proaktywny badge "90% limitu".
+- `usePersonaStore` — persona list, `activePersonaId`, computed `hasActivePersona`.
+- `usePlanGenerationStore` — **mounted in the app shell/root layout**, not in `/plans`. State `{status: 'idle'|'generating'|'ready'|'partial_ready'|'error', jobId, startedAt, breakdown}`. Restores state from `localStorage` (`jobId`) on app start so polling survives closing the tab. Itself triggers a toast on status change (side-effect in the place where polling lives, not in the component).
+- `useUsageLimitsStore` — refreshed on 429 or on usage headers in API responses. Powers the proactive "90% of limit" badge.
 
-**TanStack Query — server state:** CRUD person, results, historia wiadomości, plany. Nie mieszać z zustand — server state ma własne potrzeby (cache, invalidacja, refetch, loading/error states), które TanStack Query rozwiązuje za darmo.
+**TanStack Query — server state:** persona CRUD, results, message history, plans. Don't mix with zustand — server state has its own needs (cache, invalidation, refetch, loading/error states) that TanStack Query solves for free.
 
-Po odebraniu `tool_result` w oknie czatu: `queryClient.invalidateQueries(['results'])` globalnie — żeby `/results` pokazywał świeże dane po przejściu z czatu bez ręcznego refresh.
+After receiving `tool_result` in the chat window: `queryClient.invalidateQueries(['results'])` globally — so `/results` shows fresh data after navigating from chat without a manual refresh.
 
-**Lampka cold startu (ADR-19):** `GET /api/health` wyłącznie w oknie wybudzania (nie
-`refetchInterval`, nie ping przy `/login` ani karcie w tle). Lampka obok „Coach” **tylko**
-gdy 200 nie wraca ≥ 2 s; po 200 znika, invaliduje pozostałe query i **milczy**, żeby
-Render mógł usnąć. Hover/tap = krótki tekst. Szczegóły:
+**Cold-start lamp (ADR-19):** `GET /api/health` only during the wake-up window (not
+`refetchInterval`, not ping on `/login` or background tab). Lamp next to "Coach" **only**
+when 200 doesn't come back for ≥ 2 s; after 200 it disappears, invalidates remaining queries and **falls silent**, so
+Render can sleep. Hover/tap = short text. Details:
 [`../superpowers/specs/2026-08-16-api-status-lamp-design.md`](../superpowers/specs/2026-08-16-api-status-lamp-design.md).
 
-## 3. SSE po stronie klienta
+## 3. SSE on the client side
 
-`fetch` + `ReadableStream`, **nie** `EventSource` (nie wspiera POST z body ani nagłówka `Authorization`).
+`fetch` + `ReadableStream`, **not** `EventSource` (doesn't support POST with body nor the `Authorization` header).
 
 ```typescript
 async function* streamChatMessage(sessionId: string, body: SendMessageBody, signal: AbortSignal) {
@@ -64,177 +64,176 @@ async function* streamChatMessage(sessionId: string, body: SendMessageBody, sign
 }
 ```
 
-Dyskryminowany union: `type ChatStreamEvent = {type:'token', text:string} | {type:'tool_call_start', ...} | {type:'tool_result', ...} | {type:'done'} | {type:'error', message:string}`.
+Discriminated union: `type ChatStreamEvent = {type:'token', text:string} | {type:'tool_call_start', ...} | {type:'tool_result', ...} | {type:'done'} | {type:'error', message:string}`.
 
-- **Anulowanie:** `AbortController` w `useChatStream` hooku, `abort()` w cleanupie `useEffect` (nawigacja przerywa stream).
-- **Reconnect: brak w MVP (świadomy dług).** Błąd sieci w trakcie streamu → częściowa odpowiedź + komunikat "Połączenie przerwane" + "Wyślij ponownie" (`POST .../message` z `retry: true` — backend nie wstawia drugi raz tej samej wiadomości usera, jeśli ostatni `role=user` ma identyczną treść).
-- **Wygaśnięcie JWT w trakcie streamu** (401 w połowie) → czytelny komunikat "Sesja wygasła, zaloguj się ponownie", nie ciche urwanie.
-- Optymistyczne dodanie wiadomości usera (pomijane przy `retry`), strumieniowe append tokenów przez batchowanie (`requestAnimationFrame`/debounce 16-30ms) — nie re-render przy każdym tokenie.
-- `aria-live="polite"` na kontenerze streamującej wiadomości asystenta (nie na całej liście) — accessibility dla czytników ekranu.
+- **Cancel:** `AbortController` in the `useChatStream` hook, `abort()` in `useEffect` cleanup (navigation aborts the stream).
+- **Reconnect: none in MVP (conscious debt).** Network error mid-stream → partial answer + "Connection lost" message + "Resend" (`POST .../message` with `retry: true` — the backend doesn't insert the same user message twice if the last `role=user` has identical content).
+- **JWT expiry mid-stream** (401 mid-way) → readable "Session expired, sign in again" message, not a silent cut-off.
+- Optimistic user-message addition (skipped on `retry`), streamed token append via batching (`requestAnimationFrame`/debounce 16–30 ms) — no re-render on every token.
+- `aria-live="polite"` on the streaming assistant message container (not on the whole list) — accessibility for screen readers.
 
-## 4. Komponenty — `/chat`
+## 4. Components — `/chat`
 
 ```
 ChatLayout (smart) — drawer open/closed (localStorage), URL sync sessionId;
 │                    AppShell `h-dvh` + `--app-height` (visualViewport) + `min-h-0`.
-│                    Na `/chat` `main` = `overflow-hidden` (bez page-scroll).
-│                    Scroll tylko w MessageList; pole „Wyślij” zawsze w viewport.
+│                    On `/chat` `main` = `overflow-hidden` (no page-scroll).
+│                    Scroll only in MessageList; "Send" field always in viewport.
 │                    Composer: `env(safe-area-inset-bottom)` + min. 44px.
-├─ PersonaSessionDrawer (smart) — collapsible od startu (Sheet z shadcn na mobile)
-│  └─ SessionListItem (dumb) — avatar/kolor persony (silne kodowanie wizualne, nie tylko tekst)
-├─ ChatSessionsScreen (dumb) — MOBILE: `/chat` bez `:sessionId` = pełnoekranowa lista rozmów
-│  (ten sam drawer bez `Sheet`); desktop zostaje przy empty state „Wybierz rozmowę”
-├─ ChatHeader (dumb) — tytuł sesji; na mobile hamburger + „Nowa rozmowa”; bez copy /slug
-├─ ChatWindow (smart) — stan czatu; SSE przez globalny `useChatTurnRunner` w AppShell (tura w tle)
-│  ├─ MessageList (dumb) — kotwica na dole (`chat-history-end`); bez wirtualizacji (MVP)
-│  │  ├─ MessageBubble (dumb) — w sesji 'general' nagłówek persona_label (trener lub
-│  │  │  **Goat · Kierownik Zespołu** gdy `persona_id=null` — `isTeamLeadAssistantMessage`)
-│  │  │  (kontekst już wiadomy z ChatHeader). Treść **asystenta** renderowana jako Markdown
-│  │  │  (`react-markdown`, bez raw HTML). Historia UI filtruje `role=tool` i puste
-│  │  │  `assistant` (tool_calls-only) — surowe JSON-y narzędzi zostają w DB dla LLM, nie w bubble.
-│  │  ├─ StreamingStatusLine (dumb) — jedna linia „persona + akcja” podczas ciszy streamu
-│  │  │  (routing / myślenie / `tool_call_start`); mapa PL w `lib/chat-status.ts`; znika przy
-│  │  │  pierwszym `token`. Start: general → „Dobieram trenera…”, persona → „Przygotowuję…”.
-│  │  └─ ToolResultChip (dumb) — inline chip z `tool_result` (pola `tool_name`/`summary`/`success`)
-│  │     w czasie rzeczywistym; po odświeżeniu historii chip znika (wynik widać w `/results` / profilu)
-│  │  └─ ConsultDetails (dumb, 2026-08-22) — rozwijany podgląd konsultacji Goata pod jego
-│  │     wiadomością: `{personaLabel, question, answer}` z `consultDetails`; live z SSE
-│  │     `consult_detail`, historia z parowania `tool_calls`↔`role='tool'` (`visibleChatMessages`);
-│  │     domyślnie zwinięte; nie jest to osobna wiadomość trenera (ADR-17 nietknięty)
-│  └─ ChatInput (dumb) — disabled podczas streamu i przy 429; w sesji 'general' nasłuchuje na
-│     wpisanie "/" na starcie treści → PersonaSlashAutocomplete (dropdown z avatarem + nazwą
-│     aktywnych person, filtrowany po dalszym wpisywaniu; Enter/klik wstawia `/{slug} `) — surowa
-│     składnia `/slug` bez podpowiedzi jest praktycznie nieodkrywalna dla nietechnicznego usera
+├─ PersonaSessionDrawer (smart) — collapsible from the start (Sheet from shadcn on mobile)
+│  └─ SessionListItem (dumb) — persona avatar/color (strong visual coding, not text only)
+├─ ChatSessionsScreen (dumb) — MOBILE: `/chat` without `:sessionId` = full-screen conversation list
+│  (same drawer without `Sheet`); desktop stays with the empty state "Select a conversation"
+├─ ChatHeader (dumb) — session title; on mobile hamburger + "New conversation"; no copy /slug
+├─ ChatWindow (smart) — chat state; SSE via global `useChatTurnRunner` in AppShell (turn in background)
+│  ├─ MessageList (dumb) — bottom anchor (`chat-history-end`); no virtualization (MVP)
+│  │  ├─ MessageBubble (dumb) — in 'general' session persona_label header (trainer or
+│  │  │  **Goat · Team Lead** when `persona_id=null` — `isTeamLeadAssistantMessage`)
+│  │  │  (context already known from ChatHeader). **Assistant** body rendered as Markdown
+│  │  │  (`react-markdown`, no raw HTML). History UI filters `role=tool` and empty
+│  │  │  `assistant` (tool_calls only) — raw tool JSONs stay in DB for LLM, not in bubble.
+│  │  ├─ StreamingStatusLine (dumb) — single "persona + action" line during stream quiet
+│  │  │  (routing / thinking / `tool_call_start`); PL map in `lib/chat-status.ts`; disappears on
+│  │  │  first `token`. Start: general → "Picking a trainer…", persona → "Preparing…".
+│  │  └─ ToolResultChip (dumb) — inline chip from `tool_result` (`tool_name`/`summary`/`success` fields)
+│  │     in real time; after history refresh chip disappears (result visible in `/results` / profile)
+│  │  └─ ConsultDetails (dumb, 2026-08-22) — expandable preview of Goat's consultation under his
+│  │     message: `{personaLabel, question, answer}` from `consultDetails`; live via SSE
+│  │     `consult_detail`, history from pairing `tool_calls`↔`role='tool'` (`visibleChatMessages`);
+│  │     collapsed by default; this is not a separate trainer message (ADR-17 untouched)
+│  └─ ChatInput (dumb) — disabled during stream and on 429; in 'general' session listens for
+│     "/" at start of content → PersonaSlashAutocomplete (dropdown with avatar + name of
+│     active personas, filtered by further typing; Enter/click inserts `/{slug} `) — raw
+│     `/slug` syntax without hints is practically undiscoverable for a non-technical user
 ```
 
-### 4a. Wejście na `/chat` — mobile vs desktop (od 2026-08-17)
+### 4a. Entering `/chat` — mobile vs desktop (since 2026-08-17)
 
-| Kontekst | Zachowanie |
+| Context | Behavior |
 |---|---|
-| Mobile, `/chat` bez sesji, pierwsze wejście do appki, są rozmowy | `navigate(/chat/<najnowsza>, {replace:true})` — `latestSessionId()` wg `updated_at` |
-| Mobile, `/chat` po powrocie z rozmowy (lub po usunięciu sesji) | `ChatSessionsScreen` — lista rozmów; **bez** ponownego redirectu (guard `useRef`) |
-| Mobile, brak rozmów | lista z „Brak rozmów” + CTA „Nowa rozmowa” |
-| Desktop | jak dotąd: stały drawer + empty state, zero redirectów |
+| Mobile, `/chat` without session, first app entry, conversations exist | `navigate(/chat/<newest>, {replace:true})` — `latestSessionId()` by `updated_at` |
+| Mobile, `/chat` after returning from conversation (or after deleting a session) | `ChatSessionsScreen` — conversation list; **without** another redirect (guard `useRef`) |
+| Mobile, no conversations | list with "No conversations" + CTA "New conversation" |
+| Desktop | as before: fixed drawer + empty state, zero redirects |
 
-Wcześniej lista na mobile żyła wyłącznie w zamkniętym `Sheet`, którego trigger (hamburger) był
-w `ChatHeader` renderowanym tylko przy aktywnej sesji — user musiał utworzyć nową rozmowę, żeby
-zobaczyć historię. Spec:
+Previously the mobile list lived only in a closed `Sheet`, whose trigger (hamburger) was
+in `ChatHeader` rendered only for an active session — the user had to create a new conversation to
+see the history. Spec:
 [2026-08-17](../superpowers/specs/2026-08-17-mobile-history-and-goat-log-result-design.md).
 
-### 4b. Nowa sesja — wybór trybu
+### 4b. New session — mode selection
 
-"+ Nowa rozmowa" otwiera krótki wybór: "Ogólna rozmowa" (auto-routing, `persona_id: null`) vs
-wybór konkretnej persony z listy aktywnych (1:1, jak dotychczas) — `POST /chat/sessions {persona_id}`.
+"+ New conversation" opens a short choice: "General conversation" (auto-routing, `persona_id: null`) vs
+selecting a specific persona from the list of active ones (1:1, as before) — `POST /chat/sessions {persona_id}`.
 
-## 5. Komponenty — `/plans`
+## 5. Components — `/plans`
 
 ```
-PlansPage (smart) — activeMonth/activeDate z URL search params (linkowalne)
-├─ CalendarViewSwitcher (smart) — Week/Month wg breakpointu (matchMedia) + ręczny override desktop
-│  ├─ WeekAgendaView (dumb) — <768px DEFAULT, custom (date-fns), nie grid
-│  └─ MonthGridView (dumb) — desktop opcja, react-day-picker / shadcn Calendar
-├─ DayPanel (smart, responsywny) — Sheet(bottom mobile / side desktop) z shadcn, jeden komponent, różny `side`
-│  ├─ PlanItemTable (dumb) — generyczny renderer {title, columns, rows, notes}
-│  └─ ActualResultsPanel (dumb) — NOWE: "Zrealizowane" — results zalogowane tego dnia obok "Zaplanowane"
-│     (adherence tracking — porównanie plan vs wyniki, prosta juxtapozycja, bez złożonej analityki w MVP)
+PlansPage (smart) — activeMonth/activeDate from URL search params (linkable)
+├─ CalendarViewSwitcher (smart) — Week/Month by breakpoint (matchMedia) + manual override desktop
+│  ├─ WeekAgendaView (dumb) — <768px DEFAULT, custom (date-fns), not grid
+│  └─ MonthGridView (dumb) — desktop option, react-day-picker / shadcn Calendar
+├─ DayPanel (smart, responsive) — Sheet (bottom mobile / side desktop) from shadcn, one component, different `side`
+│  ├─ PlanItemTable (dumb) — generic {title, columns, rows, notes} renderer
+│  └─ ActualResultsPanel (dumb) — NEW: "Completed" — results logged that day next to "Planned"
+│     (adherence tracking — plan vs results comparison, simple juxtaposition, no complex analytics in MVP)
 ├─ GeneratePlanCTA / EmptyState (dumb)
-└─ PlanGenerationBanner (dumb) — czyta globalny usePlanGenerationStore, NIE robi własnego pollingu
+└─ PlanGenerationBanner (dumb) — reads global usePlanGenerationStore, does NOT do its own polling
 ```
 
-`react-day-picker`/shadcn `Calendar` **tylko** dla `MonthGridView` — nie ma wbudowanego widoku tygodnia/agendy, więc `WeekAgendaView` (domyślny na mobile) buduje się custom z `date-fns` niezależnie od wyboru biblioteki miesiąca. `FullCalendar`/`react-big-calendar` — przeskalowane, nie polecane.
+`react-day-picker`/shadcn `Calendar` **only** for `MonthGridView` — there's no built-in week/agenda view, so `WeekAgendaView` (default on mobile) is custom-built with `date-fns` independently of the month-library choice. `FullCalendar`/`react-big-calendar` — overkill, not recommended.
 
-`PlansPage` **nie** inicjuje pollingu statusu generowania — czyta wynik z `usePlanGenerationStore` (app shell) i renderuje sukces/partial/błąd dla wybranego dnia/miesiąca.
+`PlansPage` **does not** initiate generation-status polling — it reads the result from `usePlanGenerationStore` (app shell) and renders success/partial/error for the selected day/month.
 
-## 6. Wykresy w `/results`
+## 6. Charts in `/results`
 
-**Nowa funkcja (MVP):** per kategoria, wykres liniowy wartości w czasie (`logged_date` na osi X), filtrowany po `metric` — np. trend wagi ciała, progresja ciężaru w danym ćwiczeniu (bench press 1RM), czasy biegowe. Biblioteka: **`recharts`** przez gotowy `Chart` komponent shadcn/ui (spójny styling z resztą UI, mniej kodu niż surowy recharts). Dane z istniejącego `GET /results?category=&metric=` (indeks `results_user_category_metric_date` w bazie wspiera te zapytania) — bez zmian schematu.
+**New feature (MVP):** per category, line chart of values over time (`logged_date` on X axis), filtered by `metric` — e.g. body weight trend, weight progression in a given exercise (bench press 1RM), running times. Library: **`recharts`** via the ready-made `Chart` shadcn/ui component (consistent styling with the rest of the UI, less code than raw recharts). Data from the existing `GET /results?category=&metric=` (the `results_user_category_metric_date` index in the DB supports these queries) — no schema change.
 
-**Taby kategorii nie są stałą listą sportów.** Budowane z aktywnych person usera (`resultCategoryTabsFromPersonas`) **oraz** kategorii, w których już są wpisy w DB: np. `personal_trainer`/`motor_coach` → **Trening** (`strength`), `dietitian` → Dieta, `badminton_coach` → Badminton. Dzięki temu wynik zapisany przez agenta jako `triathlon`/`custom` nie znika z UI. Logo/nazwa **Coach** w app shell → `/chat`.
+**Category tabs are not a fixed list of sports.** Built from the user's active personas (`resultCategoryTabsFromPersonas`) **and** categories that already have entries in the DB: e.g. `personal_trainer`/`motor_coach` → **Training** (`strength`), `dietitian` → Diet, `badminton_coach` → Badminton. This way a result saved by the agent as `triathlon`/`custom` doesn't disappear from the UI. Logo/name **Coach** in app shell → `/chat`.
 
-## 7. Formularz edycji persony
+## 7. Persona edit form
 
-React Hook Form + Zod (`zodResolver`). Sekcje: podstawowe dane / **„Jak ma się zachowywać”** (`system_prompt` — styl i zakres pomocy; bez treści medycznych) / struktura dnia jako "zaawansowane" (`Accordion`). Reguły lekarz/leki/red flags są w `app_private` + preambule — UI informuje, że są stałe. `persona_constraints` nieobecne w formularzu.
+React Hook Form + Zod (`zodResolver`). Sections: basic data / **"How it should behave"** (`system_prompt` — style and scope of help; no medical content) / day structure as "advanced" (`Accordion`). Doctor/medication/red flags rules are in `app_private` + preamble — the UI informs that they are fixed. `persona_constraints` not present in the form.
 
-Edytor kolumn: UI trzyma listę `{ name }[]` w formularzu; przy zapisie mapuje na kontrakt API `template_overrides: { columns: string[] }` (zgodnie z `resolve_persona_columns` w backendzie). Lista edytowalna przez `useFieldArray` (nazwa + ↑/↓ + usuń + "+ Dodaj kolumnę"). Walidacja Zod: min. 1 kolumna, max ~8, unikalne nazwy, `custom_result_category` wymagane warunkowo (`superRefine`) dla `type==='custom'`. Przy błędach walidacji — toast + komunikaty przy polach (w tym przycisk submit nie może „milczeć”).
+Column editor: UI keeps a `{ name }[]` list in the form; on save maps to the API contract `template_overrides: { columns: string[] }` (per `resolve_persona_columns` in the backend). List editable via `useFieldArray` (name + ↑/↓ + delete + "+ Add column"). Zod validation: min. 1 column, max ~8, unique names, `custom_result_category` required conditionally (`superRefine`) for `type==='custom'`. On validation errors — toast + messages next to fields (incl. submit button can't "go silent").
 
-## 7a. `/settings` — konto, motyw, katalog ćwiczeń (ADR-14, ADR-15; nowelizacja 2026-08-23)
+## 7a. `/settings` — account, theme, exercise catalog (ADR-14, ADR-15; amended 2026-08-23)
 
 ```
 SettingsPage (smart)
-├─ AccountSettingsCard (dumb) — nick (input + przycisk „Zapisz nick”, PATCH /api/v1/account)
-│  + przełącznik motywu jasny/ciemny (`useThemeStore`, tylko localStorage, ADR-15);
-│  `is_admin` z GET /account → `useAuthStore` (zakładka Admin w shellu)
-└─ ExerciseCatalog (smart) — ~873 pozycje po imporcie free-exercise-db (Unlicense),
-   treść PL (tłumaczenie LLM przy generacji seeda 0013), `name_en` dla matcherów.
-   Idle (puste query): 3 losowe z puli (kategoria zawęża pulę) + „Pokaż inne”;
-   pełna lista tylko po wpisaniu frazy. Losowanie: `lib/exercise-catalog.ts`.
-   ├─ ExerciseSearchBar (dumb) — pole szukania (PL i EN przez `name_en`) + Select
-   │  kategorii z grupowaniem (Partie mięśniowe / Typ treningu — chipy nie skalują się
-   │  do ~24 kategorii)
-   └─ ExerciseGrid (dumb) — karta = Link do `/exercises/:slug` (dialog usunięty),
-      `grid-cols-1` <768px / `grid-cols-3` desktop, zdjęcie `loading="lazy"` +
-      `decoding="async"`, ratio 3:2 (źródło 850×567), opis `line-clamp-2`
+├─ AccountSettingsCard (dumb) — nickname (input + "Save nickname" button, PATCH /api/v1/account)
+│  + light/dark theme toggle (`useThemeStore`, localStorage only, ADR-15);
+│  `is_admin` from GET /account → `useAuthStore` (Admin tab in shell)
+└─ ExerciseCatalog (smart) — ~873 entries after free-exercise-db import (Unlicense),
+   PL content (LLM translation when generating seed 0013), `name_en` for matchers.
+   Idle (empty query): 3 random from pool (category narrows the pool) + "Show other";
+   full list only after typing a phrase. Random pick: `lib/exercise-catalog.ts`.
+   ├─ ExerciseSearchBar (dumb) — search field (PL and EN via `name_en`) + category Select
+   │  with grouping (Muscle groups / Workout type — chips don't scale to ~24 categories)
+   └─ ExerciseGrid (dumb) — card = Link to `/exercises/:slug` (dialog removed),
+      `grid-cols-1` <768px / `grid-cols-3` desktop, photo `loading="lazy"` +
+      `decoding="async"`, 3:2 ratio (source 850×567), description `line-clamp-2`
 ```
 
-**Strona szczegółów `/exercises/:slug`** (`ExerciseDetailPage`) — wspólna dla katalogu
-i klikalnych nazw w planach (`PlanItemTable` linkuje pierwszą kolumnę dopasowaną przez
-`lib/exercise-matcher.ts`: normalizacja PL/EN + fallback contains). Dane z cache
-`useExercises` (staleTime 1 h) — bez osobnego endpointu detail.
+**Detail page `/exercises/:slug`** (`ExerciseDetailPage`) — shared between catalog
+and clickable names in plans (`PlanItemTable` links the first column matched by
+`lib/exercise-matcher.ts`: PL/EN normalization + contains fallback). Data from cache
+`useExercises` (staleTime 1 h) — no separate detail endpoint.
 
-Dane z `GET /exercises` (TanStack Query, `staleTime` długi — treść referencyjna zmienia się
-wyłącznie przy deployu nowej migracji) — filtrowanie po kategorii/query robione **po stronie
-klienta**: przy ~870 pozycjach nadal tanie (`useMemo` + `useDeferredValue`); payload listy
-(~0,7 MB surowego JSON, PL instrukcje) kompresuje `GZipMiddleware`. Warunek braku paginacji:
-lazy-loading obrazów + gzip; split lista/detale odłożony do momentu realnego problemu.
+Data from `GET /exercises` (TanStack Query, long `staleTime` — reference content changes only
+on deploy of a new migration) — filtering by category/query done **on the client side**:
+at ~870 entries still cheap (`useMemo` + `useDeferredValue`); list payload
+(~0.7 MB raw JSON, PL instructions) compressed by `GZipMiddleware`. No-pagination condition:
+lazy-loading images + gzip; split list/detail deferred until a real problem.
 
-## 8. Typy — `openapi-typescript` od startu
+## 8. Types — `openapi-typescript` from the start
 
-Generowane z `/openapi.json` FastAPI (`npx openapi-typescript http://localhost:8000/openapi.json -o src/types/api.ts`) **od pierwszego tygodnia implementacji backendu**, nie odkładane. Tanie (jeden skrypt npm), eliminuje rozjazd typów przy pierwszej zmianie pola backendu. Typy SSE eventów definiowane ręcznie (OpenAPI nie opisuje strumienia) — jedyny świadomy wyjątek.
+Generated from FastAPI's `/openapi.json` (`npx openapi-typescript http://localhost:8000/openapi.json -o src/types/api.ts`) **from the first week of backend implementation**, not deferred. Cheap (one npm script), eliminates type drift on the first backend field change. SSE event types defined manually (OpenAPI doesn't describe the stream) — the only conscious exception.
 
-## 9. Testy
+## 9. Tests
 
-Vitest + React Testing Library. Priorytet: parser SSE (`parseSseEvent`) > formularz persony (walidacja Zod) > `usePlanGenerationStore` przejścia stanu > `PlanItemTable` edge cases (0 wierszy, niedopasowana długość). Bez E2E (Playwright) na start MVP.
+Vitest + React Testing Library. Priority: SSE parser (`parseSseEvent`) > persona form (Zod validation) > `usePlanGenerationStore` state transitions > `PlanItemTable` edge cases (0 rows, mismatched length). No E2E (Playwright) at MVP start.
 
-## 10. Obsługa limitu 429
+## 10. Handling 429
 
-Limit to budżet w USD per konto (`profiles.usage_budget_usd`, domyślnie $10 — ADR-16), nie plan
-subskrypcyjny. Komunikat inline z konkretną kwotą wykorzystaną/limitem i datą odnowienia okresu (nie
-generyczny toast), blokada akcji powodującej kolejne 429 (wyszarzenie inputu/przycisku), proaktywny
-badge "90% budżetu". **Bez** fałszywego CTA "Upgrade to Pro" (MVP nie ma płatnych planów) — neutralny
-link "Poproś administratora o zwiększenie budżetu".
+The limit is a budget in USD per account (`profiles.usage_budget_usd`, $10 default — ADR-16), not a subscription
+plan. Inline message with the specific spent amount / limit and the period renewal date (not
+a generic toast), block actions causing further 429 (graying out the input/button), proactive
+"90% of budget" badge. **No** fake "Upgrade to Pro" CTA (MVP has no paid plans) — neutral
+"Ask administrator to increase budget" link.
 
-## 11. Mobile — `/personas`, `/results`, `/admin` (uzupełnienie audytu UX)
+## 11. Mobile — `/personas`, `/results`, `/admin` (UX audit additions)
 
-Sekcje 4-5 adresują mobile dla `/chat` i `/plans` explicite. Dla pozostałych stron:
+Sections 4–5 address mobile for `/chat` and `/plans` explicitly. For other pages:
 
-- **`/personas`, community, katalog ćwiczeń** — siatki `grid-cols-3` (desktop) kolapsują do
-  `grid-cols-1` <768px; opis promptu/ćwiczenia jako `line-clamp-2` zamiast pełnego
-  `text-align: justify` (nieczytelne w wąskiej karcie na małym ekranie).
-- **Dialog "Dodaj personę"** — `Sheet` (bottom, pełna wysokość) na mobile zamiast `Dialog`
-  wyśrodkowanego; siatka szablonów person `grid-cols-1` zamiast `grid-cols-2`.
-- **`PlanItemTable` (trening/dieta, do 5 kolumn)** — na mobile renderowana jako lista
-  card-per-row (etykieta kolumny + wartość, jak definition list) zamiast poziomego scrolla w
-  `<table>` — scroll horyzontalny w tabeli to słaby touch UX przy 5 kolumnach.
-  `PlanItemTable` przyjmuje prop `variant: 'table' | 'cards'`, wybierany przez breakpoint
-  (matchMedia), sama logika renderowania danych (kolumny/wiersze) pozostaje wspólna.
-- **Tabele `/results` i `/admin`** — pierwsza kolumna `sticky left-0` + poziomy scroll dla
-  reszty (nie card-layout — dane tabelaryczne z wieloma numerycznymi kolumnami czytelniejsze
-  w formie tabeli nawet przy scrollu, w odróżnieniu od `PlanItemTable` gdzie kolumny mają
-  zmienną, tekstową treść). Akcje w `/results` mają touch target ≥44px.
-- **Viewport (ADR-18):** `viewport-fit=cover`, `h-dvh` + `--app-height` z `visualViewport`
-  (klawiatura iOS/Android). Safe area: header `pt-[env(safe-area-inset-top)]`, strony i
-  composer `pb-[env(safe-area-inset-bottom)]`. Gutter stron: `PAGE_SHELL_CLASS` (`py-6` na
-  telefonie, `md:py-10`). Touch target min. 44px (`min-h-11`) w nav, composerze, tabach,
-  chipach katalogu i przyciskach planu. Input/textarea: `text-base md:text-sm` (bez zoomu
-  iOS przy focusie). `useIsMobile`: `(max-width: 767px), (max-height: 500px)` — iPhone
-  landscape dostaje Sheet i tydzień planu, nie wyśrodkowany Dialog / siatkę miesiąca.
-  `ResponsiveDialog`: jeden scroll, footer `shrink-0` + safe area.
-- **Nawigacja:** poziomy scroll górnego paska (6 pozycji) zostaje w MVP; bottom nav (Czat /
-  Plan / Wyniki) — świadomie odłożone (wariant B audytu UX 2026-08-16).
-- **Pull-to-refresh (2026-08-22):** gest „pociągnięcie w dół" odświeża dane na WSZYSTKICH
-  ekranach (mobile, dotyk tylko — `pointerType === "touch"`). `PullToRefresh` w AppShell
-  wokół `<Outlet />` + `usePullToRefresh` (próg 72 px, tłumienie dystansu, detekcja
-  „scrollera na górze" po łańcuchu przodków). Soft refresh = `queryClient.invalidateQueries()`
-  (bez twardego reload, stream SSE nie ginie). `overscroll-behavior-y: none` na html/body
-  wyłącza natywny PTR Chrome Android. Spec:
+- **`/personas`, community, exercise catalog** — `grid-cols-3` (desktop) grids collapse to
+  `grid-cols-1` <768px; persona prompt/exercise description as `line-clamp-2` instead of full
+  `text-align: justify` (unreadable in a narrow card on a small screen).
+- **"Add persona" dialog** — `Sheet` (bottom, full height) on mobile instead of centered
+  `Dialog`; persona template grid `grid-cols-1` instead of `grid-cols-2`.
+- **`PlanItemTable` (training/diet, up to 5 columns)** — on mobile rendered as a card-per-row
+  list (column label + value, like a definition list) instead of horizontal scroll in
+  `<table>` — horizontal scroll in a table is poor touch UX with 5 columns.
+  `PlanItemTable` accepts `variant: 'table' | 'cards'` prop, selected by breakpoint
+  (matchMedia), the data rendering logic (columns/rows) stays shared.
+- **`/results` and `/admin` tables** — first column `sticky left-0` + horizontal scroll for
+  the rest (not card-layout — tabular data with many numeric columns is more readable
+  as a table even with scroll, unlike `PlanItemTable` where columns have variable, text content).
+  Actions in `/results` have touch target ≥44px.
+- **Viewport (ADR-18):** `viewport-fit=cover`, `h-dvh` + `--app-height` from `visualViewport`
+  (iOS/Android keyboard). Safe area: header `pt-[env(safe-area-inset-top)]`, pages and
+  composer `pb-[env(safe-area-inset-bottom)]`. Page gutter: `PAGE_SHELL_CLASS` (`py-6` on
+  phone, `md:py-10`). Touch target min. 44px (`min-h-11`) in nav, composer, tabs,
+  catalog chips and plan buttons. Input/textarea: `text-base md:text-sm` (no iOS zoom
+  on focus). `useIsMobile`: `(max-width: 767px), (max-height: 500px)` — iPhone
+  landscape gets Sheet and week plan, not a centered Dialog / month grid.
+  `ResponsiveDialog`: single scroll, footer `shrink-0` + safe area.
+- **Navigation:** horizontal scroll of the top bar (6 positions) stays in MVP; bottom nav (Chat /
+  Plan / Results) — consciously deferred (variant B of UX audit 2026-08-16).
+- **Pull-to-refresh (2026-08-22):** "pull-down" gesture refreshes data on ALL screens
+  (mobile, touch only — `pointerType === "touch"`). `PullToRefresh` in AppShell
+  around `<Outlet />` + `usePullToRefresh` (72 px threshold, distance damping, "scroller at top"
+  detection through ancestor chain). Soft refresh = `queryClient.invalidateQueries()`
+  (no hard reload, SSE stream doesn't die). `overscroll-behavior-y: none` on html/body
+  disables Chrome Android's native PTR. Spec:
   [2026-08-22-pull-to-refresh-design.md](../superpowers/specs/2026-08-22-pull-to-refresh-design.md).

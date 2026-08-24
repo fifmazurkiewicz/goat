@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 
 describe("MessageBubble", () => {
-  it("renderuje Markdown asystenta (pogrubienie, bez surowych **)", () => {
+  it("renders assistant Markdown (bold, without raw **)", () => {
     render(
       <MessageBubble
         message={{
@@ -18,7 +18,7 @@ describe("MessageBubble", () => {
     expect(screen.queryByText(/\*\*/)).toBeNull();
   });
 
-  it("wiadomość usera zostaje plain text", () => {
+  it("keeps user messages as plain text", () => {
     render(
       <MessageBubble
         message={{
@@ -30,7 +30,7 @@ describe("MessageBubble", () => {
     expect(screen.getByText("**nie renderuj**")).toBeInTheDocument();
   });
 
-  it("renderuje nagłówek Goata nad odpowiedzią asystenta", () => {
+  it("renders Goat's header above the assistant reply", () => {
     render(
       <MessageBubble
         message={{ role: "assistant", content: "Plan w Plany." }}
@@ -40,7 +40,7 @@ describe("MessageBubble", () => {
     expect(screen.getByText("Goat · Kierownik Zespołu")).toBeInTheDocument();
   });
 
-  it("renderuje nagłówki ## i listy Markdown", () => {
+  it("renders Markdown ## headings and lists", () => {
     render(
       <MessageBubble
         message={{

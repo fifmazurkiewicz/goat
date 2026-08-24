@@ -1,4 +1,4 @@
-"""Test liveness endpointu `/api/health` — patrz docs/technical/devops.md (Render Health Check)."""
+"""Liveness test for the `/api/health` endpoint — see docs/technical/devops.md (Render Health Check)."""
 
 from __future__ import annotations
 

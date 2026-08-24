@@ -37,8 +37,8 @@ const emptyStreaming = (statusLabel: string | null = null): StreamingAssistantMe
 });
 
 /**
- * Globalny runner tur czatu — mount w AppShell (jak polling planów).
- * Kontynuuje stream po nawigacji poza /chat.
+ * Global chat turn runner — mount in AppShell (like plan polling).
+ * Continues streaming after navigation away from /chat.
  */
 export function useChatTurnRunner() {
   const queryClient = useQueryClient();

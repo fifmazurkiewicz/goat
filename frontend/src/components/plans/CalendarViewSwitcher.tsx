@@ -26,8 +26,8 @@ interface CalendarViewSwitcherProps {
 }
 
 /**
- * Week<768px (default) / Month desktop, wybierane wg breakpointu (`matchMedia`) +
- * ręczny override na desktopie (docs/technical/frontend.md sekcja 5).
+ * Week<768px (default) / Month on desktop, chosen by breakpoint (`matchMedia`) plus
+ * a manual override on desktop (docs/technical/frontend.md section 5).
  */
 export function CalendarViewSwitcher({
   view,

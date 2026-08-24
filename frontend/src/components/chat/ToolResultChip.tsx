@@ -3,7 +3,7 @@ import { toolChipLabel } from "@/lib/chat-status";
 import { cn } from "@/lib/utils";
 import type { ChatStreamToolResultEvent } from "@/types/chat-stream";
 
-/** Inline chip z `tool_result` eventu w czasie rzeczywistym (docs/technical/frontend.md sekcja 4). */
+/** Inline chip from a real-time `tool_result` event (docs/technical/frontend.md section 4). */
 export function ToolResultChip({ tool_name, summary, success }: ChatStreamToolResultEvent) {
   return (
     <div

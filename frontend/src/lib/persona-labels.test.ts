@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest";
 import { formatPersonaDisplayLabel } from "@/lib/persona-labels";
 
 describe("formatPersonaDisplayLabel", () => {
-  it("łączy imię z rolą gdy się różnią", () => {
+  it("combines the name with the role when they differ", () => {
     expect(formatPersonaDisplayLabel("Kasia", "personal_trainer")).toBe("Kasia · Trener personalny");
   });
 
-  it("nie duplikuje gdy imię = rola", () => {
+  it("does not duplicate when name = role", () => {
     expect(formatPersonaDisplayLabel("Dietetyk", "dietitian")).toBe("Dietetyk");
   });
 });

@@ -1,9 +1,9 @@
-"""Kontrakt `GET /chat/sessions/{id}/messages` — widoczność konsultacji (2026-08-22).
+"""Contract for `GET /chat/sessions/{id}/messages` — consult transparency (2026-08-22).
 
-FE paruje `role='tool'` z wywołaniami `consult_persona` w wiadomości Goata po
-`tool_call_id` — wymaga więc, żeby API zwracało pole `tool_calls` (jsonb z DB).
-Regresja: bez tego pola panel „{persona} odpowiedział" nigdy się nie renderował
-po refetchu historii (root cause zgłoszenia 2026-08-22).
+FE pairs `role='tool'` with `consult_persona` invocations in Goat's message via
+`tool_call_id` — therefore the API must return the `tool_calls` field (jsonb from DB).
+Regression: without this field, the "{persona} replied" panel never rendered
+after a history refetch (root cause of the 2026-08-22 report).
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ def _row(
 
 @pytest.fixture
 def _patched(monkeypatch: pytest.MonkeyPatch):
-    """Fake repo + RLS + auth dla routera list_chat_messages."""
+    """Fake repo + RLS + auth for the list_chat_messages router."""
 
     @asynccontextmanager
     async def fake_rls(_claims: object):

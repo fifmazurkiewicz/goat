@@ -17,33 +17,33 @@ function buildValidInput(overrides: Partial<Record<string, unknown>> = {}) {
 }
 
 describe("personaFormSchema", () => {
-  it("akceptuje poprawne dane", () => {
+  it("accepts valid data", () => {
     const result = personaFormSchema.safeParse(buildValidInput());
     expect(result.success).toBe(true);
   });
 
-  it("odrzuca zbyt krótką nazwę", () => {
+  it("rejects a name that is too short", () => {
     const result = personaFormSchema.safeParse(buildValidInput({ name: "A" }));
     expect(result.success).toBe(false);
   });
 
-  it("odrzuca zbyt krótki system prompt", () => {
+  it("rejects a system prompt that is too short", () => {
     const result = personaFormSchema.safeParse(buildValidInput({ system_prompt: "Za krótko" }));
     expect(result.success).toBe(false);
   });
 
-  it("wymaga przynajmniej jednej kolumny", () => {
+  it("requires at least one column", () => {
     const result = personaFormSchema.safeParse(buildValidInput({ columns: [] }));
     expect(result.success).toBe(false);
   });
 
-  it("odrzuca więcej niż 8 kolumn", () => {
+  it("rejects more than 8 columns", () => {
     const columns = Array.from({ length: 9 }, (_, i) => ({ name: `Kolumna ${i}` }));
     const result = personaFormSchema.safeParse(buildValidInput({ columns }));
     expect(result.success).toBe(false);
   });
 
-  it("odrzuca zduplikowane nazwy kolumn (case-insensitive)", () => {
+  it("rejects duplicate column names (case-insensitive)", () => {
     const result = personaFormSchema.safeParse(
       buildValidInput({ columns: [{ name: "Ćwiczenie" }, { name: "ćwiczenie" }] })
     );
@@ -53,7 +53,7 @@ describe("personaFormSchema", () => {
     }
   });
 
-  it("wymaga custom_result_category gdy persona_type === 'custom'", () => {
+  it("requires custom_result_category when persona_type === 'custom'", () => {
     const result = personaFormSchema.safeParse(
       buildValidInput({ persona_type: "custom", custom_result_category: null })
     );
@@ -63,7 +63,7 @@ describe("personaFormSchema", () => {
     }
   });
 
-  it("akceptuje persona_type === 'custom' z podaną kategorią", () => {
+  it("accepts persona_type === 'custom' with a provided category", () => {
     const result = personaFormSchema.safeParse(
       buildValidInput({ persona_type: "custom", custom_result_category: "Wspinaczka" })
     );

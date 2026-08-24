@@ -1,9 +1,9 @@
-"""Konfiguracja `structlog` + middleware propagujący `request_id` przez `contextvars`.
+"""`structlog` configuration + middleware propagating `request_id` via `contextvars`.
 
-Patrz docs/technical/architecture.md sekcja 6: JSON w produkcji, ConsoleRenderer
-lokalnie; `request_id`/`job_id` przez `contextvars`. Dla background joba (plan
-generation) trzeba jawnie zbindować nowy kontekst — kontekst requestu HTTP się nie
-propaguje automatycznie do `asyncio.create_task`/`BackgroundTasks`.
+See docs/technical/architecture.md section 6: JSON in production, ConsoleRenderer
+locally; `request_id`/`job_id` via `contextvars`. For background jobs (plan
+generation) a new context must be explicitly bound — the HTTP request context does
+not propagate automatically to `asyncio.create_task`/`BackgroundTasks`.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ REQUEST_ID_HEADER = "X-Request-ID"
 
 
 def configure_logging(environment: str = "local") -> None:
-    """Wywoływane raz przy starcie aplikacji (`app/main.py`), przed pierwszym loggerem."""
+    """Called once at app startup (`app/main.py`), before the first logger."""
     shared_processors: list[Any] = [
         structlog.contextvars.merge_contextvars,
         structlog.processors.add_log_level,
@@ -58,9 +58,9 @@ def configure_logging(environment: str = "local") -> None:
 
 
 class RequestIDMiddleware(BaseHTTPMiddleware):
-    """Generuje/propaguje `request_id` (z nagłówka `X-Request-ID` jeśli obecny),
-    bindowany do structlog przez `contextvars` na czas obsługi requestu i zwracany
-    w nagłówku odpowiedzi (ułatwia korelację logów klient <-> backend)."""
+    """Generates/propagates `request_id` (from the `X-Request-ID` header if present),
+    bound to structlog via `contextvars` for the duration of the request and returned
+    in the response header (eases client <-> backend log correlation)."""
 
     async def dispatch(
         self, request: Request, call_next: Callable[[Request], Awaitable[Response]]

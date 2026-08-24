@@ -21,8 +21,8 @@ interface ChatWindowProps {
 }
 
 /**
- * `ChatWindow` (smart) — JEDYNE miejsce otwierające/zamykające SSE (`useChatStream`),
- * docs/technical/frontend.md sekcja 4.
+ * `ChatWindow` (smart) — the ONLY place that opens/closes the SSE (`useChatStream`),
+ * docs/technical/frontend.md section 4.
  */
 export function ChatWindow({ session, personas, onOpenDrawer, onNewSession }: ChatWindowProps) {
   const location = useLocation();
@@ -53,7 +53,7 @@ export function ChatWindow({ session, personas, onOpenDrawer, onNewSession }: Ch
     (message: ChatMessage) => {
       if (session.session_type !== "general") return null;
       if (message.role !== "assistant") return null;
-      // Bezpośrednia rozmowa z personą — tylko /slug (assistant ma persona_id).
+      // Direct conversation with a persona — only via /slug (assistant has persona_id).
       if (message.persona_id) {
         const persona = personas.find((p) => p.id === message.persona_id);
         return persona ? formatPersonaDisplayLabel(persona.name, persona.type) : null;

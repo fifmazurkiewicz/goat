@@ -16,18 +16,18 @@ function session(id: string, updatedAt: string): ChatSession {
 }
 
 describe("sessionDisplayTitle / sessionListTitle", () => {
-  it("używa tytułu, gdy jest ustawiony", () => {
+  it("uses the title when it is set", () => {
     expect(sessionDisplayTitle({ title: "Poranny plan", session_type: "general" })).toBe("Poranny plan");
   });
 
-  it("fallback dla sesji general", () => {
+  it("fallback for general sessions", () => {
     expect(sessionListTitle({ title: null, session_type: "general" })).toBe("Ogólna rozmowa");
     expect(sessionListTitle({ title: "  ", session_type: "persona" })).toBe("Rozmowa 1:1");
   });
 });
 
-describe("latestSessionId (auto-wejście na mobile, spec 2026-08-17)", () => {
-  it("zwraca id rozmowy z najnowszym updated_at", () => {
+describe("latestSessionId (auto-entry on mobile, spec 2026-08-17)", () => {
+  it("returns the id of the conversation with the newest updated_at", () => {
     const sessions = [
       session("old", "2026-08-10T08:00:00Z"),
       session("newest", "2026-08-17T19:30:00Z"),
@@ -37,12 +37,12 @@ describe("latestSessionId (auto-wejście na mobile, spec 2026-08-17)", () => {
     expect(latestSessionId(sessions)).toBe("newest");
   });
 
-  it("zwraca null gdy nie ma rozmów", () => {
+  it("returns null when there are no conversations", () => {
     expect(latestSessionId([])).toBeNull();
     expect(latestSessionId(undefined)).toBeNull();
   });
 
-  it("nie wywraca się na niepoprawnej dacie", () => {
+  it("does not crash on an invalid date", () => {
     const sessions = [session("broken", "nie-data"), session("ok", "2026-08-17T19:30:00Z")];
     expect(latestSessionId(sessions)).toBe("ok");
   });

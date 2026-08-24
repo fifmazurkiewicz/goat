@@ -1,8 +1,8 @@
-"""Router `/personas` — CIENKI: parsing requestu + wywołanie `PersonaService`.
+"""`/personas` router — THIN: request parsing + invocation of `PersonaService`.
 
-Cała logika (limit aktywnych per konto — ADR-12, merge kolumn, moderacja przy create/edit/share)
-żyje w `app/domain/personas/service.py` i `app/domain/moderation/service.py` —
-patrz docs/technical/architecture.md sekcja 1.
+All logic (active limit per account — ADR-12, column merging, moderation on
+create/edit/share) lives in `app/domain/personas/service.py` and
+`app/domain/moderation/service.py` — see docs/technical/architecture.md section 1.
 """
 
 from __future__ import annotations
@@ -63,8 +63,9 @@ async def get_persona(persona_id: str, auth: AuthContext = Depends(get_current_u
 async def create_persona(
     payload: PersonaCreate, auth: AuthContext = Depends(get_current_user)
 ) -> PersonaOut:
-    # Trigger `enforce_persona_limit` czyta `profiles.max_active_personas` — brak wiersza
-    # po wipe DB dawałby NULL/5, ale limit API też opiera się o profil; ensure = spójny stan.
+    # The `enforce_persona_limit` trigger reads `profiles.max_active_personas` — a missing
+    # row after a DB wipe would yield NULL/5, but the API limit also depends on the
+    # profile; `ensure` = consistent state.
     async with service_role_connection() as conn:
         await ProfilesRepo(conn).ensure(auth.user_id)
     async with rls_connection(auth.claims) as conn:

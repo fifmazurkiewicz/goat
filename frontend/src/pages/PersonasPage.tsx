@@ -13,9 +13,9 @@ import { PAGE_SHELL_CLASS, PAGE_TITLE_CLASS } from "@/lib/layout";
 import type { Persona } from "@/types/api";
 
 /**
- * Siatka person usera (limit z `profiles.max_active_personas`, ADR-12 — NIE hardkodowane
- * "5") + karta-placeholder "wolne miejsce" + community (docs/technical/frontend.md
- * sekcja 7, sekcja 11 dla mobile).
+ * User personas grid (limit from `profiles.max_active_personas`, ADR-12 — NOT hardcoded
+ * "5") + free-slot placeholder card + community (docs/technical/frontend.md
+ * section 7, section 11 for mobile).
  */
 export default function PersonasPage() {
   const { data, isLoading } = usePersonas();

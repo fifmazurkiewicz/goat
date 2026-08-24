@@ -1,10 +1,10 @@
 import { z } from "zod";
 
-// React Hook Form + Zod (zodResolver) — docs/technical/frontend.md sekcja 7.
-// Edytor kolumn (`template_overrides`): min. 1 kolumna, max ~8, unikalne nazwy,
-// `custom_result_category` wymagane warunkowo (`superRefine`) dla `type==='custom'`.
-// `persona_constraints` NIE jest w formularzu (pole systemowe — ai-pipeline.md).
-// `base_template_id` wymagany przy create — walidacja w submit (edycja może mieć null).
+// React Hook Form + Zod (zodResolver) — docs/technical/frontend.md section 7.
+// Column editor (`template_overrides`): min. 1 column, max ~8, unique names,
+// `custom_result_category` required conditionally (`superRefine`) for `type==='custom'`.
+// `persona_constraints` is NOT in the form (system field — ai-pipeline.md).
+// `base_template_id` required on create — validated in submit (edit may have null).
 
 export const personaColumnSchema = z.object({
   name: z.string().trim().min(1, "Nazwa kolumny jest wymagana").max(40, "Maks. 40 znaków"),

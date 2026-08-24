@@ -1,4 +1,4 @@
-"""PersonasRepo — CAST jsonb przy create/update (asyncpg + text())."""
+"""PersonasRepo — CAST jsonb on create/update (asyncpg + text())."""
 
 from __future__ import annotations
 

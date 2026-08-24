@@ -1,102 +1,102 @@
-# Design: historia rozmów na mobile + zapis wyników przez Goata
+# Design: conversation history on mobile + results saving by Goat
 
-**Data:** 2026-08-17
-**Status:** zaakceptowane (user wybrał wariant C dla mobile, A dla wyników)
-**Powiązane:** [ADR-6](../../adr/decisions.md#adr-6-log_result-jako-narzędzie-batch-nie-pojedynczy-wpis), [ADR-17](../../adr/decisions.md#adr-17-kierownik-zespołu-goat--koordynacja-sesji-general), [team-lead.md](../../technical/team-lead.md), [frontend.md](../../technical/frontend.md) §4, [2026-08-17-goat-plan-authority-design.md](./2026-08-17-goat-plan-authority-design.md)
+**Date:** 2026-08-17
+**Status:** accepted (user chose variant C for mobile, A for results)
+**Related:** [ADR-6](../../adr/decisions.md#adr-6-log_result-jako-narzędzie-batch-nie-pojedynczy-wpis), [ADR-17](../../adr/decisions.md#adr-17-kierownik-zespołu-goat--koordynacja-sesji-general), [team-lead.md](../../technical/team-lead.md), [frontend.md](../../technical/frontend.md) §4, [2026-08-17-goat-plan-authority-design.md](./2026-08-17-goat-plan-authority-design.md)
 
-> **Delta:** (1) `/chat` bez `:sessionId` na mobile przestaje być martwym empty state — pokazuje listę rozmów; przy wejściu do appki user ląduje w ostatniej rozmowie. (2) Goat dostaje `log_result` z `source_persona_id=NULL`.
+|> **Delta:** (1) `/chat` without `:sessionId` on mobile stops being a dead empty state — shows the conversation list; on app entry the user lands in the latest conversation. (2) Goat gets `log_result` with `source_persona_id=NULL`.
 
 ## Problem
 
-### P1 — historia niedostępna na telefonie
+### P1 — history unavailable on phone
 
-`ChatLayout` na mobile trzyma `PersonaSessionDrawer` wyłącznie w `Sheet` (zamknięty domyślnie), a jego jedyny trigger — hamburger „Lista rozmów” — żyje w `ChatHeader`, który renderuje się tylko przy `activeSession`. Wejście na `/chat` bez ID daje więc empty state bez żadnego dostępu do historii; user musi utworzyć nową rozmowę, żeby zobaczyć stare. Desktop tego nie odczuwa (drawer przyklejony na stałe).
+`ChatLayout` on mobile keeps `PersonaSessionDrawer` only in `Sheet` (closed by default), and its only trigger — "Conversation list" hamburger — lives in `ChatHeader`, which only renders for `activeSession`. Going to `/chat` without an ID gives an empty state with no access to history; the user must create a new conversation to see old ones. Desktop doesn't feel this (drawer permanently attached).
 
-### P2 — Goat nie zapisuje wyników
+### P2 — Goat doesn't save results
 
-`TEAM_LEAD_CHAT_TOOL_NAMES` nie zawiera `log_result`, a `TEAM_LEAD_TURN_BEHAVIOR` mówi wprost „Nie wołaj log_result”. Pierwotne założenie ([spec consult_persona](./2026-08-16-goat-consult-persona-design.md) §Poza zakresem): wynik zapisze trener wywołany przez `consult_persona`. Po nowelizacji z 2026-08-17 („Goat domyślnie bez consult_persona”) ta ścieżka praktycznie nie odpala się — user raportuje trening Goatowi, Goat streszcza i prosi o potwierdzenie zapisu, ale nie ma czym zapisać.
+`TEAM_LEAD_CHAT_TOOL_NAMES` doesn't contain `log_result`, and `TEAM_LEAD_TURN_BEHAVIOR` says directly "Don't call log_result". The original assumption ([consult_persona spec](./2026-08-16-goat-consult-persona-design.md) §Out of scope): the result will be saved by the trainer called via `consult_persona`. After the amendment of 2026-08-17 ("Goat by default without consult_persona") this path essentially doesn't run — the user reports the workout to Goat, Goat summarizes and asks for confirmation of the save, but doesn't have a way to save.
 
-## Wymagania (Given / When / Then)
+## Requirements (Given / When / Then)
 
-### GWT-1 — auto-wejście w ostatnią rozmowę (mobile)
+### GWT-1 — auto-entry into the latest conversation (mobile)
 
-**Given** telefon, user ma ≥1 rozmowę
-**When** wchodzi na `/chat` bez `:sessionId` po raz pierwszy od otwarcia appki
-**Then** zostaje przekierowany (`replace`) do najnowszej rozmowy wg `updated_at`
-**And** hamburger listy rozmów jest dostępny w headerze
+**Given** phone, user has ≥1 conversation
+**When** enters `/chat` without `:sessionId` for the first time since opening the app
+**Then** is redirected (`replace`) to the newest conversation by `updated_at`
+**And** the hamburger of the conversation list is available in the header
 
-### GWT-2 — lista rozmów jako ekran
+### GWT-2 — conversation list as a screen
 
-**Given** telefon
-**When** user jest na `/chat` bez `:sessionId` i auto-wejście już się wykonało (albo nie ma do czego wejść)
-**Then** widzi pełnoekranową listę rozmów (`PersonaSessionDrawer`) z „Nowa rozmowa”
-**And** nie następuje kolejny redirect (można zostać na liście)
+**Given** phone
+**When** the user is on `/chat` without `:sessionId` and auto-entry already happened (or there's nothing to enter)
+**Then** sees a full-screen conversation list (`PersonaSessionDrawer`) with "New conversation"
+**And** no further redirect happens (can stay on the list)
 
-### GWT-3 — brak rozmów
+### GWT-3 — no conversations
 
-**Given** konto bez rozmów
-**When** user wchodzi na `/chat`
-**Then** widzi komunikat „Brak rozmów” + CTA „Nowa rozmowa”, bez redirectu
+**Given** an account without conversations
+**When** the user enters `/chat`
+**Then** sees the message "No conversations" + CTA "New conversation", without redirect
 
-### GWT-4 — desktop bez zmian
+### GWT-4 — desktop unchanged
 
 **Given** desktop
-**When** user wchodzi na `/chat`
-**Then** stały drawer po lewej + empty state „Wybierz rozmowę z listy albo zacznij nową”
-**And** brak auto-redirectu (lista jest już widoczna)
+**When** the user enters `/chat`
+**Then** fixed drawer on the left + empty state "Pick a conversation from the list or start a new one"
+**And** no auto-redirect (list is already visible)
 
-### GWT-5 — Goat zapisuje wynik
+### GWT-5 — Goat saves the result
 
-**Given** sesja `general`, user raportuje faktyczny wynik („dziś bench 4×8 @45 kg”)
-**When** Goat woła `log_result` z entries
-**Then** wpisy trafiają do `results` z `source='agent'`, `source_persona_id=NULL`
-**And** FE pokazuje chip „Wynik”, `/results` widzi dane po invalidacji
+**Given** `general` session, user reports actual result ("today bench 4×8 @45 kg")
+**When** Goat calls `log_result` with entries
+**Then** entries go to `results` with `source='agent'`, `source_persona_id=NULL`
+**And** FE shows "Result" chip, `/results` sees data after invalidation
 
-### GWT-6 — brak regresji trenera
+### GWT-6 — no trainer regression
 
-**Given** trener (`/slug`, sesja `persona`, consult backstage)
-**When** woła `log_result`
-**Then** zapis z `source_persona_id` = UUID trenera (jak dziś)
-**And** trener nadal nie ma `rebuild_plan` / `consult_persona`
+**Given** trainer (`/slug`, `persona` session, consult backstage)
+**When** calls `log_result`
+**Then** save with `source_persona_id` = trainer UUID (as today)
+**And** the trainer still doesn't have `rebuild_plan` / `consult_persona`
 
-### GWT-7 — Goat nie fabrykuje wyników
+### GWT-7 — Goat doesn't fabricate results
 
-**Given** rozmowa bez raportu wyniku (plan, pytanie, motywacja)
-**When** Goat odpowiada
-**Then** nie woła `log_result` (zasada „tylko jawnie zaraportowane wartości” z ADR-6 / preambuły)
+**Given** conversation without a result report (plan, question, motivation)
+**When** Goat answers
+**Then** doesn't call `log_result` ("only explicitly reported values" rule from ADR-6 / preamble)
 
-## Podejście
+## Approach
 
 ### Frontend (`ChatLayout`)
 
 ```
-/chat (mobile, brak :sessionId)
+/chat (mobile, no :sessionId)
 ├─ sessions.length > 0 && !autoOpenedRef → navigate(latest.id, {replace: true})
-└─ w przeciwnym razie → <PersonaSessionDrawer> na całą szerokość (ekran listy)
+└─ otherwise → <PersonaSessionDrawer> full-width (list screen)
 
-/chat (desktop) → jak dziś: drawer 288px + empty state
+/chat (desktop) → as today: 288px drawer + empty state
 ```
 
-- Najnowsza rozmowa = max `updated_at` (te same dane co lista, bez nowego endpointu).
-- Guard jednorazowości: `useRef` w `ChatLayout` (żywotność mountu shellu), nie localStorage — po powrocie na listę w tej samej sesji nie ma ponownego skoku.
-- Auto-wejście dotyczy tylko mobile; desktop ma listę na ekranie, redirect byłby niepożądany.
-- `sortSessionsByRecency` / `latestSessionId` jako czysta funkcja w `lib/chat-session.ts` → testowalna bez renderu.
+- Newest conversation = max `updated_at` (same data as the list, no new endpoint).
+- One-shot guard: `useRef` in `ChatLayout` (shell mount lifetime), not localStorage — after returning to the list in the same session there is no second jump.
+- Auto-entry only on mobile; desktop has the list on screen, redirect would be unwanted.
+- `sortSessionsByRecency` / `latestSessionId` as pure functions in `lib/chat-session.ts` → testable without render.
 
-### Backend (`log_result` u Goata)
+### Backend (Goat's `log_result`)
 
-| Element | Zmiana |
+| Element | Change |
 |---------|--------|
 | `TEAM_LEAD_CHAT_TOOL_NAMES` | + `log_result` |
-| `get_team_lead_plan_tools()` | bez zmian w kodzie (filtruje po nazwach) |
-| `TEAM_LEAD_TURN_BEHAVIOR` | „Nie wołaj log_result” → „Wynik zaraportowany przez usera zapisuj sam przez `log_result`” |
-| `ChatOrchestrator._execute_single_tool` | `source_persona_id = None` gdy `persona.type == "team_lead"` |
-| `ResultsService.log_batch_from_agent` | sygnatura `source_persona_id: str \| None` |
+| `get_team_lead_plan_tools()` | no code change (filters by names) |
+| `TEAM_LEAD_TURN_BEHAVIOR` | "Don't call log_result" → "Save the result reported by the user yourself via `log_result`" |
+| `ChatOrchestrator._execute_single_tool` | `source_persona_id = None` when `persona.type == "team_lead"` |
+| `ResultsService.log_batch_from_agent` | signature `source_persona_id: str \| None` |
 
-Dlaczego `NULL`, a nie pseudo-persona: `TEAM_LEAD_PERSONA_ID` to `__team_lead__` (nie UUID), a `results.source_persona_id` ma FK na `personas(id)` — insert z tym stringiem wywaliłby się na typie/FK. `NULL` jest już dopuszczony schematem (`0001_init.sql:360`) i oznacza „agent bez persony”, co dla kierownika jest semantycznie poprawne. UI `/results` nie wymaga persony do wyświetlenia wpisu.
+Why `NULL`, not a pseudo-persona: `TEAM_LEAD_PERSONA_ID` is `__team_lead__` (not a UUID), and `results.source_persona_id` has FK to `personas(id)` — insert with that string would crash on type/FK. `NULL` is already allowed by the schema (`0001_init.sql:360`) and means "agent without a persona", which for a lead is semantically correct. `/results` UI doesn't require a persona to display an entry.
 
-## Poza zakresem
+## Out of scope
 
-- Bottom nav (Czat/Plan/Wyniki) — nadal odłożone.
-- Zmiana kategorii wyników / migracja DB — brak.
-- `log_result` dla `consult_persona` backstage — działa jak dziś.
-- Edycja/usuwanie wyników przez Goata (tylko zapis).
+- Bottom nav (Chat/Plan/Results) — still deferred.
+- Changing result categories / DB migration — none.
+- `log_result` for `consult_persona` backstage — works as today.
+- Editing/deleting results by Goat (save only).

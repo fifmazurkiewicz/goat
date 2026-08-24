@@ -4,18 +4,18 @@ import { describe, expect, it, vi } from "vitest";
 import { ApiStatusLamp } from "@/components/layout/ApiStatusLamp";
 
 describe("ApiStatusLamp", () => {
-  it("nie renderuje się gdy API działa (hidden)", () => {
+  it("does not render when the API is healthy (hidden)", () => {
     const { container } = render(<ApiStatusLamp lamp="hidden" />);
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("po tapnięciu waking pokazuje tekst o budzeniu", () => {
+  it("on tapping the waking state shows the waking text", () => {
     render(<ApiStatusLamp lamp="waking" />);
     fireEvent.click(screen.getByRole("button", { name: /budzimy aplikację/i }));
     expect(screen.getByText("Budzimy aplikację, poczekaj chwilę.")).toBeInTheDocument();
   });
 
-  it("down: tap pokazuje tekst awarii i startuje ponowną próbę", () => {
+  it("down: tap shows the outage text and triggers a retry", () => {
     const onRetry = vi.fn();
     render(<ApiStatusLamp lamp="down" onRetry={onRetry} />);
     fireEvent.click(screen.getByRole("button", { name: /nie możemy połączyć/i }));

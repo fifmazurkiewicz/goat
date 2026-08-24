@@ -1,56 +1,56 @@
-# Bezpieczeństwo
+# Security
 
-## 1. Jailbreak / nadużycia — trzy warstwy
+## 1. Jailbreak / abuse — three layers
 
-Aplikacja pozwala userom pisać własne persony i je udostępniać innym — realne ryzyko prompt injection / próby zmiany roli modelu. Traktowane jako wymaganie bezpieczeństwa, nie dodatek.
+The app lets users write their own personas and share them with others — a real risk of prompt injection / attempts to change the model's role. Treated as a security requirement, not an add-on.
 
-**Warstwa A — stały platform preambuł + safety gotowca (server-side, nieedytowalne).**
-System prompt wysyłany do modelu =
+**Layer A — fixed platform preamble + ready-made safety (server-side, non-editable).**
+The system prompt sent to the model =
 
-`[PLATFORM PREAMBUŁ]` + opcjonalnie `[ZABEZPIECZENIA GOTOWCA]` + `[ZACHOWANIE PERSONY]`.
+`[PLATFORM PREAMBLE]` + optionally `[TEMPLATE SAFETY]` + `[PERSONA BEHAVIOR]`.
 
-- Preambuł: `app/domain/chat/preamble.py` (`PREAMBLE_VERSION`).
-- Zabezpieczenia gotowca (lekarz, leki, „czego NIE robisz”, red flags per typ): tabela
-  `app_private.persona_template_safety` — **brak GRANT** dla `anon`/`authenticated`;
-  odczyt tylko przez `service_role` w backendzie. Nie wraca w `GET /persona-templates`.
-- Zachowanie: `personas.system_prompt` (edytowalne w UI jako „Jak ma się zachowywać”).
-- `persona_constraints`: systemowe, nie w `PersonaOut` / create|update DTO.
+- Preamble: `app/domain/chat/preamble.py` (`PREAMBLE_VERSION`).
+- Template safety (doctor, medications, "what you do NOT do", red flags per type): table
+  `app_private.persona_template_safety` — **no GRANT** for `anon`/`authenticated`;
+  readable only by `service_role` in the backend. Not returned in `GET /persona-templates`.
+- Behavior: `personas.system_prompt` (editable in UI as "How it should behave").
+- `persona_constraints`: system-level, not in `PersonaOut` / create|update DTO.
 
-Szczegóły: [`docs/superpowers/specs/2026-08-04-persona-safety-prompt-design.md`](../superpowers/specs/2026-08-04-persona-safety-prompt-design.md).
+Details: [`docs/superpowers/specs/2026-08-04-persona-safety-prompt-design.md`](../superpowers/specs/2026-08-04-persona-safety-prompt-design.md).
 
-`preamble_version` w tabeli `personas` pozwala wymusić re-check wszystkich person po zmianie preambułu platformy, niezależnie od tego czy user zmieniał swój prompt.
+`preamble_version` in the `personas` table lets you force a re-check of all personas after a platform preamble change, regardless of whether the user changed their own prompt.
 
-**Świadome ograniczenie MVP (Data API):** kolumna `personas.persona_constraints` nadal istnieje w `public` z RLS „własne wiersze”. Aplikacja goat nie czyta person przez Supabase JS (tylko REST backend), więc UI nie wycieka — ale klient z JWT usera *teoretycznie* mógłby odczytać własny constraints przez PostgREST. Pełne ukrycie kolumny = osobny widok / private schema (backlog).
+**Conscious MVP limitation (Data API):** the `personas.persona_constraints` column still exists in `public` with RLS "own rows". The goat app does not read personas via Supabase JS (only REST backend), so the UI does not leak — but a client with a user's JWT *theoretically* could read their own constraints via PostgREST. Full column hiding = separate view / private schema (backlog).
 
-**Warstwa B — moderacja LLM-klasyfikatorem.** Przy tworzeniu, **każdej edycji** (nie tylko tworzeniu) i obowiązkowo przy `is_shared=true`: dodatkowe wywołanie LLM klasyfikujące czy opis persony mieści się w zakresie coachingu, czy próbuje zmienić rolę/ominąć ograniczenia. Wynik → `personas.moderation_status`. Cache po `moderation_checked_prompt_hash` (hash tylko sekcji usera) — nie re-moderuj niezmienionej treści.
+**Layer B — moderation with an LLM classifier.** On creation, **every edit** (not only creation) and mandatory for `is_shared=true`: an additional LLM call classifying whether the persona description fits within the coaching scope, whether it tries to change the role/circumvent restrictions. Result → `personas.moderation_status`. Cached by `moderation_checked_prompt_hash` (hash of the user section only) — no re-moderation of unchanged content.
 
-**Warstwa C — runtime guard w czacie (nowa, krytyczna).** Warstwy A i B chronią tylko `system_prompt` persony w momencie tworzenia/edycji — nie chronią przed jailbreakiem wpisanym jako zwykła wiadomość w trakcie rozmowy. Mechanizm: tania heurystyka regex/keyword na **każdej** wiadomości usera ("ignore previous instructions", "jesteś teraz", "zapomnij o zasadach", "DAN"...) + próbkowany/warunkowy klasyfikator LLM przy trafieniu. Ta sama heurystyka obejmuje pola `is_custom` w `results` (freeform `metric`/`unit`/`notes`) — to wektor, który nie jest objęty ani przez runtime guard wiadomości, ani przez moderację persony.
+**Layer C — runtime guard in chat (new, critical).** Layers A and B protect only the persona's `system_prompt` at create/edit time — they do not protect against a jailbreak entered as a regular message during conversation. Mechanism: cheap regex/keyword heuristics on **every** user message ("ignore previous instructions", "you are now", "forget the rules", "DAN"...) + sampled/conditional LLM classifier on hit. The same heuristics cover `is_custom` fields in `results` (freeform `metric`/`unit`/`notes`) — this is a vector not covered by either the message runtime guard or the persona moderation.
 
-Trafienia logowane do `moderation_events`. **Retencja/RBAC:** `raw_snippet` może zawierać bardzo wrażliwe treści (myśli samobójcze, zaburzenia odżywiania) — dostęp ograniczony do wąskiego zespołu review, retencja czasowa do ustalenia przed produkcją, dla non-flagged przypadków rozważyć hash+metadata zamiast surowej treści.
+Hits are logged to `moderation_events`. **Retention/RBAC:** `raw_snippet` may contain very sensitive content (suicidal thoughts, eating disorders) — access restricted to a narrow review team, time-based retention to be determined before production, for non-flagged cases consider hash+metadata instead of raw content.
 
-**Znane, świadomie zaakceptowane ograniczenie MVP:** warstwy A-C adresują input usera (jailbreak). Nic nie chroni przed tym, że sam model wygeneruje ryzykowną poradę bez żadnego jailbreaku (np. drastyczny deficyt kaloryczny) — na MVP wystarcza prompt engineering w sekcji 3 preambułu, output filtering odłożony.
+**Known, consciously accepted MVP limitation:** layers A–C address user input (jailbreak). Nothing protects against the model itself generating risky advice without any jailbreak (e.g. drastic caloric deficit) — for MVP, prompt engineering in section 3 of the preamble is enough, output filtering is deferred.
 
-## 2. RLS jako rzeczywista bariera, nie fikcja
+## 2. RLS as a real barrier, not fiction
 
-Backend łączy się per-request jako authenticated user (RLS context ustawiany z JWT przez `SET LOCAL` + `set_config`, patrz [`architecture.md`](architecture.md#2-baza-danych--dostęp-i-rls)) dla wszystkich operacji per-user. `service_role` wyłącznie do Supabase Admin API i `/admin/*`, z jawną kodową weryfikacją `profiles.is_admin`. Jeśli backend domyślnie łączyłby się przez service role "dla wygody", RLS przestałby cokolwiek chronić — każdy bug w kodzie staje się potencjalnym wyciekiem danych między userami.
+The backend connects per-request as the authenticated user (RLS context set from JWT via `SET LOCAL` + `set_config`, see [`architecture.md`](architecture.md#2-baza-danych--dostęp-i-rls)) for all per-user operations. `service_role` only for Supabase Admin API and `/admin/*`, with explicit in-code verification of `profiles.is_admin`. If the backend connected by default via the service role "for convenience", RLS would stop protecting anything — any code bug becomes a potential data leak between users.
 
-**Obowiązkowy test kontraktu RLS**: integracyjny test ustawiający claims usera A, wstawiający dane, przełączający na usera B i asercjujący że repo nie widzi cudzych wierszy.
+**Mandatory RLS contract test:** an integration test that sets user A's claims, inserts data, switches to user B, and asserts that the repo doesn't see other people's rows.
 
-## 3. Walidacja tool calls przed zapisem
+## 3. Validation of tool calls before persisting
 
-Argumenty `log_result` generowane przez model to **niezaufany input** mimo że pochodzą z "naszego" modelu. Walidacja przez tabelę referencyjną `allowed_metrics` (typ/jednostka/zakres) z fallbackiem `is_custom=true` przy nieznanej metryce (sanity checks: skończona liczba, unit max 20 znaków, notes max 500 znaków, data nie z przyszłości). Błąd walidacji wraca do modelu jako tool response, nie wyjątek serwera.
+`log_result` arguments generated by the model are **untrusted input** even though they come from "our" model. Validation via the reference table `allowed_metrics` (type/unit/range) with `is_custom=true` fallback for unknown metrics (sanity checks: finite number, unit max 20 chars, notes max 500 chars, data not from the future). A validation error is returned to the model as a tool response, not a server exception.
 
-## 4. Rate limiting i koszt-DoS
+## 4. Rate limiting and cost-DoS
 
-- Atomowy check+increment `usage_limits` (`UPDATE ... WHERE used < limit RETURNING` w jednym query) — chroni przed race condition przy równoległych requestach.
-- Twardy `max_tokens` per endpoint (czat vs planner), nigdy poleganie na domyślnym.
-- Limit 3-5 rund tool-calling per wiadomość (z `log_result` jako batch — patrz [`ai-pipeline.md`](ai-pipeline.md) — limit rund staje się bezpiecznikiem przeciw pętlom, nie realnym ograniczeniem normalnej ścieżki).
-- Cap długości wiadomości usera.
-- `request.is_disconnected()` + cancel zadania przy rozłączeniu klienta w trakcie streamu — nie płacić za tokeny generowane po zamknięciu karty.
-- Partial unique index `one_active_job_per_user` — max 1 aktywny job generowania planu na usera, na poziomie bazy (nie check-then-insert w aplikacji).
-- Generowanie planu debituje z tego samego `usage_limits` co czat.
-- Coarse rate limiting per-minutowy (osobno od miesięcznego `usage_limits`) — do rozważenia w implementacji (np. `slowapi` albo prosty in-memory limiter).
+- Atomic check+increment of `usage_limits` (`UPDATE ... WHERE used < limit RETURNING` in a single query) — protects against race conditions on parallel requests.
+- Hard `max_tokens` per endpoint (chat vs planner), never rely on defaults.
+- Limit of 3–5 tool-calling rounds per message (with `log_result` as a batch — see [`ai-pipeline.md`](ai-pipeline.md) — the round limit becomes a safeguard against loops, not a real restriction of the normal path).
+- Cap the user message length.
+- `request.is_disconnected()` + task cancel on client disconnect mid-stream — don't pay for tokens generated after the tab closes.
+- Partial unique index `one_active_job_per_user` — max 1 active plan generation job per user, at the database level (not check-then-insert in the app).
+- Plan generation debits from the same `usage_limits` as chat.
+- Coarse per-minute rate limiting (separate from the monthly `usage_limits`) — to be considered in implementation (e.g. `slowapi` or a simple in-memory limiter).
 
-## 5. CORS i sekrety
+## 5. CORS and secrets
 
-CORS jako jawny allowlist (domena Vercel + finalna domena), nigdy wildcard, zwłaszcza przy nagłówku `Authorization`. Pełna lista sekretów i zasady rotacji w [`devops.md`](devops.md#5-sekrety-i-zmienne-środowiskowe).
+CORS as an explicit allowlist (Vercel domain + final domain), never wildcard, especially with the `Authorization` header. Full list of secrets and rotation rules in [`devops.md`](devops.md#5-sekrety-i-zmienne-środowiskowe).

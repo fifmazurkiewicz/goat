@@ -33,10 +33,11 @@ const TRAINING_TYPES = new Set([
 ]);
 
 /**
- * Kategoria jako `Select` z grupowaniem (Partie mięśniowe / Typ treningu) — przy ~24
- * kategoriach po imporcie free-exercise-db chipy `overflow-x-auto` byłyby nieodkrywalne
- * poza viewportem (spójnie z wyborem `Select` dla gotowców persony).
- * Nazwy i opisy importu są po polsku; `name_en` nadal działa w wyszukiwarce.
+ * Category as a `Select` with grouping (Muscle groups / Training type) — with ~24
+ * categories after the free-exercise-db import, `overflow-x-auto` chip rows would
+ * be undiscoverable outside the viewport (consistent with the `Select` choice for
+ * persona templates). Names and descriptions from the import are in Polish;
+ * `name_en` still works in the search.
  */
 export function ExerciseSearchBar({
   query,

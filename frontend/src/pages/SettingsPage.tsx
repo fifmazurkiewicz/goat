@@ -4,8 +4,8 @@ import { ExerciseCatalog } from "@/components/settings/ExerciseCatalog";
 import { PAGE_SHELL_CLASS, PAGE_TITLE_CLASS } from "@/lib/layout";
 
 /**
- * `/settings` (NOWA, ADR-15) — konto (nick, motyw) + katalog ćwiczeń (ADR-14).
- * docs/technical/frontend.md sekcja 7a.
+ * `/settings` (NEW, ADR-15) — account (nickname, theme) + exercise catalog (ADR-14).
+ * docs/technical/frontend.md section 7a.
  */
 export default function SettingsPage() {
   return (

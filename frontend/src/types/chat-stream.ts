@@ -1,6 +1,6 @@
-// Typy eventów SSE czatu — ŚWIADOMY WYJĄTEK od generacji z OpenAPI (OpenAPI nie opisuje
-// strumienia), definiowane ręcznie i utrzymywane w zgodzie z kontraktem backendu opisanym
-// w docs/technical/architecture.md sekcja 3 i 3a (ADR-13: persona_turn_start).
+// SSE chat event types — DELIBERATE EXCEPTION to generation from OpenAPI (OpenAPI does not describe
+// the stream), defined by hand and kept consistent with the backend contract described in
+// docs/technical/architecture.md sections 3 and 3a (ADR-13: persona_turn_start).
 
 export interface ChatStreamTokenEvent {
   type: "token";
@@ -9,7 +9,7 @@ export interface ChatStreamTokenEvent {
 
 export interface ChatStreamToolCallStartEvent {
   type: "tool_call_start";
-  /** Kontrakt FE; backend orkiestratora emituje też `name` — normalizacja w `resolveToolName`. */
+  /** FE contract; the backend orchestrator also emits `name` — normalized in `resolveToolName`. */
   tool_name?: string;
   name?: string;
 }
@@ -19,7 +19,7 @@ export interface ChatStreamToolResultEvent {
   tool_name: string;
   summary: string;
   success: boolean;
-  /** Obecne przy `rebuild_plan` — FE startuje polling joba planu. */
+  /** Present for `rebuild_plan` — FE starts polling the plan job. */
   job_id?: string;
 }
 
@@ -43,11 +43,11 @@ export interface ChatStreamErrorEvent {
   message: string;
 }
 
-// ADR-13: emitowany PRZED pierwszym tokenem tury w sesji 'general' — frontend renderuje
-// nagłówek z nazwą/awatarem persony zanim przyjdzie treść.
+// ADR-13: emitted BEFORE the first token of the turn in a 'general' session — the frontend renders
+// the header with the persona's name/avatar before the content arrives.
 export interface ChatStreamPersonaTurnStartEvent {
   type: "persona_turn_start";
-  /** `null` dla Goata (Kierownik Zespołu) — ADR-17 */
+  /** `null` for Goat (Team Lead) — ADR-17 */
   persona_id: string | null;
   persona_label: string;
 }
@@ -101,6 +101,6 @@ export type ChatStreamEvent =
 
 export interface SendMessageBody {
   content: string;
-  /** Ponowienie po błędzie streamu — backend nie wstawia drugi raz tej samej wiadomości usera. */
+  /** Retry after a stream error — the backend does not insert the same user message twice. */
   retry?: boolean;
 }

@@ -10,14 +10,14 @@ interface PersonaState {
 }
 
 /**
- * Placeholder — docelowo `personas` zasilane przez TanStack Query
- * (server state), ten store trzyma tylko wybór aktywnej persony (UI state)
- * i cache współdzielony z galerią onboardingu (docs/technical/frontend.md #1).
- * Guard "min. 1 aktywna persona" na /chat i /plans — odłożony (ADR-8).
+ * Placeholder — eventually `personas` will be fed by TanStack Query
+ * (server state), this store only holds the active persona selection (UI state)
+ * and a cache shared with the onboarding gallery (docs/technical/frontend.md #1).
+ * "Min. 1 active persona" guard on /chat and /plans — deferred (ADR-8).
  *
- * `hasActivePersona` jest przeliczane przy każdym `setPersonas` (nie jako
- * JS getter na stanie) — zustand kopiuje stan przez Object.assign przy
- * `set`, co "zamroziłoby" wartość gettera zamiast trzymać go reaktywnym.
+ * `hasActivePersona` is recomputed on every `setPersonas` (not as a
+ * JS getter on the state) — zustand copies state via Object.assign on
+ * `set`, which would "freeze" the getter's value instead of keeping it reactive.
  */
 export const usePersonaStore = create<PersonaState>((set) => ({
   personas: [],

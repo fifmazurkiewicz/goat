@@ -1,7 +1,7 @@
 const BUCKET = "exercise-photos";
 
 /**
- * `photo_path` z API to albo pełny URL, albo ścieżka w buckecie
+ * `photo_path` from the API is either a full URL or a path inside the bucket
  * (`free-exercise-db/<Id>/0.jpg` — seed 0013).
  */
 export function exercisePhotoSrc(photoPath: string | null | undefined): string | null {

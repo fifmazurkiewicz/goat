@@ -114,7 +114,7 @@ function formatUpdatedAt(iso: string | undefined): string | null {
 }
 
 /**
- * Formularz `user_profile` (ADR-11) — ta sama tabela co tool `update_user_profile` w czacie.
+ * `user_profile` form (ADR-11) — same table as the `update_user_profile` chat tool.
  */
 export function UserProfileForm() {
   const { data: profile, isLoading } = useUserProfile();

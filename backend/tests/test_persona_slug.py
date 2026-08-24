@@ -1,4 +1,4 @@
-"""Testy generowania/kolizji `slug` person (ADR-13)."""
+"""Tests for persona `slug` generation / collision (ADR-13)."""
 
 from __future__ import annotations
 
@@ -24,5 +24,5 @@ def test_resolve_slug_collision_appends_numeric_suffix() -> None:
 
 def test_resolve_slug_collision_first_available_suffix() -> None:
     existing = {"coach_kuba", "coach_kuba_3"}
-    # "_2" wolny mimo że "_3" jest zajęte — szukamy pierwszej wolnej liczby, nie max+1.
+    # "_2" free even though "_3" is taken — we look for the first free number, not max+1.
     assert resolve_slug_collision("coach_kuba", existing) == "coach_kuba_2"

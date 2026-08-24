@@ -1,7 +1,7 @@
-"""Narzędzia czatu do odczytu/edycji/przebudowy planu (Faza 3).
+"""Chat tools for reading/editing/rebuilding the plan (Phase 3).
 
-Reużywa `PlansRepo` + `PlanOrchestrator.generate_plan` (architecture.md §4).
-Błędy walidacji → dict z `error`, nigdy wyjątek do LLM loop.
+Reuses `PlansRepo` + `PlanOrchestrator.generate_plan` (architecture.md §4).
+Validation errors -> dict with `error`, never an exception to the LLM loop.
 """
 
 from __future__ import annotations

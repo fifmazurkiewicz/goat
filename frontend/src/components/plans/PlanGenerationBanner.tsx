@@ -13,9 +13,9 @@ function planGenerationProgress(breakdown: { status: string }[]): number | null 
 }
 
 /**
- * Czyta globalny `usePlanGenerationStore` (mountowany + pollowany w AppShell przez
- * `usePlanGenerationPolling`), NIE robi własnego pollingu — docs/technical/frontend.md
- * sekcja 5.
+ * Reads the global `usePlanGenerationStore` (mounted + polled in AppShell by
+ * `usePlanGenerationPolling`), does NOT do its own polling — docs/technical/frontend.md
+ * section 5.
  */
 export function PlanGenerationBanner() {
   const status = usePlanGenerationStore((state) => state.status);

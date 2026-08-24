@@ -1,10 +1,10 @@
-"""Współdzielone singletony i fabryki DI — architecture.md §7: `Depends` FastAPI (i
-analogiczne fabryki dla `BackgroundTasks`) żyją wyłącznie tutaj, domenowe serwisy same
-nie znają FastAPI.
+"""Shared singletons and DI factories — architecture.md §7: FastAPI `Depends` (and
+analogous factories for `BackgroundTasks`) live only here; domain services don't
+know FastAPI themselves.
 
-Singletony tutaj (`ModelPricingCache`, `ModerationService`) są bezstanowe względem
-połączeń DB (nie trzymają otwartego `AsyncConnection` między wywołaniami) — bezpieczne
-do współdzielenia między requestami/taskami w tym samym procesie.
+The singletons here (`ModelPricingCache`, `ModerationService`) are stateless w.r.t.
+DB connections (don't hold an open `AsyncConnection` between calls) — safe to share
+between requests/tasks in the same process.
 """
 
 from __future__ import annotations
@@ -20,10 +20,10 @@ from app.repositories.moderation_repo import ModerationEventsRepo
 
 
 class ServiceRoleModerationEventsLogger:
-    """Loguje `moderation_events` przez świeże, krótkotrwałe połączenie `service_role`
-    (RLS blokuje INSERT/SELECT dla roli `authenticated` na tej tabeli, patrz
-    `app/repositories/moderation_repo.py`) — bezpieczny singleton, nie trzyma połączenia
-    otwartego między wywołaniami `.log(...)`."""
+    """Logs `moderation_events` via a fresh, short-lived `service_role` connection
+    (RLS blocks INSERT/SELECT for the `authenticated` role on this table, see
+    `app/repositories/moderation_repo.py`) — a safe singleton, doesn't hold the
+    connection open between `.log(...)` calls."""
 
     async def log(self, **kwargs: object) -> None:
         async with service_role_connection() as conn:

@@ -2,7 +2,7 @@ import { apiFetch } from "@/lib/api-client";
 
 const abortControllers = new Map<string, AbortController>();
 
-/** Rejestruje AbortController bieżącej tury (useChatTurnRunner). */
+/** Registers the AbortController of the current turn (useChatTurnRunner). */
 export function registerChatTurnAbort(sessionId: string, controller: AbortController): void {
   abortControllers.set(sessionId, controller);
 }
@@ -18,12 +18,12 @@ function abortLocalChatTurn(sessionId: string): boolean {
   return true;
 }
 
-/** Zamyka SSE i prosi backend o anulowanie orkiestratora. */
+/** Closes the SSE and asks the backend to cancel the orchestrator. */
 export async function stopChatTurn(sessionId: string): Promise<void> {
   abortLocalChatTurn(sessionId);
   try {
     await apiFetch(`/api/v1/chat/sessions/${sessionId}/cancel`, { method: "POST" });
   } catch {
-    // Tura mogła się już zakończyć albo abort zamknął połączenie przed odpowiedzią.
+    // The turn may have already finished, or the abort closed the connection before the response.
   }
 }

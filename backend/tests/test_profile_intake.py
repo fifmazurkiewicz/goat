@@ -1,6 +1,6 @@
-"""Testy `build_profile_intake_instruction` — jedyna nietrywialna logika (nie szkielet
-raportujący `NotImplementedError`) dodana w etapie profilu użytkownika (ADR-11,
-docs/technical/ai-pipeline.md sekcja 0)."""
+"""Tests for `build_profile_intake_instruction` — the only non-trivial logic (not a skeleton
+just reporting `NotImplementedError`) added in the user-profile stage (ADR-11,
+docs/technical/ai-pipeline.md section 0)."""
 
 from __future__ import annotations
 

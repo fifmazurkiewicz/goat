@@ -1,22 +1,22 @@
 import type { ChatMessage, ConsultDetail } from "@/types/api";
 
 /**
- * Wiadomości widoczne w UI — bez `role=tool` (surowe JSON-y narzędzi)
- * i bez pustych `assistant` (tury tylko z tool_calls).
- * Historia tooli zostaje w DB dla LLM; user widzi najwyżej ToolResultChip ze streamu.
+ * Messages visible in the UI — without `role=tool` (raw tool JSONs)
+ * and without empty `assistant` (turns with only tool_calls).
+ * Tool history stays in the DB for the LLM; the user sees at most a ToolResultChip from the stream.
  *
- * Od 2026-08-22 (widoczność konsultacji): `role='tool'` będący udaną odpowiedzią
- * `consult_persona` jest parowany z wywołaniem w `tool_calls` poprzedzającej wiadomości
- * Goata (po `tool_call_id`, które backend trzyma w `tool_calls.tool_call_id`) i doczepiany
- * jako `consultDetails` — podgląd „co trener powiedział Goatowi" bez osobnej wiadomości
- * trenera (ADR-17 nietknięty). Stare wpisy bez `question` dostają puste pytanie; złamany
- * JSON pomijany.
+ * Since 2026-08-22 (consult visibility): a `role='tool'` entry that is a successful response
+ * to `consult_persona` is paired with the call in `tool_calls` of the preceding Goat message
+ * (by `tool_call_id`, which the backend keeps in `tool_calls.tool_call_id`) and attached
+ * as `consultDetails` — a peek at "what the trainer told Goat" without a separate trainer
+ * message (ADR-17 untouched). Old entries without `question` get an empty question; broken
+ * JSON is skipped.
  */
 export function visibleChatMessages(messages: ChatMessage[]): ChatMessage[] {
   const seen = new Set<string>();
   const out: ChatMessage[] = [];
-  // tool_call_id → indeks wiadomości Goata w `out` + argumenty wywołania (fallback `question`
-  // dla starych wpisów historii sprzed 2026-08-22, gdy tool response nie miał pola).
+  // tool_call_id → index of the Goat message in `out` + call arguments (fallback `question`
+  // for old history entries before 2026-08-22, when the tool response didn't have the field).
   const consultTargets = new Map<string, { index: number; args: Record<string, unknown> }>();
   for (const message of messages) {
     const hasConsults = message.role === "assistant" && consultCallMap(message).size > 0;
@@ -41,7 +41,7 @@ export function visibleChatMessages(messages: ChatMessage[]): ChatMessage[] {
   return out;
 }
 
-/** tool_call_id → argumenty wywołań `consult_persona` z `assistant.tool_calls`. */
+/** tool_call_id → arguments of `consult_persona` calls from `assistant.tool_calls`. */
 function consultCallMap(message: ChatMessage): Map<string, Record<string, unknown>> {
   const map = new Map<string, Record<string, unknown>>();
   const calls = (message.tool_calls as { calls?: unknown } | null)?.calls;
@@ -62,7 +62,7 @@ function consultCallMap(message: ChatMessage): Map<string, Record<string, unknow
   return map;
 }
 
-/** Rejestruje wiadomość Goata jako cel konsultacji dla każdego jej `consult_persona`. */
+/** Registers a Goat message as a consult target for each of its `consult_persona` calls. */
 function registerConsultTargets(
   message: ChatMessage,
   out: ChatMessage[],
@@ -74,7 +74,7 @@ function registerConsultTargets(
   }
 }
 
-/** Doczepia konsultację do wiadomości Goata po `tool_call_id`; dedup po id (retry). */
+/** Attaches a consult to a Goat message by `tool_call_id`; dedup by id (retry). */
 function appendConsultDetail(
   message: ChatMessage,
   out: ChatMessage[],
@@ -91,7 +91,7 @@ function appendConsultDetail(
   host.consultDetails = [...(host.consultDetails ?? []), detail];
 }
 
-/** Parsuje `role='tool'` jako konsultację; null gdy to inne narzędzie / błąd / złamany JSON. */
+/** Parses `role='tool'` as a consult; null when it's another tool / error / broken JSON. */
 function parseConsultToolMessage(
   message: ChatMessage,
   callArgs: Record<string, unknown>
@@ -102,7 +102,7 @@ function parseConsultToolMessage(
     if (parsed?.status !== "ok" || typeof parsed.answer !== "string" || !parsed.answer.trim()) {
       return null;
     }
-    // Stare wpisy (sprzed zmiany) nie mają `question` — fallback z argumentów tool call.
+    // Old entries (before the change) don't have `question` — fallback from tool call arguments.
     const question =
       typeof parsed.question === "string" && parsed.question.trim()
         ? parsed.question
@@ -129,7 +129,7 @@ function parseConsultToolMessage(
   }
 }
 
-/** Czytelny komunikat z eventu SSE `error` (bez surowego JSON / escape'ów `\uXXXX`). */
+/** Readable message from an SSE `error` event (without raw JSON / `\uXXXX` escapes). */
 export function streamErrorMessage(event: { message?: unknown; code?: unknown }): string {
   const raw = event.message;
   if (typeof raw === "string" && raw.trim()) {
@@ -149,7 +149,7 @@ export function streamErrorMessage(event: { message?: unknown; code?: unknown })
 }
 
 function extractJsonMessage(text: string): string | null {
-  // SSE czasem skleja dwa eventy w jeden chunk — bierzemy ostatni obiekt z polem message.
+  // SSE sometimes glues two events into one chunk — we take the last object with a message field.
   const objects = text.match(/\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}/g) ?? [text];
   for (let i = objects.length - 1; i >= 0; i -= 1) {
     try {
@@ -158,7 +158,7 @@ function extractJsonMessage(text: string): string | null {
         return parsed.message.trim();
       }
     } catch {
-      // kolejny kandydat
+      // next candidate
     }
   }
   return null;

@@ -1,15 +1,15 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 /**
- * Pierwszy ekran po zalogowaniu — galeria 6 szablonów person
- * (docs/technical/frontend.md sekcja 1, persona_templates w
- * database-schema.md). TODO: fetch `persona_templates` przez TanStack Query,
- * karty do wyboru + akcja "utwórz z szablonu" → POST /personas.
+ * First screen after login — gallery of 6 persona templates
+ * (docs/technical/frontend.md section 1, persona_templates in
+ * database-schema.md). TODO: fetch `persona_templates` via TanStack Query,
+ * selectable cards + "create from template" action → POST /personas.
  *
- * Dane biometryczne (waga/wzrost/cel — `user_profile`, ADR-11) NIE są zbierane tutaj
- * formularzem — persona dopytuje o nie naturalnie w pierwszej rozmowie na `/chat`
- * (patrz docs/technical/ai-pipeline.md sekcja 0). `/profile` istnieje jako fallback dla
- * userów wolących wypełnić dane wprost.
+ * Biometric data (weight/height/goal — `user_profile`, ADR-11) is NOT collected here
+ * via a form — the persona asks for it naturally during the first conversation on `/chat`
+ * (see docs/technical/ai-pipeline.md section 0). `/profile` exists as a fallback for
+ * users who prefer to fill in the data directly.
  */
 export default function OnboardingPage() {
   return (

@@ -8,10 +8,11 @@ interface ConsultDetailsProps {
 }
 
 /**
- * Podgląd konsultacji Goata (`consult_persona`, spec 2026-08-22) — lista rozwijanych
- * elementów pod wiadomością Goata (sibling bąbelki, jak ToolResultChip). Domyślnie
- * zwinięte; `type="multiple"` — roundtable pozwala porównywać kilka odpowiedzi naraz.
- * Styl „podglądu źródła", nie osobna wiadomość trenera — ADR-17 nietknięty.
+ * Preview of Goat's consultations (`consult_persona`, spec 2026-08-22) — a list of
+ * collapsible items beneath Goat's message (sibling bubbles, like ToolResultChip).
+ * Collapsed by default; `type="multiple"` — roundtable lets the user compare several
+ * answers at once. "Source preview" styling, not a separate trainer message — ADR-17
+ * left untouched.
  */
 export function ConsultDetails({ details, className }: ConsultDetailsProps) {
   if (details.length === 0) return null;

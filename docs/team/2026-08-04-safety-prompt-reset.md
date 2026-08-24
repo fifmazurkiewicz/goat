@@ -1,42 +1,42 @@
-# Briefing zespołu — 2026-08-04: safety prompt + reset migracji
+# Team briefing — 2026-08-04: safety prompt + migration reset
 
-## Co się zmienia
+## What's changing
 
-1. **Rozdział promptu persony**
-   - User edytuje tylko **zachowanie** („Jak ma się zachowywać” / `system_prompt`).
-   - **Lekarz / leki / red flags / „czego NIE robisz”** → `app_private.persona_template_safety` (niewidoczne w API/UI).
-   - `persona_constraints` nadal systemowe (nie w DTO).
+1. **Persona prompt split**
+   - User edits only **behavior** ("How it should behave" / `system_prompt`).
+   - **Doctor / medications / red flags / "what you do NOT do"** → `app_private.persona_template_safety` (invisible in API/UI).
+   - `persona_constraints` still system-level (not in DTO).
 
-2. **Migracje**
-   - Usunięto `0003_professional_templates.sql` (treść w `0001`).
-   - Nowy wipe: `supabase/reset_public.sql` (ręcznie przed re-init).
-   - Kolejność: wipe → `0001_init.sql` → `0002_exercise_catalog.sql`.
-   - Docs: `cloud-setup.md` Krok 4 zaktualizowany.
+2. **Migrations**
+   - Removed `0003_professional_templates.sql` (content in `0001`).
+   - New wipe: `supabase/reset_public.sql` (manually before re-init).
+   - Order: wipe → `0001_init.sql` → `0002_exercise_catalog.sql`.
+   - Docs: `cloud-setup.md` Step 4 updated.
 
 3. **Backend**
    - `PREAMBLE_VERSION = 2`
-   - Chat + plan doklejają safety przez `service_role_connection`
+   - Chat + plan attach safety via `service_role_connection`
    - Spec: `docs/superpowers/specs/2026-08-04-persona-safety-prompt-design.md`
 
-## Co zrobić lokalnie / na chmurze
+## What to do locally / in the cloud
 
-1. Supabase SQL Editor: uruchom `reset_public.sql`
-2. Uruchom `0001_init.sql`, potem `0002_exercise_catalog.sql`
-3. Redeploy backend (Render) po merge — bez tego stare API bez safety
-4. Smoke: dodaj dietetyka → w UI **nie** ma bloku o lekarzu/lekach; w zachowaniu jest styl/zakres pomocy
+1. Supabase SQL Editor: run `reset_public.sql`
+2. Run `0001_init.sql`, then `0002_exercise_catalog.sql`
+3. Redeploy backend (Render) after merge — without this the old API has no safety
+4. Smoke: add dietitian → in UI **no** block about doctor/medications; in behavior there is style/scope of help
 
-## Audyt (synteza zespołu)
+## Audit (team synthesis)
 
-Równolegle: [Architektura](9667dfc1-40ea-45ac-8e09-5428c667d0bf), [Security](71dd8db8-bb81-4933-b026-bbd2dbf2164e), [Code review](2f5c2f82-7f8e-4a18-bb54-d5a508163059), [UX](b4bba55d-fa89-4166-becd-5a8cdf5e1dc7).
+In parallel: [Architecture](9667dfc1-40ea-45ac-8e09-5428c667d0bf), [Security](71dd8db8-bb81-4933-b026-bbd2dbf2164e), [Code review](2f5c2f82-7f8e-4a18-bb54-d5a508163059), [UX](b4bba55d-fa89-4166-becd-5a8cdf5e1dc7).
 
-| Finding | Status po wdrożeniu |
+| Finding | Status after implementation |
 |---|---|
-| Safety w edytowalnym `default_prompt` | ✅ rozdzielone w `0001` + `app_private` |
-| PlanOrchestrator bez preambułu/safety | ✅ dokleja `build_system_prompt` + safety |
-| PostgREST może UPDATE `persona_constraints` | ✅ trigger `guard_persona_constraints` |
-| Clone kopiuje constraints | ✅ `None` przy clone |
-| UX: „system prompt” / pełny seed z zakazami | ✅ „Styl i zakres pomocy” + hint warstwy |
-| Pełne przeniesienie `persona_constraints` do `internal` (SELECT hide) | ⏳ backlog (Data API nadal widzi kolumnę na własnych wierszach) |
-| Preview gotowca bez full-text wklejania | ⏳ backlog UX |
+| Safety in editable `default_prompt` | ✅ separated in `0001` + `app_private` |
+| PlanOrchestrator without preamble/safety | ✅ attaches `build_system_prompt` + safety |
+| PostgREST may UPDATE `persona_constraints` | ✅ trigger `guard_persona_constraints` |
+| Clone copies constraints | ✅ `None` on clone |
+| UX: "system prompt" / full seed with prohibitions | ✅ "Style and scope of help" + hint of layer |
+| Full move of `persona_constraints` to `internal` (SELECT hide) | ⏳ backlog (Data API still sees the column on own rows) |
+| Template preview without full-text pasting | ⏳ UX backlog |
 
-MCP Supabase w tej sesji **nie widzi** projektu o nazwie `goat` — wipe/init trzeba odpalić ręcznie w SQL Editor docelowego projektu.
+MCP Supabase in this session **doesn't see** a project named `goat` — wipe/init must be triggered manually in the SQL Editor of the target project.

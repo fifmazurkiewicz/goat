@@ -1,10 +1,10 @@
 import { useSyncExternalStore } from "react";
 
 /**
- * `matchMedia`-owy breakpoint hook — używany wszędzie tam, gdzie layout przełącza się
- * między mobile/desktop wariantem (CalendarViewSwitcher, PlanItemTable `variant`,
- * Dialog/Sheet dla formularzy, docs/technical/frontend.md sekcje 5 i 11).
- * Landscape telefonu (niska wysokość, duża szerokość) też jest „mobile”.
+ * `matchMedia`-based breakpoint hook — used wherever the layout switches between
+ * mobile and desktop variants (CalendarViewSwitcher, PlanItemTable `variant`,
+ * Dialog/Sheet for forms, docs/technical/frontend.md sections 5 and 11).
+ * Phone landscape (low height, wide width) is also treated as "mobile".
  */
 export function useMediaQuery(query: string): boolean {
   return useSyncExternalStore(

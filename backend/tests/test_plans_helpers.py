@@ -1,4 +1,4 @@
-"""Testy helperów planów — wybór planu dla zakresu kalendarza."""
+"""Tests for plan helpers — choosing a plan for a calendar range."""
 
 from __future__ import annotations
 

@@ -1,13 +1,13 @@
-"""Platform preambuł (warstwa A obrony, security.md sekcja 1) — server-side, nieedytowalny.
+"""Platform preamble (defense layer A, security.md section 1) — server-side, non-editable.
 
-`PREAMBLE_VERSION` musi zostać zinkrementowany przy KAŻDEJ zmianie treści preambułu —
-`ModerationService`/`PersonaService` porównują go z `personas.preamble_version`, żeby
-wymusić re-check moderacji wszystkich person po zmianie tego pliku, niezależnie od
-tego czy user zmieniał swój `system_prompt` (ADR-4).
+`PREAMBLE_VERSION` must be incremented on EVERY change to preamble content —
+`ModerationService`/`PersonaService` compare it with `personas.preamble_version` to
+force re-moderation of all personas after this file changes, regardless of whether
+the user changed their `system_prompt` (ADR-4).
 
-Po preambule backend dokleja opcjonalnie `[ZABEZPIECZENIA GOTOWCA]` z
-`app_private.persona_template_safety`, potem `[ZACHOWANIE PERSONY]` (edytowalne).
-Patrz docs/superpowers/specs/2026-08-04-persona-safety-prompt-design.md.
+After the preamble the backend optionally appends `[TEMPLATE SAFETY]` from
+`app_private.persona_template_safety`, then `[PERSONA BEHAVIOR]` (editable).
+See docs/superpowers/specs/2026-08-04-persona-safety-prompt-design.md.
 """
 
 from __future__ import annotations

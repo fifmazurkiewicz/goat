@@ -16,10 +16,10 @@ interface CommunitySectionProps {
 }
 
 /**
- * "Przeglądaj community" (docs/technical/database-schema.md — personas.is_shared,
- * RLS SELECT gdy is_shared=true AND moderation_status='approved'). Klonowanie tworzy
- * nowy rekord z user_id usera; jeśli konto jest na limicie, informujemy o tym PRZED
- * próbą klonowania (żeby błąd 409 nie był zaskoczeniem).
+ * "Browse community" (docs/technical/database-schema.md — personas.is_shared, RLS SELECT
+ * when is_shared=true AND moderation_status='approved'). Cloning creates a new record
+ * with the user's user_id; if the account is at the limit, we notify the user BEFORE
+ * attempting to clone (so a 409 error is never a surprise).
  */
 export function CommunitySection({ isAtLimit, maxActivePersonas }: CommunitySectionProps) {
   const { data: community, isLoading } = useCommunityPersonas();

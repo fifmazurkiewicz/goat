@@ -1,4 +1,4 @@
-"""Rejestr tooli czatu — log_result, profil, plany, podział trener vs Goat."""
+"""Chat tool registry — log_result, profile, plans, trainer vs Goat split."""
 
 from __future__ import annotations
 
@@ -44,7 +44,7 @@ def test_get_team_lead_plan_tools_includes_consult_persona() -> None:
 
 
 def test_team_lead_can_log_results() -> None:
-    """Goat zapisuje wyniki zaraportowane w sesji `general` (spec 2026-08-17)."""
+    """Goat records results reported in the `general` session (spec 2026-08-17)."""
     names = {t["function"]["name"] for t in get_team_lead_plan_tools()}
     assert "log_result" in names
 

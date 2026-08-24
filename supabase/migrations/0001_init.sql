@@ -1,26 +1,26 @@
--- Multi-Persona Coaching App — schemat początkowy (skonsolidowany)
--- Źródło prawdy: docs/technical/database-schema.md, docs/adr/decisions.md
--- Supabase włącza pgcrypto domyślnie (gen_random_uuid()).
+-- Multi-Persona Coaching App — initial schema (consolidated)
+-- Source of truth: docs/technical/database-schema.md, docs/adr/decisions.md
+-- Supabase enables pgcrypto by default (gen_random_uuid()).
 --
--- UWAGA: to jest jedyna migracja bazowa (nic nie zostało jeszcze uruchomione/wdrożone,
--- więc historia ALTER-ów z wczesnych iteracji projektu została scalona w jeden spójny
--- init zamiast trzymana jako osobne, przyrostowe pliki). Kolejne migracje dodają wyłącznie
--- nowe, samodzielne domeny (patrz 0002_exercise_catalog.sql).
+-- NOTE: this is the only base migration (nothing has been run/deployed yet,
+-- so the ALTER history from early project iterations has been merged into a single
+-- coherent init instead of being kept as separate, incremental files). Subsequent
+-- migrations only add new, self-contained domains (see 0002_exercise_catalog.sql).
 
 -- ============================================================
--- PROFIL
+-- PROFILE
 -- ============================================================
 
 create table public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
   is_admin boolean not null default false,
-  -- Limit aktywnych person PER KONTO, edytowalny przez admina (ADR-12) — nie globalna stała.
+  -- Active personas limit PER ACCOUNT, editable by admin (ADR-12) — not a global constant.
   max_active_personas integer not null default 5
     constraint max_active_personas_range check (max_active_personas between 0 and 50),
-  -- Ustawienia konta (ADR-15) — NULL = frontend pokazuje nazwę z Google OAuth jako fallback.
+  -- Account settings (ADR-15) — NULL = frontend shows the Google OAuth name as fallback.
   nick text,
-  -- Budżet kosztowy w USD per konto (ADR-16) — ochrona przed nadmiernym zużyciem API,
-  -- NIE mechanizm rozliczeniowy/subskrypcyjny (brak planów Free/Pro). Edytowalny przez admina.
+  -- Per-account USD cost budget (ADR-16) — protection against excessive API usage,
+  -- NOT a billing/subscription mechanism (no Free/Pro plans). Editable by admin.
   usage_budget_usd numeric not null default 10.00
     constraint usage_budget_usd_range check (usage_budget_usd between 0 and 1000),
   created_at timestamptz not null default now()
@@ -35,8 +35,8 @@ create policy profiles_update_own on public.profiles
   for update using (id = auth.uid())
   with check (id = auth.uid());
 
--- Auto-tworzenie wiersza profiles przy rejestracji (standardowy wzorzec Supabase).
--- Jedyny bootstrap-admin: fmazurkiewicz@gmail.com (profiles.is_admin).
+-- Auto-create a profiles row on signup (standard Supabase pattern).
+-- The only bootstrap admin: fmazurkiewicz@gmail.com (profiles.is_admin).
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -56,7 +56,7 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- authenticated nie może sam sobie nadać is_admin / limitu / budżetu (Data API).
+-- authenticated cannot grant themselves is_admin / limit / budget (Data API).
 create or replace function public.guard_profile_privileged_columns()
 returns trigger
 language plpgsql
@@ -80,14 +80,14 @@ create trigger trg_guard_profile_privileged
   for each row execute function public.guard_profile_privileged_columns();
 
 -- ============================================================
--- GOTOWCE (seed, read-only dla usera)
+-- TEMPLATES (seed, read-only for user)
 -- ============================================================
 
 create table public.persona_templates (
   id uuid primary key default gen_random_uuid(),
   type text not null,
-  -- WYŁĄCZNIE zachowanie / styl (edytowalne przez usera po skopiowaniu do personas.system_prompt).
-  -- Reguły medyczne/lekarz/leki → app_private.persona_template_safety (nie w Data API).
+  -- ONLY behavior / style (editable by user after copying to personas.system_prompt).
+  -- Medical/doctor/medication rules → app_private.persona_template_safety (not in Data API).
   default_prompt text not null,
   label text not null,
   created_at timestamptz not null default now()
@@ -97,7 +97,7 @@ alter table public.persona_templates enable row level security;
 create policy persona_templates_select_all on public.persona_templates
   for select using (true);
 
--- Zabezpieczenia gotowca (lekarz, leki, red flags, „czego NIE robisz”) — poza PostgREST.
+-- Template safety guards (doctor, medications, red flags, "what you DON'T do") — outside PostgREST.
 create schema if not exists app_private;
 revoke all on schema app_private from public, anon, authenticated;
 grant usage on schema app_private to postgres, service_role;
@@ -123,7 +123,7 @@ alter table public.plan_templates enable row level security;
 create policy plan_templates_select_all on public.plan_templates
   for select using (true);
 
--- Słownik referencyjny metryk — walidacja log_result, cache in-memory po stronie backendu.
+-- Reference metrics dictionary — log_result validation, in-memory cache on the backend side.
 create table public.allowed_metrics (
   category text not null,
   metric_key text not null,
@@ -139,7 +139,7 @@ create policy allowed_metrics_select_all on public.allowed_metrics
   for select using (true);
 
 -- ============================================================
--- PERSONY
+-- PERSONAS
 -- ============================================================
 
 create table public.personas (
@@ -147,21 +147,21 @@ create table public.personas (
   user_id uuid not null references auth.users (id) on delete cascade,
   type text not null,
   name text not null,
-  system_prompt text not null default '',            -- zachowanie persony (edytowalne); NIE safety/preambuł
+  system_prompt text not null default '',            -- persona behavior (editable); NOT safety/preamble
   base_template_id uuid references public.persona_templates (id),
   plan_template_id uuid references public.plan_templates (id),
-  template_overrides jsonb,                          -- kształt: {"columns":["…"]} — walidacja Pydantic/Zod
+  template_overrides jsonb,                          -- shape: {"columns":["…"]} — Pydantic/Zod validation
   detail_level text not null default 'simple',       -- 'simple' | 'detailed'
-  custom_result_category text,                       -- wymagane w API gdy type='custom'
-  -- Systemowe/operatorskie (nie w PersonaOut); doklejane server-side do plannera/czatu
+  custom_result_category text,                       -- required in API when type='custom'
+  -- System/operator (not in PersonaOut); appended server-side to planner/chat
   persona_constraints text,
-  -- Stabilny identyfikator do "/slug wiadomość" w ogólnym czacie (ADR-13) — generowany
-  -- z type+name przy tworzeniu, regenerowany przy zmianie nazwy (kolizje -> numeryczny suffix).
+  -- Stable identifier for "/slug message" in general chat (ADR-13) — generated
+  -- from type+name on creation, regenerated on name change (collisions -> numeric suffix).
   slug text not null,
   is_shared boolean not null default false,
   moderation_status text not null default 'approved', -- 'pending' | 'approved' | 'rejected'
-  moderation_checked_prompt_hash text,                -- hash TYLKO sekcji usera
-  preamble_version int not null default 1,            -- wymusza re-check po zmianie platform preambułu
+  moderation_checked_prompt_hash text,                -- hash of ONLY the user's section
+  preamble_version int not null default 1,            -- forces re-check after preamble platform changes
   cloned_from_persona_id uuid references public.personas (id),
   active boolean not null default true,
   created_at timestamptz not null default now(),
@@ -193,8 +193,8 @@ create policy personas_update_own on public.personas
 create policy personas_delete_own on public.personas
   for delete using (user_id = auth.uid());
 
--- End-user (authenticated/anon) nie może ustawiać/zmieniać persona_constraints przez Data API.
--- Zapis operatorski: service_role / przyszły panel admin.
+-- End-user (authenticated/anon) cannot set/change persona_constraints via Data API.
+-- Operator write: service_role / future admin panel.
 create or replace function public.guard_persona_constraints()
 returns trigger
 language plpgsql
@@ -215,8 +215,8 @@ create trigger trg_guard_persona_constraints
   before insert or update on public.personas
   for each row execute function public.guard_persona_constraints();
 
--- Limit aktywnych person PER KONTO (profiles.max_active_personas, ADR-12) — trigger jako
--- ostatnia linia obrony (API waliduje to samo z czytelnym komunikatem przed uderzeniem w bazę).
+-- Active personas limit PER ACCOUNT (profiles.max_active_personas, ADR-12) — trigger as
+-- last line of defense (API validates the same with a clear message before hitting the database).
 create or replace function public.enforce_persona_limit()
 returns trigger
 language plpgsql
@@ -251,11 +251,11 @@ create trigger trg_persona_limit
   execute function public.enforce_persona_limit();
 
 -- ============================================================
--- PROFIL UŻYTKOWNIKA (biometria, WSPÓLNY dla wszystkich person usera)
+-- USER PROFILE (biometrics, SHARED across all of user's personas)
 -- ============================================================
--- Odróżnij od personas.persona_constraints (specyficzne dla danej persony, np. kontuzja
--- zgłoszona akurat trenerowi siłowni). Wypełniany docelowo KONWERSACYJNIE — dowolna persona
--- woła tool `update_user_profile`, z formularzem /profile jako fallback. ai-pipeline.md §0, ADR-11.
+-- Distinguished from personas.persona_constraints (specific to a given persona, e.g. an injury
+-- reported specifically to the strength coach). Filled CONVERSATIONALLY in the target — any persona
+-- calls the `update_user_profile` tool, with the /profile form as a fallback. ai-pipeline.md §0, ADR-11.
 
 create table public.user_profile (
   user_id uuid primary key references auth.users (id) on delete cascade,
@@ -284,11 +284,11 @@ create policy user_profile_all_own on public.user_profile
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- ============================================================
--- CZAT
+-- CHAT
 -- ============================================================
--- Sesja 'persona' (1:1, persona_id NOT NULL) obok sesji 'general' (auto-routing,
--- persona_id IS NULL) — ADR-13. Atrybucja per wiadomość w chat_messages.persona_id,
--- bo w sesji 'general' różne wiadomości assistant/tool mogą pochodzić od różnych person.
+-- 'persona' session (1:1, persona_id NOT NULL) alongside 'general' session (auto-routing,
+-- persona_id IS NULL) — ADR-13. Per-message attribution in chat_messages.persona_id,
+-- because in a 'general' session different assistant/tool messages may come from different personas.
 
 create table public.chat_sessions (
   id uuid primary key default gen_random_uuid(),
@@ -304,7 +304,7 @@ create table public.chat_sessions (
     or (session_type = 'general' and persona_id is null)
   )
 );
--- Bez rolling summary w MVP (ADR-7) — sam sliding window przy budowaniu promptu.
+-- No rolling summary in MVP (ADR-7) — just a sliding window when building the prompt.
 
 create index chat_sessions_user_id_idx on public.chat_sessions (user_id);
 create index chat_sessions_persona_id_idx on public.chat_sessions (persona_id);
@@ -319,9 +319,9 @@ create table public.chat_messages (
   role text not null,                                 -- 'user' | 'assistant' | 'tool'
   content text,
   tool_calls jsonb,
-  -- Atrybucja per wiadomość (ADR-13) — w sesji 'general' różne wiadomości assistant/tool
-  -- mogą mieć różny persona_id; w sesji 'persona' kopiuje session.persona_id (spójny odczyt
-  -- niezależnie od typu sesji, bez if/else w repozytorium).
+  -- Per-message attribution (ADR-13) — in a 'general' session different assistant/tool
+  -- messages may have different persona_id; in a 'persona' session it copies session.persona_id
+  -- (consistent read regardless of session type, without if/else in the repository).
   persona_id uuid references public.personas (id),
   invoked_via text,                                   -- 'auto_routed' | 'slash_command' | NULL
   created_at timestamptz not null default now(),
@@ -345,7 +345,7 @@ create policy chat_messages_all_own on public.chat_messages
   ));
 
 -- ============================================================
--- WYNIKI
+-- RESULTS
 -- ============================================================
 
 create table public.results (
@@ -358,14 +358,14 @@ create table public.results (
   logged_date date not null,
   source text not null default 'manual',   -- 'agent' | 'manual'
   source_persona_id uuid references public.personas (id),
-  is_custom boolean not null default false,  -- metryka spoza allowed_metrics
+  is_custom boolean not null default false,  -- metric outside allowed_metrics
   notes text,
   created_at timestamptz not null default now(),
   constraint source_check check (source in ('agent', 'manual'))
 );
 
--- Wspiera zapytania pod wykresy w /results (trend wagi, ciężarów, czasów biegowych)
--- oraz walidację/agregację per kategoria+metryka.
+-- Supports queries for /results charts (weight trend, weights, running times)
+-- and per-category+metric validation/aggregation.
 create index results_user_category_metric_date_idx
   on public.results (user_id, category, metric, logged_date);
 
@@ -374,7 +374,7 @@ create policy results_all_own on public.results
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- ============================================================
--- PLANY
+-- PLANS
 -- ============================================================
 
 create table public.plans (
@@ -402,7 +402,7 @@ create table public.plan_items (
   item_date date not null,
   item_type text not null,
   persona_id uuid not null references public.personas (id),
-  content jsonb not null,           -- {title, columns, rows, notes} — ZAMROŻONY snapshot
+  content jsonb not null,           -- {title, columns, rows, notes} — FROZEN snapshot
   schema_version int not null default 1,
   created_at timestamptz not null default now()
 );
@@ -415,8 +415,8 @@ create policy plan_items_all_own on public.plan_items
   using (exists (select 1 from public.plans p where p.id = plan_items.plan_id and p.user_id = auth.uid()))
   with check (exists (select 1 from public.plans p where p.id = plan_items.plan_id and p.user_id = auth.uid()));
 
--- Denormalizowany user_id (nie tylko plan_id) — pozwala na prosty unique index
--- "1 aktywny job na usera" bez joina przy insert.
+-- Denormalized user_id (not only plan_id) — allows a simple unique index
+-- "1 active job per user" without a join on insert.
 create table public.plan_generation_jobs (
   id uuid primary key default gen_random_uuid(),
   plan_id uuid not null references public.plans (id) on delete cascade,
@@ -430,7 +430,7 @@ create table public.plan_generation_jobs (
   constraint job_status_check check (status in ('pending', 'running', 'success', 'partial_success', 'error'))
 );
 
--- Egzekwowane na poziomie bazy, nie check-then-insert w aplikacji (race condition).
+-- Enforced at the database level, not check-then-insert in the application (race condition).
 create unique index one_active_job_per_user
   on public.plan_generation_jobs (user_id)
   where status in ('pending', 'running');
@@ -462,7 +462,7 @@ create policy plan_generation_job_personas_all_own on public.plan_generation_job
   ));
 
 -- ============================================================
--- LIMITY (budżet USD per konto — ADR-16)
+-- LIMITS (per-account USD budget — ADR-16)
 -- ============================================================
 
 create table public.usage_limits (
@@ -470,10 +470,10 @@ create table public.usage_limits (
   period_start date not null,
   messages_used int not null default 0,
   tokens_used int not null default 0,
-  plan_generations_used int not null default 0,  -- generowanie planu debituje z tego samego limitera co czat
-  -- Faktyczny koszt (USD) w bieżącym okresie, liczony z prompt_tokens/completion_tokens ×
-  -- cennik modelu (OpenRouter /api/v1/models, cache'owany) — egzekwowany względem
-  -- profiles.usage_budget_usd. Brak kolumny `tier` — to nie plan subskrypcyjny (ADR-16).
+  plan_generations_used int not null default 0,  -- plan generation debits from the same limiter as chat
+  -- Actual cost (USD) in the current period, calculated from prompt_tokens/completion_tokens ×
+  -- model pricing (OpenRouter /api/v1/models, cached) — enforced against
+  -- profiles.usage_budget_usd. No `tier` column — this is not a subscription plan (ADR-16).
   cost_usd_used numeric not null default 0,
   primary key (user_id, period_start)
 );
@@ -481,13 +481,13 @@ create table public.usage_limits (
 alter table public.usage_limits enable row level security;
 create policy usage_limits_select_own on public.usage_limits
   for select using (user_id = auth.uid());
--- Insert/update wyłącznie przez backend jako authenticated user w kontekście RLS danego usera
--- (increment happens server-side, nie bezpośrednio z frontendu) — polityka analogiczna do select.
+-- Insert/update only by the backend as the authenticated user in the RLS context of that user
+-- (increment happens server-side, not directly from the frontend) — policy analogous to select.
 create policy usage_limits_write_own on public.usage_limits
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
 -- ============================================================
--- BEZPIECZEŃSTWO / MODERACJA (brak dostępu dla zwykłego usera)
+-- SAFETY / MODERATION (no access for regular user)
 -- ============================================================
 
 create table public.moderation_events (
@@ -497,15 +497,15 @@ create table public.moderation_events (
   session_id uuid references public.chat_sessions (id),
   message_id uuid references public.chat_messages (id),
   trigger_type text not null, -- 'persona_create'|'persona_edit'|'persona_share'|'chat_heuristic'|'chat_classifier'
-  raw_snippet text,           -- UWAGA RODO: może zawierać wrażliwe treści — patrz docs/technical/security.md
+  raw_snippet text,           -- GDPR NOTE: may contain sensitive content — see docs/technical/security.md
   classifier_verdict text,    -- 'clean'|'injection_attempt'|'redefine_role'|'off_topic'
   reviewed boolean not null default false,
   created_at timestamptz not null default now()
 );
 
 alter table public.moderation_events enable row level security;
--- Brak polityk SELECT/INSERT dla roli `authenticated` — dostęp wyłącznie przez service_role
--- (backend w kontekście /admin/*), zgodnie z docs/technical/security.md.
+-- No SELECT/INSERT policies for the `authenticated` role — access only via service_role
+-- (backend in /admin/* context), per docs/technical/security.md.
 
 create table public.admin_audit_log (
   id uuid primary key default gen_random_uuid(),
@@ -517,10 +517,10 @@ create table public.admin_audit_log (
 );
 
 alter table public.admin_audit_log enable row level security;
--- Brak polityk dla `authenticated` — wyłącznie service_role.
+-- No policies for `authenticated` — only service_role.
 
 -- ============================================================
--- SEED DATA (zachowanie w default_prompt; safety w app_private)
+-- SEED DATA (behavior in default_prompt; safety in app_private)
 -- ============================================================
 
 -- personal_trainer
@@ -552,11 +552,11 @@ insert into public.persona_templates (type, label, default_prompt) values (
   $pt$
 Jesteś dietetykiem sportowym w aplikacji Coach. Wspierasz żywienie pod cele treningowe: redukcję, budowę masy, utrzymanie masy lub wydolność — u zdrowych dorosłych.
 
-Styl komunikacji: rzeczowy, bez moralizowania i bez „zakazanych produktów”. Tłumaczysz wybory żywieniowe prosto: białko, węglowodany, tłuszcze, błonnik, nawodnienie, timing wokół treningu. Preferujesz praktyczne przykłady posiłków i zamienniki, nie idealne jadłospisy oderwane od życia.
+Styl komunikacji: rzeczowy, bez moralizowania i bez „zakazanych produktów". Tłumaczysz wybory żywieniowe prosto: białko, węglowodany, tłuszcze, błonnik, nawodnienie, timing wokół treningu. Preferujesz praktyczne przykłady posiłków i zamienniki, nie idealne jadłospisy oderwane od życia.
 
 Zakres pomocy: szacowanie zapotrzebowania energetycznego na podstawie profilu i aktywności, rozkład 3–5 posiłków, strategie wysokobiałkowe, proste listy zakupów, korekty przy plateau, nawyki (regularność, planowanie, jedzenie poza domem).
 
-Narzędzia: update_user_profile używaj, gdy user poda wagę, wzrost, wiek, aktywność lub cel — tylko podane pola. log_result wyłącznie przy jawnie zaraportowanych wynikach dietetycznych/pomiarowych (np. waga, kcal, białko, węgle, tłuszcz); nie zgaduj makro z „zjadłem mniej więcej”.
+Narzędzia: update_user_profile używaj, gdy user poda wagę, wzrost, wiek, aktywność lub cel — tylko podane pola. log_result wyłącznie przy jawnie zaraportowanych wynikach dietetycznych/pomiarowych (np. waga, kcal, białko, węgle, tłuszcz); nie zgaduj makro z „zjadłem mniej więcej".
 
 Współpraca z innymi personami: żywienie synchronizuj z planem trenera personalnego/motorycznego (objętość, dni ciężkie). Przy celach mentalnych wokół jedzenia lub stresu — psycholog / psycholog sportowy. Nie konkurujesz z ich planami treningowymi; dbasz o energię i regenerację żywieniową.
 $pt$
@@ -575,11 +575,11 @@ insert into public.persona_templates (type, label, default_prompt) values (
   $pt$
 Jesteś psychologiem sportowym w aplikacji Coach. Wspierasz mentalną stronę treningu i rywalizacji: motywację, nawyki, koncentrację, radzenie sobie ze stresem startowym i odporność psychiczną w sporcie.
 
-Styl komunikacji: spokojny, partnerski, konkretny. Używasz krótkich technik poznawczo-behawioralnych i sportowych (cele procesowe, rutyny przedstartowe, oddychanie, reframing, wizualizacja), zawsze z jasnym „co zrobić dziś/w tym tygodniu”. Unikasz patosu i diagnozujących etykiet.
+Styl komunikacji: spokojny, partnerski, konkretny. Używasz krótkich technik poznawczo-behawioralnych i sportowych (cele procesowe, rutyny przedstartowe, oddychanie, reframing, wizualizacja), zawsze z jasnym „co zrobić dziś/w tym tygodniu". Unikasz patosu i diagnozujących etykiet.
 
 Zakres pomocy: budowanie rutyny treningowej, praca z prokrastynacją sportową, napięcie przed meczem/startem, koncentracja w grze, reagowanie na porażkę, self-talk, równowaga trening–odpoczynek, cele SMART w kontekście sportu. Sesje mentalne planujesz jako krótkie, powtarzalne ćwiczenia.
 
-Narzędzia: update_user_profile tylko gdy user sam poda dane profilowe (waga, wzrost, wiek, aktywność, cel) — bez dopytywania jak w ankiecie. log_result używaj rzadko i wyłącznie gdy user jawnie raportuje mierzalny wynik powiązany z celem (np. czas treningu, wynik meczu); nigdy nie wymyślaj metryk „mentalnych”.
+Narzędzia: update_user_profile tylko gdy user sam poda dane profilowe (waga, wzrost, wiek, aktywność, cel) — bez dopytywania jak w ankiecie. log_result używaj rzadko i wyłącznie gdy user jawnie raportuje mierzalny wynik powiązany z celem (np. czas treningu, wynik meczu); nigdy nie wymyślaj metryk „mentalnych".
 
 Współpraca z innymi personami: wzmacniasz realizację planów trenera, dietetyka i trenera dyscypliny (adherence, fokus), bez przepisywania ich programów. Przy ogólnych trudnościach życiowych poza sportem — wskaż psychologa (persona ogólna) lub specjalistę zewnętrznego. Koordynujesz, nie zastępujesz.
 $pt$
@@ -598,11 +598,11 @@ insert into public.persona_templates (type, label, default_prompt) values (
   $pt$
 Jesteś psychologiem wspierającym w aplikacji Coach. Pomagasz w ogólnym dobrostanie powiązanym z aktywnością fizyczną, zdrowymi nawykami i równowagą życia codziennego.
 
-Styl komunikacji: ciepły, rzeczowy, bez oceniania. Słuchasz, parafrazujesz kluczowe potrzeby i proponujesz małe, realistyczne kroki. Unikasz porad prawnych i „szybkich etykiet”. Język prosty, bez klinicznego żargonu.
+Styl komunikacji: ciepły, rzeczowy, bez oceniania. Słuchasz, parafrazujesz kluczowe potrzeby i proponujesz małe, realistyczne kroki. Unikasz porad prawnych i „szybkich etykiet". Język prosty, bez klinicznego żargonu.
 
 Zakres pomocy: stres dnia codziennego wpływający na trening/sen, prokrastynacja, budowanie nawyków, samoocena w kontekście ciała i aktywności (bez fokusowania na wadze jako wartości osoby), komunikacja granic (czas na regenerację), refleksja nad motywacją wewnętrzną. Możesz proponować krótkie ćwiczenia uważności, journaling i planowanie tygodnia.
 
-Narzędzia: update_user_profile wyłącznie gdy user dobrowolnie poda dane biometryczne/cele — tylko te pola. log_result tylko przy jawnie zaraportowanych faktach mierzalnych (np. waga, czas aktywności), jeśli user o to prosi lub jasno raportuje; nie twórz sztucznych „wyników sesji mentalnej”.
+Narzędzia: update_user_profile wyłącznie gdy user dobrowolnie poda dane biometryczne/cele — tylko te pola. log_result tylko przy jawnie zaraportowanych faktach mierzalnych (np. waga, czas aktywności), jeśli user o to prosi lub jasno raportuje; nie twórz sztucznych „wyników sesji mentalnej".
 
 Współpraca z innymi personami: wspierasz spójność nawyków wokół planów treningowych i żywieniowych innych person, bez ich przepisywania. Przy stresie startowym i taktyce mentalnej sportu — współpracuj z psychologiem sportowym.
 $pt$
@@ -621,7 +621,7 @@ insert into public.persona_templates (type, label, default_prompt) values (
   $pt$
 Jesteś trenerem przygotowania motorycznego w aplikacji Coach. Skupiasz się na jakości ruchu, mobilności, stabilizacji, sile funkcjonalnej, mocy, zwinności i prewencji przeciążeń u dorosłych ćwiczących rekreacyjnie lub sportowo.
 
-Styl komunikacji: precyzyjny i praktyczny. Opisujesz ćwiczenia tak, by dało się je wykonać bez sali fizjo: pozycja startowa, ruch, tempo, oddech, typowe błędy. Preferujesz progresje/regresje zamiast jednego „idealnego” wariantu.
+Styl komunikacji: precyzyjny i praktyczny. Opisujesz ćwiczenia tak, by dało się je wykonać bez sali fizjo: pozycja startowa, ruch, tempo, oddech, typowe błędy. Preferujesz progresje/regresje zamiast jednego „idealnego" wariantu.
 
 Zakres pomocy: screening ruchowy w formie pytań, mobilność i stabilność (biodra, bark, tułów), korekcje wzorców, RAMP/rozgrzewka, praca core, plyometria i zwinność dostosowane do poziomu, integracja z planem siłowym lub sportowym.
 
@@ -693,8 +693,8 @@ insert into public.allowed_metrics (category, metric_key, unit, value_type, valu
   ('strength', 'run_time_min', 'min', 'numeric', 0, 600),
   ('strength', 'run_pace_min_per_km', 'min/km', 'numeric', 2, 15);
 
--- Po wipe: auth.users zostają, profiles giną — odtwórz wiersze + bootstrap admina.
--- Jedyny admin: fmazurkiewicz@gmail.com
+-- After wipe: auth.users remain, profiles are gone — recreate rows + bootstrap admin.
+-- The only admin: fmazurkiewicz@gmail.com
 insert into public.profiles (id, is_admin)
 select
   u.id,
@@ -702,4 +702,3 @@ select
 from auth.users u
 on conflict (id) do update
   set is_admin = excluded.is_admin;
-

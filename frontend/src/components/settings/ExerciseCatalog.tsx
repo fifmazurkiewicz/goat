@@ -13,8 +13,9 @@ import {
 import type { Exercise } from "@/types/api";
 
 /**
- * Katalog ćwiczeń (ADR-14) — pozostaje w zakładce Ustawienia. Bez query: 3 losowe
- * karty + „Pokaż inne”; po wpisaniu słowa filtr po stronie klienta (frontend.md §7a).
+ * Exercise catalog (ADR-14) — lives in the Settings tab. Without a query: 3 random
+ * cards + "Show others"; once a word is typed the client-side filter applies
+ * (frontend.md §7a).
  */
 export function ExerciseCatalog() {
   const { data: exercises, isLoading } = useExercises();

@@ -1,19 +1,19 @@
--- Katalog ćwiczeń: przygotowanie pod import free-exercise-db (yuhonas/free-exercise-db, Unlicense).
--- Plan: .cursor/plans/2026-08-23-exercise-catalog-import.md; ADR-14 (nowelizacja w docs/adr/decisions.md).
+-- Exercise catalog: preparation for the free-exercise-db import (yuhonas/free-exercise-db, Unlicense).
+-- Plan: .cursor/plans/2026-08-23-exercise-catalog-import.md; ADR-14 (revision in docs/adr/decisions.md).
 --
--- Uruchamiać PRZED importem/seedem 0013 — importowane rekordy mają common_mistakes = NULL
--- (dataset źródłowy nie ma tej treści; nie zmyślamy porad technicznych).
+-- Run BEFORE the 0013 import/seed — imported records have common_mistakes = NULL
+-- (the source dataset lacks this content; we don't fabricate technical tips).
 --
--- Idempotentne: można uruchomić wielokrotnie (re-init cloud przez SQL Editor).
+-- Idempotent: can be run multiple times (re-init cloud via SQL Editor).
 
--- "Częste błędy" tylko dla ręcznie kuratorowanych wpisów; importowane mają NULL.
+-- "Common mistakes" only for manually curated entries; imported ones have NULL.
 alter table public.exercises alter column common_mistakes drop not null;
 
--- Provenance treści + ochrona ręcznych wpisów przy re-importach.
+-- Content provenance + protection of manual entries on re-imports.
 alter table public.exercises add column if not exists source text not null default 'manual';
 
--- Oryginalna angielska nazwa (import) — `name` trzyma polskie tłumaczenie LLM;
--- name_en służy dopasowaniu klikalnych linków z planów do katalogu.
+-- Original English name (import) — `name` holds the Polish LLM translation;
+-- name_en is used to match clickable links from plans to the catalog.
 alter table public.exercises add column if not exists name_en text;
 
 do $$
@@ -27,9 +27,9 @@ begin
   end if;
 end $$;
 
--- Decyzja usera 2026-08-23: EN odpowiedniki z datasetu zastępują ręczne PL wpisy
+-- User decision 2026-08-23: EN equivalents from the dataset replace manual PL entries
 -- (przysiad ze sztangą / wyciskanie leżąc / martwy ciąg → Barbell_Squat / Bench_Press / Deadlift).
--- Wpisy badminton_coach pozostają. Idempotentne: usuwa tylko te 3 slugs, tylko gdy są 'manual'.
+-- badminton_coach entries remain. Idempotent: deletes only those 3 slugs, and only when source='manual'.
 delete from public.exercises
 where source = 'manual'
   and slug in ('przysiad-ze-sztanga', 'wyciskanie-sztangi-lezac', 'martwy-ciag');

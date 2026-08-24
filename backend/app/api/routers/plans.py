@@ -1,7 +1,7 @@
-"""Router `/plans` — generowanie i odczyt planów (pipeline 3-etapowy, `BackgroundTasks`).
+"""`/plans` router — generation and reading of plans (3-stage pipeline, `BackgroundTasks`).
 
-Patrz docs/technical/architecture.md sekcja 4 (pipeline, model stanu jobów) i
-docs/adr/decisions.md ADR-1/ADR-2. Orkiestracja w
+See docs/technical/architecture.md section 4 (pipeline, job state model) and
+docs/adr/decisions.md ADR-1/ADR-2. Orchestration in
 `app/domain/plans/orchestrator.py::PlanOrchestrator`.
 """
 
@@ -32,9 +32,9 @@ router = APIRouter(prefix="/plans", tags=["plans"])
 
 
 def _period_end_date(period_type: str, start_date: date) -> date:
-    """ZAŁOŻENIE (dokumentacja nie precyzuje formuły `end_date` wprost): 'week' -> 7-dniowy
-    zakres od `start_date` (włącznie), 'month' -> do ostatniego dnia kalendarzowego
-    miesiąca ZAWIERAJĄCEGO `start_date` (nie "30 dni od startu")."""
+    """ASSUMPTION (docs don't specify the `end_date` formula directly): 'week' -> 7-day
+    range from `start_date` (inclusive), 'month' -> to the last calendar day of the
+    month CONTAINING `start_date` (not "30 days from start")."""
     if period_type == "week":
         return start_date + timedelta(days=6)
     last_day = calendar.monthrange(start_date.year, start_date.month)[1]
@@ -89,9 +89,9 @@ async def generate_plan(
     background_tasks: BackgroundTasks,
     auth: AuthContext = Depends(get_current_user),
 ) -> PlanGenerationJobOut:
-    """Tworzy `plans`+`plan_generation_jobs` (status `generating`/`pending`) i kolejkuje
-    generowanie w tle (`BackgroundTasks` — bez osobnego Render Workera, ADR-1). Frontend
-    polluje `GET /plans/jobs/{id}` po `job_id` zwróconym tutaj."""
+    """Creates `plans`+`plan_generation_jobs` (status `generating`/`pending`) and queues
+    generation in the background (`BackgroundTasks` — no separate Render Worker, ADR-1).
+    The frontend polls `GET /plans/jobs/{id}` for the `job_id` returned here."""
     end_date = _period_end_date(payload.period_type, payload.start_date)
 
     async with rls_connection(auth.claims) as conn:
@@ -115,7 +115,7 @@ async def generate_plan(
 
 
 async def _cancel_plan_background_tasks(plan_job_id: str) -> None:
-    """Oznacz powiązany wiersz `background_jobs` (migracja 0008) jako anulowany."""
+    """Marks the related `background_jobs` row (migration 0008) as cancelled."""
     from sqlalchemy import text
 
     try:
@@ -140,7 +140,7 @@ async def _cancel_plan_background_tasks(plan_job_id: str) -> None:
 
 @router.get("/jobs/active", response_model=PlanGenerationJobOut | None)
 async def get_active_plan_job(auth: AuthContext = Depends(get_current_user)) -> PlanGenerationJobOut | None:
-    """Aktywny job generowania planu usera (`pending`/`running`) — do sync UI po odświeżeniu."""
+    """User's active plan generation job (`pending`/`running`) — for UI sync on refresh."""
     async with rls_connection(auth.claims) as conn:
         plans_repo = PlansRepo(conn)
         job = await plans_repo.get_active_job_for_user(auth.user_id)
@@ -152,7 +152,7 @@ async def get_active_plan_job(auth: AuthContext = Depends(get_current_user)) -> 
 
 @router.post("/jobs/{job_id}/cancel", response_model=PlanGenerationJobOut)
 async def cancel_plan_job(job_id: str, auth: AuthContext = Depends(get_current_user)) -> PlanGenerationJobOut:
-    """Anuluje aktywny job — zwalnia slot `one_active_job_per_user`, plan → `error`."""
+    """Cancels the active job — frees the `one_active_job_per_user` slot, plan -> `error`."""
     async with rls_connection(auth.claims) as conn:
         job = await PlansRepo(conn).cancel_job(job_id)
     await _cancel_plan_background_tasks(job_id)
@@ -188,7 +188,7 @@ async def get_plan_range(
     end_date: date = Query(..., description="Koniec widocznego zakresu kalendarza (YYYY-MM-DD)."),
     auth: AuthContext = Depends(get_current_user),
 ) -> PlanRangeOut:
-    """`GET /plans?start_date=&end_date=` — metadane planu + pozycje w zakresie widoku."""
+    """`GET /plans?start_date=&end_date=` — plan metadata + items in the view range."""
     if end_date < start_date:
         start_date, end_date = end_date, start_date
 

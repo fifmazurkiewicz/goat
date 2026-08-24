@@ -15,7 +15,7 @@ const chartConfig: ChartConfig = {
   value: { label: "Wartość", color: "hsl(var(--primary))" },
 };
 
-/** Wykres liniowy per metryka (`recharts` przez shadcn `Chart`) — docs/technical/frontend.md sekcja 6, ADR-9. */
+/** Line chart per metric (`recharts` via shadcn `Chart`) — docs/technical/frontend.md section 6, ADR-9. */
 export function ResultsChart({ results, metric }: ResultsChartProps) {
   const data = useMemo(
     () =>

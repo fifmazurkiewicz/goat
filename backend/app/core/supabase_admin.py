@@ -1,8 +1,9 @@
-"""Klient Supabase Admin API (`/auth/v1/admin/*`, GoTrue REST) — WYŁĄCZNIE dla `/admin/*`.
+"""Supabase Admin API client (`/auth/v1/admin/*`, GoTrue REST) — ONLY for `/admin/*`.
 
-Osobny transport od `service_role_connection` (Postgres) — to REST API Supabase Auth,
-nie baza. Używany do (1) dociągnięcia `email` per user do `GET /admin/users` (`profiles`
-nie duplikuje `auth.users.email` — jedyne źródło prawdy to Auth), (2) resetu hasła.
+Separate transport from `service_role_connection` (Postgres) — this is the Supabase
+Auth REST API, not the database. Used for (1) fetching `email` per user for
+`GET /admin/users` (`profiles` doesn't duplicate `auth.users.email` — Auth is the
+single source of truth), (2) password reset.
 """
 
 from __future__ import annotations
@@ -32,12 +33,13 @@ class SupabaseAdminClient:
         )
 
     async def list_user_emails(self) -> dict[str, str]:
-        """`GET /auth/v1/admin/users` (paginowane) -> `{user_id: email}` dla wzbogacenia
-        `GET /admin/users` (ADR-16 wymaga emaila, którego `profiles` nie ma).
+        """`GET /auth/v1/admin/users` (paginated) -> `{user_id: email}` to enrich
+        `GET /admin/users` (ADR-16 requires email, which `profiles` doesn't have).
 
-        Fail-open: awaria zwraca pusty dict zamiast wyjątku — lista kont z `profiles`
-        (limity, budżet) jest ważniejsza niż wzbogacenie o email, nie chcemy wywalać
-        całego `/admin/users` przez przejściową awarię Auth API.
+        Fail-open: outage returns an empty dict instead of an exception — the account
+        list with `profiles` (limits, budget) is more important than the email
+        enrichment; we don't want to crash the whole `/admin/users` on a transient
+        Auth API outage.
         """
         emails: dict[str, str] = {}
         if self._client is None:
@@ -67,14 +69,15 @@ class SupabaseAdminClient:
         return emails
 
     async def reset_password(self, user_id: str) -> str:
-        """Ustawia NOWE, losowe hasło tymczasowe (`PUT /admin/users/{id}`) i zwraca je do
-        jednorazowego wyświetlenia adminowi (przekazywane userowi poza aplikacją).
+        """Sets a NEW, random temporary password (`PUT /admin/users/{id}`) and returns
+        it for one-time display to the admin (passed to the user outside the app).
 
-        ZAŁOŻENIE / WĄTPLIWOŚĆ: dokumentacja mówi tylko "reset hasła przez Supabase Admin
-        API" bez dalszych szczegółów mechaniki. Ten wariant (losowe hasło tymczasowe)
-        jest wybrany zamiast `generate_link(type=recovery)`, bo to drugie wymaga
-        skonfigurowanego SMTP po stronie projektu Supabase (nie zawsze dostępne, zwłaszcza
-        w dev) — losowe hasło działa deterministycznie niezależnie od konfiguracji maila.
+        ASSUMPTION / DOUBT: the docs only say "reset password via Supabase Admin API"
+        without further details on the mechanics. This variant (random temporary
+        password) is chosen over `generate_link(type=recovery)` because the latter
+        requires SMTP configured on the Supabase project side (not always available,
+        especially in dev) — the random password works deterministically regardless
+        of email configuration.
         """
         temp_password = secrets.token_urlsafe(12)
         if self._client is None:

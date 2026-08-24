@@ -1,4 +1,4 @@
-"""PersonaCreate/Update — kształt template_overrides i brak persona_constraints w DTO."""
+"""PersonaCreate/Update — shape of template_overrides and absence of persona_constraints in DTO."""
 
 from __future__ import annotations
 

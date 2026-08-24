@@ -6,9 +6,10 @@ import type { UserProfile, UserProfileUpdate } from "@/types/api";
 const USER_PROFILE_KEY = ["user-profile"] as const;
 
 /**
- * `user_profile` (biometria, ADR-11) — WSPÓLNY dla wszystkich person usera, odróżnij
- * od systemowego `personas.persona_constraints` (niewidoczne w API). Używany m.in. w dialogu "Zobacz pełną konfigurację"
- * na /personas (co widzi dana persona) i na /profile (formularz-fallback).
+ * `user_profile` (biometrics, ADR-11) — SHARED across all of the user's personas, distinct
+ * from the system `personas.persona_constraints` (not exposed in the API). Used e.g. in the
+ * "See full configuration" dialog on /personas (what a given persona sees) and on /profile
+ * (form fallback).
  */
 export function useUserProfile() {
   return useQuery({

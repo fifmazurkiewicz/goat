@@ -15,7 +15,7 @@ const generalSession: ChatSession = {
 };
 
 describe("ChatHeader", () => {
-  it("nie wciska instrukcji /slug w nagłówku — zostawia miejsce na historię", () => {
+  it("does not cram /slug instructions into the header — keeps room for history", () => {
     render(<ChatHeader session={generalSession} persona={null} onOpenDrawer={() => undefined} />);
 
     expect(screen.getByText("Poranny plan")).toBeInTheDocument();

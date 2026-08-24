@@ -1,7 +1,7 @@
-"""Router `/exercises` — katalog ćwiczeń referencyjnych (ADR-14).
+"""`/exercises` router — reference exercise catalog (ADR-14).
 
-Cienki: filtrowanie to proste `WHERE` w `ExercisesRepo`, bez własnego `domain/exercises/`
-(zgodnie z ADR-14 — to czysta treść referencyjna, nie logika biznesowa).
+Thin: filtering is a simple `WHERE` in `ExercisesRepo`, without its own
+`domain/exercises/` (per ADR-14 — this is pure reference content, not business logic).
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ EXERCISE_PHOTOS_BUCKET = "exercise-photos"
 
 
 def public_photo_url(photo_path: str | None) -> str | None:
-    """Ścieżka w buckecie → publiczny URL Storage. Pełny URL (stary seed) zostaje."""
+    """Bucket path -> public Storage URL. Full URL (old seed) is passed through."""
     if not photo_path:
         return None
     if photo_path.startswith("http://") or photo_path.startswith("https://"):
@@ -30,8 +30,9 @@ def public_photo_url(photo_path: str | None) -> str | None:
 
 
 def _to_out(row: ExerciseRow) -> ExerciseOut:
-    # `id` jest `uuid` w DB (asyncpg/SQLAlchemy zwraca UUID, nie str). Konwersja w DTO,
-    # nie w repo — spójnie z resztą endpointów (AGENTS.md: "asyncpg: UUID→str w DTO").
+    # `id` is `uuid` in DB (asyncpg/SQLAlchemy returns UUID, not str). Conversion in the
+    # DTO, not in the repo — consistent with the other endpoints (AGENTS.md:
+    # "asyncpg: UUID->str in DTO").
     return ExerciseOut(
         id=str(row.id),
         slug=row.slug,

@@ -11,7 +11,7 @@ vi.mock("@/lib/api-client", () => ({
 }));
 
 describe("chat-turn-control", () => {
-  it("abortuje lokalny stream i woła API cancel", async () => {
+  it("aborts the local stream and calls the cancel API", async () => {
     const controller = new AbortController();
     registerChatTurnAbort("sess-1", controller);
 

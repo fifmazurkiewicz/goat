@@ -34,8 +34,9 @@ interface PlanGenerationPersonaProgressProps {
 }
 
 /**
- * Podgląd postępu per persona — draft każdej persony widoczny w kalendarzu zaraz po `done`,
- * finalny plan po harmonizacji Goata (status planu `ready`).
+ * Per-persona progress preview — each persona's draft becomes visible in the calendar
+ * right after `done`, and the final plan appears after Goat's harmonization
+ * (plan status `ready`).
  */
 export function PlanGenerationPersonaProgress({
   breakdown,

@@ -1,8 +1,8 @@
-"""`PersonaService` — logika biznesowa person (CRUD, limit aktywnych, slug, moderacja,
-community, klonowanie, merge kolumn planu).
+"""`PersonaService` — persona business logic (CRUD, active limit, slug, moderation,
+community, cloning, plan column merging).
 
-Router `/personas` (api/routers/personas.py) ma pozostać cienki i wywoływać wyłącznie
-metody tej klasy — cała reguła biznesowa żyje tutaj (architecture.md sekcja 1).
+The `/personas` router (api/routers/personas.py) must stay thin and only call methods
+of this class — all business rules live here (architecture.md section 1).
 """
 
 from __future__ import annotations
@@ -13,7 +13,7 @@ from typing import Any, Literal, Protocol
 from app.core.exceptions import ModerationRejectedError, NotFoundError, PersonaLimitExceededError
 from app.repositories.profiles_repo import DEFAULT_MAX_ACTIVE_PERSONAS
 
-# ============ Protocols (DI — architecture.md sekcja 7) ============
+# ============ Protocols (DI — architecture.md section 7) ============
 
 
 class PersonasRepositoryProtocol(Protocol):
@@ -52,16 +52,16 @@ _SLUG_SANITIZE_RE = re.compile(r"[^a-z0-9]+")
 
 
 def generate_base_slug(persona_type: str, name: str) -> str:
-    """`slug` generowany z `type + name` (ADR-13), sanitized do `^[a-z0-9_]+$`
-    (zgodnie z CHECK constraint w `0004_general_chat_and_persona_slug.sql`)."""
+    """`slug` generated from `type + name` (ADR-13), sanitized to `^[a-z0-9_]+$`
+    (per the CHECK constraint in `0004_general_chat_and_persona_slug.sql`)."""
     raw = f"{persona_type}_{name}".lower()
     slug = _SLUG_SANITIZE_RE.sub("_", raw).strip("_")
     return slug or "persona"
 
 
 def resolve_slug_collision(base_slug: str, existing_slugs: set[str]) -> str:
-    """Kolizje rozwiązywane numerycznym suffixem (`_2`, `_3`, ...) — unikalność
-    per user, nie globalnie (ADR-13)."""
+    """Collisions resolved with a numeric suffix (`_2`, `_3`, ...) — uniqueness per
+    user, not globally (ADR-13)."""
     if base_slug not in existing_slugs:
         return base_slug
     suffix = 2
@@ -71,10 +71,10 @@ def resolve_slug_collision(base_slug: str, existing_slugs: set[str]) -> str:
 
 
 class PersonaService:
-    """Nie zna FastAPI/HTTP — testowalna bezpośrednio z fake repo (architecture.md #7).
+    """Doesn't know FastAPI/HTTP — testable directly with a fake repo (architecture.md #7).
 
-    Limit aktywnych person jest PER KONTO (`profiles.max_active_personas`, ADR-12) —
-    NIE globalna stała w kodzie.
+    The active-persona limit is PER ACCOUNT (`profiles.max_active_personas`, ADR-12) —
+    NOT a global constant in code.
     """
 
     def __init__(
@@ -88,12 +88,12 @@ class PersonaService:
         self._moderation_service = moderation_service
 
     async def assert_can_activate_persona(self, user_id: str) -> None:
-        """Sprawdza `count_active(user_id) < profiles.max_active_personas` (fallback
-        `DEFAULT_MAX_ACTIVE_PERSONAS` gdy profil nie istnieje), inaczej rzuca
+        """Checks `count_active(user_id) < profiles.max_active_personas` (falls back to
+        `DEFAULT_MAX_ACTIVE_PERSONAS` when no profile exists), otherwise raises
         `PersonaLimitExceededError` (409).
 
-        Trigger DB `enforce_persona_limit` pozostaje ostateczną linią obrony — ten
-        check tu daje tylko czytelny komunikat przed uderzeniem w bazę (ADR-12).
+        The DB trigger `enforce_persona_limit` remains the last line of defense — this
+        check here only provides a readable error before hitting the DB (ADR-12).
         """
         profile = await self._profiles_repo.get(user_id)
         max_allowed = profile.max_active_personas if profile else DEFAULT_MAX_ACTIVE_PERSONAS
@@ -118,11 +118,11 @@ class PersonaService:
         return persona
 
     async def create_persona(self, user_id: str, payload: dict[str, Any]) -> Any:
-        """`payload` — pola z `PersonaCreate.model_dump()` (router). Persona jest
-        aktywna domyślnie (`active=true`), więc limit jest sprawdzany na KAŻDYM create."""
+        """`payload` — fields from `PersonaCreate.model_dump()` (router). Persona is
+        active by default (`active=true`), so the limit is checked on EVERY create."""
         await self.assert_can_activate_persona(user_id)
 
-        # `persona_constraints` / `chat_model` nigdy z klienta (systemowe / env).
+        # `persona_constraints` / `chat_model` never from the client (system / env).
         safe_payload = {
             k: v for k, v in payload.items() if k not in ("persona_constraints", "chat_model")
         }
@@ -158,13 +158,13 @@ class PersonaService:
     async def update_persona(
         self, persona_id: str, user_id: str, updates: dict[str, Any]
     ) -> Any:
-        """`updates` — `PersonaUpdate.model_dump(exclude_unset=True)` (router), tylko
-        pola faktycznie podane w PATCH."""
+        """`updates` — `PersonaUpdate.model_dump(exclude_unset=True)` (router), only
+        fields actually given in the PATCH."""
         existing = await self._personas_repo.get_own(persona_id, user_id)
         if existing is None:
             raise NotFoundError(f"Persona {persona_id!r} nie istnieje lub nie należy do usera.")
 
-        # End-user nie może nadpisać ograniczeń medycznych/systemowych.
+        # End-user cannot overwrite medical/system constraints.
         values: dict[str, Any] = {
             k: v for k, v in updates.items() if k not in ("persona_constraints", "chat_model")
         }
@@ -211,15 +211,15 @@ class PersonaService:
         await self._personas_repo.delete(persona_id, user_id)
 
     async def share_persona(self, persona_id: str, user_id: str, is_shared: bool) -> Any:
-        """`PATCH /personas/{id}/share` — semantycznie subset `update_persona`, ale
-        osobny endpoint w spec (czytelniejszy kontrakt API dla akcji "udostępnij")."""
+        """`PATCH /personas/{id}/share` — semantically a subset of `update_persona`, but
+        a separate endpoint in the spec (cleaner API contract for the "share" action)."""
         return await self.update_persona(persona_id, user_id, {"is_shared": is_shared})
 
     async def clone_persona(self, persona_id: str, user_id: str) -> Any:
-        """Klonowanie z community — NOWY rekord z `user_id=auth.uid()`, nigdy nie
-        modyfikuje oryginału (database-schema.md, sekcja RLS). Treść była już
-        zmoderowana jako `is_shared+approved` u źródła — kopiujemy werdykt zamiast
-        re-klasyfikować identyczną treść."""
+        """Cloning from the community — a NEW record with `user_id=auth.uid()`, never
+        modifies the original (database-schema.md, RLS section). The content was already
+        moderated as `is_shared+approved` at the source — we copy the verdict instead of
+        re-classifying identical content."""
         await self.assert_can_activate_persona(user_id)
 
         source = await self._personas_repo.get_visible(persona_id)
@@ -239,7 +239,7 @@ class PersonaService:
             "template_overrides": source.template_overrides,
             "detail_level": source.detail_level,
             "custom_result_category": source.custom_result_category,
-            # Constraints są operatorskie per-konto — nie kopiujemy z community.
+            # Constraints are per-account operational — don't copy from community.
             "persona_constraints": None,
             "is_shared": False,
             "slug": slug,
@@ -254,12 +254,12 @@ class PersonaService:
 def resolve_persona_columns(
     persona: dict[str, Any], plan_template: dict[str, Any] | None
 ) -> list[str]:
-    """Merguje kolumny persony z jej bazowym `plan_template`.
+    """Merges persona columns with their base `plan_template`.
 
-    Kontrakt (docs/technical/database-schema.md): `plan_templates.default_columns`
-    to baza; `personas.template_overrides` ma kształt `{"columns": list[str]}` —
-    pełna lista kolumn z edytora (nie diff). Brak klucza `columns` / `None` →
-    `default_columns`. Deduplikacja chroni przed uszkodzonymi danymi w DB.
+    Contract (docs/technical/database-schema.md): `plan_templates.default_columns`
+    is the base; `personas.template_overrides` has the shape `{"columns": list[str]}` —
+    a full column list from the editor (not a diff). Missing key `columns` / `None` ->
+    `default_columns`. Deduplication protects against corrupted data in DB.
     """
     default_columns: list[str] = list((plan_template or {}).get("default_columns") or [])
     overrides = persona.get("template_overrides") or {}

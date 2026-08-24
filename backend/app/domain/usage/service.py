@@ -1,22 +1,23 @@
-"""`UsageLimitService` — budżet USD per konto, atomowy check+increment (ADR-16).
+"""`UsageLimitService` — USD budget per account, atomic check+increment (ADR-16).
 
-Pełny opis: docs/technical/architecture.md sekcja 9, docs/technical/ai-pipeline.md
-sekcja 1b, docs/technical/security.md sekcja 4. Generowanie planu debituje z TEGO
-SAMEGO limitera co czat (jedna pula per user, per okres rozliczeniowy).
+Full description: docs/technical/architecture.md section 9, docs/technical/ai-pipeline.md
+section 1b, docs/technical/security.md section 4. Plan generation debits the SAME
+limiter as chat (one pool per user, per billing period).
 
-**Model "rezerwacja + rekoncyliacja"** (decyzja implementacyjna, dokumentacja nie
-precyzuje mechaniki poniżej tego poziomu szczegółu): koszt realnej tury LLM jest znany
-dopiero PO odpowiedzi OpenRoutera (`usage.prompt_tokens`/`completion_tokens` w finalnym
-chunku streamu) — nie da się więc zrobić czystego "check PRZED, increment PO" na tym
-samym, dokładnym koszcie. Zamiast tego:
+**"Reservation + reconciliation" model** (implementation decision, documentation does
+not go deeper than this level of detail): the real cost of an LLM turn is only known
+AFTER the OpenRouter response (`usage.prompt_tokens`/`completion_tokens` in the final
+stream chunk) — you can't make a clean "check BEFORE, increment AFTER" on the same
+exact cost. Instead:
 
-1. `reserve_estimated_cost` — PRZED wywołaniem LLM, atomowy check+increment na
-   SZACOWANYM koszcie (długość promptu * cena/token + `max_tokens` konfiguracji *
-   cena/token output, konserwatywnie w górę) — to jest realna bramka budżetowa,
-   blokuje wydanie pieniędzy `UsageLimitExceededError` (429) PRZED requestem.
-2. `reconcile_actual_cost` — PO odpowiedzi, koryguje `cost_usd_used` na rzeczywisty
-   koszt (różnica estymacja-rzeczywistość, może być ujemna) — BEZ ponownej bramki
-   (transakcja już przepuszczona), tylko księgowa poprawka dla dokładności panelu admina.
+1. `reserve_estimated_cost` — BEFORE the LLM call, atomic check+increment on the
+   ESTIMATED cost (prompt length * price/token + configured `max_tokens` *
+   output price/token, conservatively upward) — this is the real budget gate,
+   blocks spending with `UsageLimitExceededError` (429) BEFORE the request.
+2. `reconcile_actual_cost` — AFTER the response, corrects `cost_usd_used` to the
+   actual cost (estimate-reality difference, can be negative) — WITHOUT a second
+   gate (transaction already passed through), only an accounting fix for admin
+   panel accuracy.
 """
 
 from __future__ import annotations
@@ -29,8 +30,8 @@ from app.domain.usage.pricing import ModelPricingCache
 
 
 def current_period_start(today: date | None = None) -> date:
-    """Pierwszy dzień bieżącego miesiąca UTC — granulacja okresu rozliczeniowego
-    (patrz `app/repositories/usage_limits_repo.py` dla uzasadnienia wyboru miesiąca)."""
+    """First day of the current UTC month — billing period granularity
+    (see `app/repositories/usage_limits_repo.py` for the rationale of choosing a month)."""
     day = today or date.today()
     return day.replace(day=1)
 
@@ -57,13 +58,13 @@ class ProfilesRepositoryProtocol(Protocol):
     async def get(self, user_id: str) -> object | None: ...
 
 
-# Grube oszacowanie znaków/token dla estymacji kosztu PRZED wywołaniem (wystarczające
-# dla bramki budżetowej — dokładny koszt liczy się i tak dopiero z realnego `usage`).
+# Rough chars/token estimate for cost estimation BEFORE the call (good enough for the
+# budget gate — the exact cost is only computed from the real `usage` anyway).
 _CHARS_PER_TOKEN_ESTIMATE = 4
 
 
 class UsageLimitService:
-    """Nie zna FastAPI/HTTP — testowalna z fake repo (architecture.md sekcja 7)."""
+    """Doesn't know FastAPI/HTTP — testable with a fake repo (architecture.md section 7)."""
 
     def __init__(
         self,
@@ -78,7 +79,7 @@ class UsageLimitService:
     async def estimate_turn_cost_usd(
         self, *, model: str, prompt_text_length_chars: int, max_output_tokens: int
     ) -> float:
-        """Konserwatywne oszacowanie kosztu tury PRZED wywołaniem LLM."""
+        """Conservative turn cost estimate BEFORE the LLM call."""
         estimated_prompt_tokens = max(1, prompt_text_length_chars // _CHARS_PER_TOKEN_ESTIMATE)
         return await self._pricing_cache.estimate_cost_usd(
             model=model,
@@ -106,8 +107,8 @@ class UsageLimitService:
     async def reserve_estimated_cost(
         self, *, user_id: str, estimated_cost_usd: float, is_message: bool = True
     ) -> date:
-        """Bramka budżetowa PRZED wywołaniem LLM — zwraca `period_start` użyty (do
-        późniejszej rekoncyliacji), rzuca `UsageLimitExceededError` (429) gdy odrzucone."""
+        """Budget gate BEFORE the LLM call — returns the `period_start` used (for later
+        reconciliation), raises `UsageLimitExceededError` (429) when rejected."""
         period_start = current_period_start()
         row = await self._usage_repo.try_reserve(
             user_id=user_id,
@@ -128,15 +129,15 @@ class UsageLimitService:
         actual_cost_usd: float,
         actual_tokens: int = 0,
     ) -> None:
-        """Korekta po odpowiedzi LLM — bez ponownej bramki (patrz docstring modułu)."""
+        """Correction after the LLM response — without a second gate (see module docstring)."""
         delta = actual_cost_usd - estimated_cost_usd
         await self._usage_repo.reconcile(
             user_id=user_id, period_start=period_start, delta_usd=delta, tokens_delta=actual_tokens
         )
 
     async def reserve_plan_generation(self, *, user_id: str, estimated_cost_usd: float) -> date:
-        """Jak `reserve_estimated_cost`, ale inkrementuje `plan_generations_used` zamiast
-        `messages_used` — ten sam wiersz `usage_limits`/budżet (jedna pula per user)."""
+        """Like `reserve_estimated_cost`, but increments `plan_generations_used` instead of
+        `messages_used` — same `usage_limits` row/budget (one pool per user)."""
         period_start = current_period_start()
         row = await self._usage_repo.try_reserve(
             user_id=user_id,

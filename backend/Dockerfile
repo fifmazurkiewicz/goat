@@ -1,19 +1,19 @@
-# Zgodnie z docs/technical/devops.md sekcja 1: python:3.12-slim, ca-certificates
-# (wymagane do SSL po połączeniu z Supabase), uvicorn bindujący 0.0.0.0:$PORT.
+# Per docs/technical/devops.md section 1: python:3.12-slim, ca-certificates
+# (required for SSL when connecting to Supabase), uvicorn binding 0.0.0.0:$PORT.
 # Render: Root Directory = backend/, Health Check = /api/health.
 FROM python:3.12-slim
 
-# ca-certificates — bez tego SSL handshake do Supabase (asyncpg/httpx) się wywala.
+# ca-certificates — without this, SSL handshake to Supabase (asyncpg/httpx) fails.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Oficjalny statyczny binarny uv, bez dodatkowej warstwy pip install.
+# Official static uv binary, no extra pip install layer.
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
 
 WORKDIR /app
 
-# Warstwa zależności osobno od kodu — cache Dockera nie inwaliduje się przy zmianie appki.
+# Dependency layer separate from code — Docker cache is not invalidated by app changes.
 COPY pyproject.toml uv.lock VERSION ./
 RUN uv sync --frozen --no-dev
 
@@ -23,6 +23,6 @@ ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 10000
 
-# Shell form (nie exec/JSON form) — konieczne, żeby zmienna $PORT (ustawiana przez
-# Render w runtime) faktycznie się rozwinęła przed startem procesu.
+# Shell form (not exec/JSON form) — required so the $PORT variable (set by
+# Render at runtime) actually expands before the process starts.
 CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000}

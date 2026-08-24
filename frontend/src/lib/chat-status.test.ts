@@ -11,35 +11,35 @@ import {
 } from "@/lib/chat-status";
 
 describe("chat-status", () => {
-  it("initialStreamStatus: general → Goat myśli, persona → preparing", () => {
+  it("initialStreamStatus: general → Goat is thinking, persona → preparing", () => {
     expect(initialStreamStatus("general")).toBe(TEAM_STATUS_DEFAULT);
     expect(TEAM_STATUS_DEFAULT).toMatch(/Goat/i);
     expect(TEAM_STATUS_DEFAULT.toLowerCase()).not.toContain("uzgadnia z zespołem");
     expect(initialStreamStatus("persona")).toBe(PREPARING_STATUS);
   });
 
-  it("personaThinkingStatus z etykietą persony", () => {
+  it("personaThinkingStatus with a persona label", () => {
     expect(personaThinkingStatus("Trener badmintona")).toBe("Trener badmintona analizuje…");
     expect(personaThinkingStatus(null)).toBe(PREPARING_STATUS);
   });
 
-  it("personaToolStatus mapuje toole planu", () => {
+  it("personaToolStatus maps plan tools", () => {
     expect(personaToolStatus("Trener", "upsert_plan_items")).toBe("Trener zapisuje w Plany…");
     expect(personaToolStatus("Dietetyk", "rebuild_plan")).toBe("Dietetyk przebudowuje plan…");
   });
 
-  it("personaToolStatus: nieznany tool + brak persony", () => {
+  it("personaToolStatus: unknown tool + no persona", () => {
     expect(personaToolStatus(null, "future_tool")).toBe("Wykonuje akcję…");
   });
 
-  it("consult_persona: akcja i chip", () => {
+  it("consult_persona: action and chip", () => {
     expect(personaToolStatus("Goat · Kierownik Zespołu", "consult_persona")).toBe(
       "Goat · Kierownik Zespołu konsultuje…"
     );
     expect(toolChipLabel("consult_persona")).toBe("Konsultacja");
   });
 
-  it("resolveToolName: tool_name lub name z BE", () => {
+  it("resolveToolName: tool_name or name from the BE", () => {
     expect(resolveToolName({ tool_name: "log_result" })).toBe("log_result");
     expect(resolveToolName({ name: "update_user_profile" })).toBe("update_user_profile");
     expect(resolveToolName({})).toBeNull();

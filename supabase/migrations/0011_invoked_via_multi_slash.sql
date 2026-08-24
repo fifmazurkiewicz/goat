@@ -1,5 +1,5 @@
--- 0011: invoked_via — multi_slash (ADR-13 multi-reply) w CHECK constraint.
--- Uruchom w Supabase SQL Editor po 0010.
+-- 0011: invoked_via — multi_slash (ADR-13 multi-reply) in the CHECK constraint.
+-- Run in Supabase SQL Editor after 0010.
 
 alter table public.chat_messages
   drop constraint if exists chat_messages_invoked_via_check;

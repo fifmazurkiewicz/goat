@@ -1,6 +1,6 @@
-"""`ResultsService` — logika biznesowa `results` (walidacja `allowed_metrics`, batch
-zapis z `log_result`, CRUD manualny). Współdzielona przez `/results` (manual) i
-`ChatOrchestrator` (`log_result` tool, ai-pipeline.md sekcja 2).
+"""`ResultsService` — business logic for `results` (`allowed_metrics` validation, batch
+write via `log_result`, manual CRUD). Shared by `/results` (manual) and
+`ChatOrchestrator` (`log_result` tool, ai-pipeline.md section 2).
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ class LogResultEntryOutcome:
 
 
 class ResultsService:
-    """Nie zna FastAPI/HTTP — testowalna z fake repo + `AllowedMetricsCache` (arch. §7)."""
+    """Doesn't know FastAPI/HTTP — testable with a fake repo + `AllowedMetricsCache` (arch. §7)."""
 
     def __init__(self, results_repo: ResultsRepositoryProtocol, metrics_cache: AllowedMetricsCache) -> None:
         self._results_repo = results_repo
@@ -50,10 +50,11 @@ class ResultsService:
         )
 
     async def create_manual(self, user_id: str, payload: dict[str, Any]) -> Any:
-        """`POST /results` — entry manualny (`source='manual'`). Metryka poza
-        `allowed_metrics` -> `is_custom=True` zamiast błędu (fallback świadomy, security.md
-        §3); pozostałe naruszenia sanity checks (skończona liczba, długości pól, data)
-        ZAWSZE odrzucane (`ValidationError` 400) niezależnie od tego czy metryka jest znana."""
+        """`POST /results` — manual entry (`source='manual'`). Metric outside
+        `allowed_metrics` -> `is_custom=True` instead of an error (deliberate fallback,
+        security.md §3); other sanity-check violations (finite number, field lengths,
+        date) are ALWAYS rejected (`ValidationError` 400) regardless of whether the
+        metric is known."""
         validation = self._metrics_cache.validate_entry(
             category=payload["category"],
             metric=payload["metric"],
@@ -103,11 +104,11 @@ class ResultsService:
     async def log_batch_from_agent(
         self, *, user_id: str, source_persona_id: str | None, entries: list[dict[str, Any]]
     ) -> list[LogResultEntryOutcome]:
-        """`log_result` tool (ai-pipeline.md sekcja 2, ADR-6) — walidacja PER ENTRY,
-        częściowy sukces (3/5 przechodzi, 2 wracają jako błąd w tym samym tool response,
-        NIE wyjątek — security.md sekcja 3).
+        """`log_result` tool (ai-pipeline.md section 2, ADR-6) — validation PER ENTRY,
+        partial success (3/5 pass, 2 return as an error in the same tool response,
+        NOT as an exception — security.md section 3).
 
-        `source_persona_id=None` = zapis Goata (kierownik nie jest rekordem w `personas`)."""
+        `source_persona_id=None` = Goat's write (team lead is not a `personas` row)."""
         outcomes: list[LogResultEntryOutcome] = []
         for index, entry in enumerate(entries):
             try:

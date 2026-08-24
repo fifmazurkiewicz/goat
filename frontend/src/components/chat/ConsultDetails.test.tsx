@@ -12,25 +12,25 @@ const detail: ConsultDetail = {
 };
 
 describe("ConsultDetails", () => {
-  it("nie renderuje się gdy brak konsultacji", () => {
+  it("does not render when there are no consultations", () => {
     const { container } = render(<ConsultDetails details={[]} />);
     expect(container).toBeEmptyDOMElement();
   });
 
-  it("domyślnie zwinięte — odpowiedź niewidoczna (GWT-1)", () => {
+  it("is collapsed by default — the answer is hidden (GWT-1)", () => {
     render(<ConsultDetails details={[detail]} />);
     expect(screen.queryByText("Plyometria 2x tydzień.")).not.toBeInTheDocument();
     expect(screen.getByText(/Bartek · Trener motoryczny odpowiedział/)).toBeInTheDocument();
   });
 
-  it("po kliknięciu pokazuje pytanie i odpowiedź (GWT-1)", () => {
+  it("after clicking, shows the question and the answer (GWT-1)", () => {
     render(<ConsultDetails details={[detail]} />);
     fireEvent.click(screen.getByText(/Bartek · Trener motoryczny odpowiedział/));
     expect(screen.getByText("Plyometria 2x tydzień.")).toBeInTheDocument();
     expect(screen.getByText("jak poprawić skok?")).toBeInTheDocument();
   });
 
-  it("wiele konsultacji — lista w kolejności (GWT-2)", () => {
+  it("multiple consultations — list preserves order (GWT-2)", () => {
     const second: ConsultDetail = {
       toolCallId: "call-2",
       personaLabel: "Ola · Dietetyczka",

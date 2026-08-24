@@ -9,7 +9,7 @@ interface AuthState {
   session: Session | null;
   devAuth: DevAuthState | null;
   isAdmin: boolean;
-  /** false do pierwszego `getSession` — chroni przed bounce OAuth → /login. */
+  /** false until the first `getSession` — protects against OAuth → /login bounce. */
   isInitialized: boolean;
   setSession: (session: Session | null) => void;
   setDevAuth: (devAuth: DevAuthState | null) => void;
@@ -21,8 +21,8 @@ interface AuthState {
 }
 
 /**
- * Stan sesji Supabase lub lokalnego dev auth. `isAdmin` pochodzi z `profiles.is_admin`
- * via `GET /api/v1/account` — nie z samego JWT.
+ * State of the Supabase session or local dev auth. `isAdmin` comes from `profiles.is_admin`
+ * via `GET /api/v1/account` — not from the JWT itself.
  */
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,

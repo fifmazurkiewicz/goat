@@ -1,82 +1,82 @@
-# Design: Pull-to-refresh (mobile) w całej aplikacji
+# Design: Pull-to-refresh (mobile) across the whole app
 
-**Data:** 2026-08-22
-**Status:** zaakceptowany (do implementacji)
-**Kontekst:** user na telefonie odruchowo przeciąga ekran w dół, żeby odświeżyć stronę — oczekuje tego samego wzorca w appce.
+**Date:** 2026-08-22
+**Status:** accepted (for implementation)
+**Context:** the user on the phone instinctively pulls the screen down to refresh the page — they expect the same pattern in the app.
 
-## Cel / zakres
+## Goal / scope
 
-Gest „pociągnięcie w dół" odświeża dane bieżącego ekranu na urządzeniach dotykowych, **na wszystkich ekranach** appki (czat, persony, plany, wyniki, profil, ustawienia). Odświeżenie = **soft refresh** (React Query `invalidateQueries()`), nie twarde przeładowanie strony. Desktop/mysz — bez zmian zachowania.
+The "pull down" gesture refreshes the data of the current screen on touch devices, **on all screens** of the app (chat, personas, plans, results, profile, settings). Refresh = **soft refresh** (React Query `invalidateQueries()`), not a hard page reload. Desktop/mouse — no behavior change.
 
-## Wymagania (Given / When / Then)
+## Requirements (Given / When / Then)
 
-### GWT-1 — pociągnięcie odświeża
+### GWT-1 — pull refreshes
 
-**Given** mobile, dowolny ekran, wszystkie scrollery pod palcem na pozycji 0 (`scrollTop === 0`)
-**When** user pociągnie w dół ≥ próg (~72 px) i puści
-**Then** pojawia się wskaźnik (spinner), odpalane jest `queryClient.invalidateQueries()` (wszystkie aktywne query)
-**And** spinner kręci się do zakończenia refetchu, potem znika
+**Given** mobile, any screen, all scrollers under the finger at position 0 (`scrollTop === 0`)
+**When** the user pulls down ≥ threshold (~72 px) and releases
+**Then** the indicator appears (spinner), `queryClient.invalidateQueries()` is fired (all active queries)
+**And** the spinner spins until the refetch completes, then disappears
 
-### GWT-2 — pociągnięcie poniżej progu
+### GWT-2 — pull below the threshold
 
-**When** user pociągnie w dół < próg i puści
-**Then** brak odświeżenia, wskaźnik sprężyście wraca do 0
+**When** the user pulls down < threshold and releases
+**Then** no refresh, the indicator springs back to 0
 
-### GWT-3 — scroll w dół historii nie triggeruje
+### GWT-3 — scroll down history does not trigger
 
-**Given** MessageList / lista sesji / inny wewnętrzny scroller przewinięty (`scrollTop > 0`)
-**When** user pociąga palcem w dół
-**Then** to zwykły scroll treści, wskaźnik się nie pojawia
+**Given** MessageList / session list / other inner scroller scrolled (`scrollTop > 0`)
+**When** the user pulls down with their finger
+**Then** that's normal content scrolling, the indicator does not appear
 
-### GWT-4 — desktop bez reakcji
+### GWT-4 — desktop does not react
 
-**Given** desktop, drag myszą przy scrollTop=0
-**Then** brak wskaźnika i brak odświeżania (nasłuch tylko `pointerType === "touch"`)
+**Given** desktop, mouse drag at scrollTop=0
+**Then** no indicator and no refresh (listening only for `pointerType === "touch"`)
 
-### GWT-5 — brak podwójnego odpalenia
+### GWT-5 — no double trigger
 
-**Given** odświeżanie w toku
-**When** kolejne pociągnięcie
-**Then** ignorowane aż do ukończenia bieżącego cyklu
+**Given** refresh in progress
+**When** next pull
+**Then** ignored until the current cycle completes
 
-### GWT-6 — poziomy ruch nie pulluje
+### GWT-6 — horizontal movement does not trigger pull
 
-**When** gest głównie poziomy (`|dx| > |dy|`)
-**Then** brak reakcji (swipe poziomy np. po nawigacji tabami)
+**When** the gesture is mostly horizontal (`|dx| > |dy|`)
+**Then** no reaction (horizontal swipe e.g. across tab navigation)
 
-## Architektura
+## Architecture
 
-| Element | Plik | Rola |
+| Element | File | Role |
 |---|---|---|
-| Hook | `frontend/src/hooks/usePullToRefresh.ts` | pointer events (`pointerdown/move/up`, `pointerType === "touch"`), dystans z tłumieniem, detekcja „scroller na górze" (łańcuch `parentElement` od `event.target`), stan `pullDistance`/`isRefreshing` |
-| Wrapper | `frontend/src/components/layout/PullToRefresh.tsx` | otacza `<Outlet />` w AppShell; renderuje wskaźnik wysuwany nad treścią wg `pullDistance` (transform, bez layout shift); próg 72 px |
-| Montaż | `AppShell.tsx` | `<PullToRefresh onRefresh={...}>` wokół `<Outlet />` — jeden punkt, działa wszędzie |
-| CSS | `index.css` | `overscroll-behavior-y: none` na `html/body` — wyłącza natywny pull-to-refresh Chrome Android, który konkurowałby z naszym |
+| Hook | `frontend/src/hooks/usePullToRefresh.ts` | pointer events (`pointerdown/move/up`, `pointerType === "touch"`), damped distance, "scroller at top" detection (chain of `parentElement` from `event.target`), `pullDistance`/`isRefreshing` state |
+| Wrapper | `frontend/src/components/layout/PullToRefresh.tsx` | wraps `<Outlet />` in AppShell; renders the indicator pulled out above the content by `pullDistance` (transform, no layout shift); 72 px threshold |
+| Mount | `AppShell.tsx` | `<PullToRefresh onRefresh={...}>` around `<Outlet />` — one place, works everywhere |
+| CSS | `index.css` | `overscroll-behavior-y: none` on `html/body` — disables Chrome Android's native pull-to-refresh, which would compete with ours |
 
-### Detekcja „można pullować"
+### "Can pull" detection
 
-Przy `pointermove`: idziemy od `event.target` w górę DOM; jeśli **którykolwiek** przodek ma `overflow-y: auto|scroll` **i** `scrollTop > 0` → gest anulowany (to scroll treści). Dzięki temu działa poprawnie i w trybie czat (`main.overflow-hidden`, wewnętrzne scrollery: MessageList, lista sesji), i na stronach (`main.overflow-y-auto`).
+On `pointermove`: walk up the DOM from `event.target`; if **any** ancestor has `overflow-y: auto|scroll` **and** `scrollTop > 0` → gesture cancelled (that's content scroll). Thanks to this it works correctly both in chat mode (`main.overflow-hidden`, inner scrollers: MessageList, session list), and on pages (`main.overflow-y-auto`).
 
-### Odświeżanie danych
+### Data refresh
 
-Jedno uniwersalne wywołanie: `queryClient.invalidateQueries()` bez filtrów → refetch wszystkich aktywnych query React Query (wiadomości, sesje, persony, wyniki, plany, usage). Stan UI (rozwinięcia, zaznaczenia, input) zostaje nietknięty; stream SSE w toku żyje w store (nie w query) i **nie jest przerywany**.
+One universal call: `queryClient.invalidateQueries()` without filters → refetches all active React Query queries (messages, sessions, personas, results, plans, usage). UI state (expansions, selections, input) stays untouched; the SSE stream in progress lives in the store (not in the query) and **is not interrupted**.
 
-## Błędy / edge case'y
+## Errors / edge cases
 
-| Przypadek | Zachowanie |
-|---|---|
-| Refetch rzuca błędem | React Query standardowo (dane stare zostają); spinner znika po rozstrzygnięciu (`Promise.allSettled` semantyka przez `refetchQueries`) |
-| Gest podczas `isRefreshing` | ignorowany (GWT-5) |
-| `pointerleave`/`pointercancel` w trakcie | traktowane jak puszczenie poniżej progu — powrót sprężynowy |
-| Rotacja / zmiana viewport w trakcie gestu | reset dystansu |
+| Case | Behavior |
+|------|----------|
+| Refetch throws | React Query standard (stale data remains); spinner disappears after resolution (`Promise.allSettled` semantics via `refetchQueries`) |
+| Gesture during `isRefreshing` | ignored (GWT-5) |
+| `pointerleave`/`pointercancel` during | treated as a release below threshold — spring back |
+| Rotation / viewport change during gesture | reset distance |
 
-## Poza zakresem
+## Out of scope
 
-- Obsługa drags myszą na desktopie.
-- Indywidualne progi/etykiety per ekran.
-- Pull-to-refresh list w środku strony (np. pojedynczej karty) — odświeżamy globalnie.
+- Mouse drag handling on desktop.
+- Per-screen individual thresholds/labels.
+- Pull-to-refresh for lists in the middle of the page (e.g. a single card) — we refresh globally.
 
-## Dokumenty do aktualizacji
+## Documents to update
 
-- `docs/technical/frontend.md` — sekcja o PTR (hook + wrapper + próg + ograniczenie touch).
-- `AGENTS.md` — jedno zdanie w faktach (mobile UX).
+- `docs/technical/frontend.md` — section on PTR (hook + wrapper + threshold + touch-only restriction).
+- `AGENTS.md` — one sentence in facts (mobile UX).

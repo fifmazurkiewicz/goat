@@ -17,9 +17,9 @@ const LEVEL_LABELS: Record<string, string> = {
 };
 
 /**
- * `/exercises/:slug` (ADR-14 nowelizacja 2026-08-23) — wspólne szczegóły dla katalogu
- * (/settings) i klikalnych nazw w planach. Dane z cache `useExercises` (staleTime 1 h),
- * więc nawigacja jest natychmiastowa; bez osobnego endpointu detail.
+ * `/exercises/:slug` (ADR-14 amendment 2026-08-23) — shared details for the catalog
+ * (/settings) and clickable exercise names in plans. Data from `useExercises` cache
+ * (staleTime 1 h), so navigation is instant; no separate detail endpoint.
  */
 export default function ExerciseDetailPage() {
   const { slug } = useParams<{ slug: string }>();

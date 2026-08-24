@@ -17,7 +17,7 @@ import {
 } from "@/lib/api-health";
 
 describe("lampState / lampMessage", () => {
-  it("ukrywa lampkę gdy okno zamknięte albo tuż po starcie (< 2 s)", () => {
+  it("hides the lamp when the window is closed or just opened (< 2 s)", () => {
     expect(lampState(initialWakeState(), 0)).toBe("hidden");
     const opened = openWakeWindow(initialWakeState(), 1_000);
     expect(lampState(opened, 1_000)).toBe("hidden");
@@ -25,19 +25,19 @@ describe("lampState / lampMessage", () => {
     expect(lampMessage("hidden")).toBeNull();
   });
 
-  it("po ≥ 2 s bez sukcesu pokazuje waking i tekst o budzeniu", () => {
+  it("after ≥ 2 s without success shows waking and the wake-up message", () => {
     const opened = openWakeWindow(initialWakeState(), 0);
     expect(lampState(opened, API_HEALTH_WAKING_AFTER_MS)).toBe("waking");
     expect(lampMessage("waking")).toBe("Budzimy aplikację, poczekaj chwilę.");
   });
 
-  it("po ≥ 90 s pokazuje down i tekst o braku połączenia", () => {
+  it("after ≥ 90 s shows down and the connection-lost message", () => {
     const opened = openWakeWindow(initialWakeState(), 0);
     expect(lampState(opened, API_HEALTH_DOWN_AFTER_MS)).toBe("down");
     expect(lampMessage("down")).toBe("Nie możemy połączyć się z serwerem. Spróbujemy ponownie.");
   });
 
-  it("po sukcesie lampka znika", () => {
+  it("hides the lamp after success", () => {
     const opened = openWakeWindow(initialWakeState(), 0);
     const ok = markHealthResult(opened, 3_000, true);
     expect(lampState(ok, 3_000)).toBe("hidden");
@@ -46,17 +46,17 @@ describe("lampState / lampMessage", () => {
 });
 
 describe("shouldProbeHealth", () => {
-  it("pierwsza próba idzie od razu po otwarciu okna, gdy karta widoczna", () => {
+  it("first probe runs immediately after opening the window, when the tab is visible", () => {
     const opened = openWakeWindow(initialWakeState(), 10);
     expect(shouldProbeHealth(opened, 10, true)).toBe(true);
   });
 
-  it("nie sondy gdy karta w tle", () => {
+  it("does not probe when the tab is in the background", () => {
     const opened = openWakeWindow(initialWakeState(), 10);
     expect(shouldProbeHealth(opened, 10, false)).toBe(false);
   });
 
-  it("nie sondy gdy request już leci albo sukces", () => {
+  it("does not probe when a request is in flight or already succeeded", () => {
     const opened = openWakeWindow(initialWakeState(), 0);
     const inFlight = markProbeStarted(opened);
     expect(shouldProbeHealth(inFlight, 100, true)).toBe(false);
@@ -65,7 +65,7 @@ describe("shouldProbeHealth", () => {
     expect(shouldProbeHealth(ok, 200, true)).toBe(false);
   });
 
-  it("po nieudanej próbie czeka 4 s, potem znowu; po 90 s stop automatu", () => {
+  it("waits 4 s after a failed probe, then retries; auto-stops after 90 s", () => {
     const opened = openWakeWindow(initialWakeState(), 0);
     const failed = markHealthResult(markProbeStarted(opened), 1_000, false);
     expect(shouldProbeHealth(failed, 1_000, true)).toBe(false);
@@ -76,18 +76,18 @@ describe("shouldProbeHealth", () => {
     expect(shouldProbeHealth(lateFail, API_HEALTH_DOWN_AFTER_MS + 10_000, true)).toBe(false);
   });
 
-  it("po 90 s nie sondy nawet gdy autoStopped jeszcze nie ustawione", () => {
+  it("does not probe after 90 s even if autoStopped is not yet set", () => {
     const waiting = markHealthResult(markProbeStarted(openWakeWindow(initialWakeState(), 0)), 1_000, false);
     expect(waiting.autoStopped).toBe(false);
     expect(shouldProbeHealth(waiting, API_HEALTH_DOWN_AFTER_MS, true)).toBe(false);
   });
 
-  it("zamknięcie okna (karta w tle) i sukces = zero dalszych prób", () => {
+  it("closing the window (background tab) and success = no further probes", () => {
     const opened = openWakeWindow(initialWakeState(), 0);
     expect(shouldProbeHealth(closeWakeWindow(opened), 5_000, true)).toBe(false);
   });
 
-  it("tap po down otwiera nowe okno i znowu pozwala sondować", () => {
+  it("a tap after down opens a new window and resumes probing", () => {
     const down = markHealthResult(
       markProbeStarted(openWakeWindow(initialWakeState(), 0)),
       API_HEALTH_DOWN_AFTER_MS,
@@ -98,7 +98,7 @@ describe("shouldProbeHealth", () => {
     expect(shouldProbeHealth(retried, API_HEALTH_DOWN_AFTER_MS + 5_000, true)).toBe(true);
   });
 
-  it("po sukcesie nie otwiera okna ponownie, chyba że force (błąd sieci)", () => {
+  it("does not re-open the window after success, unless forced (network error)", () => {
     const ok = markHealthResult(openWakeWindow(initialWakeState(), 0), 100, true);
     expect(openWakeWindow(ok, 200).open).toBe(false);
     const forced = openWakeWindow(ok, 200, { force: true });
@@ -108,7 +108,7 @@ describe("shouldProbeHealth", () => {
 });
 
 describe("isNetworkError", () => {
-  it("łapie TypeError / Failed to fetch, nie ApiError ani AbortError", () => {
+  it("catches TypeError / Failed to fetch, not ApiError or AbortError", () => {
     expect(isNetworkError(new TypeError("Failed to fetch"))).toBe(true);
     expect(isNetworkError(new ApiError("not_found", "brak", 404))).toBe(false);
     expect(isNetworkError(new DOMException("Aborted", "AbortError"))).toBe(false);

@@ -81,8 +81,8 @@ jobs:
             id uuid primary key default gen_random_uuid(),
             email text
           );
-          -- Stub odwzorowujący realną implementację auth.uid() w Supabase,
-          -- żeby polityki RLS z migracji dały się utworzyć i przetestować w czystym Postgresie.
+          -- Stub mirroring the real implementation of auth.uid() in Supabase,
+          -- so that RLS policies from migrations can be created and tested in plain Postgres.
           create or replace function auth.uid() returns uuid as $$
             select nullif(current_setting('request.jwt.claims', true)::json->>'sub', '')::uuid
           $$ language sql stable;

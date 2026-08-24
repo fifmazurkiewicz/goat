@@ -16,8 +16,8 @@ function isTabVisible(): boolean {
 }
 
 /**
- * Sonda `/api/health` wyłącznie w otwartym oknie wybudzania (ADR-19).
- * Montować w `App` — samo `/login` nie otwiera okna.
+ * Probes `/api/health` only inside an open wake window (ADR-19).
+ * Mount in `App` — `/login` alone does not open the window.
  */
 export function useApiHealthProbe() {
   const queryClient = useQueryClient();

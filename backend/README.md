@@ -1,36 +1,36 @@
 # Backend — Multi-Persona Coaching App
 
-FastAPI (Python 3.12+), zarządzany przez [`uv`](https://docs.astral.sh/uv/). Pełna
-architektura opisana w [`../docs/technical/architecture.md`](../docs/technical/architecture.md);
-schemat bazy w [`../docs/technical/database-schema.md`](../docs/technical/database-schema.md).
+FastAPI (Python 3.12+), managed by [`uv`](https://docs.astral.sh/uv/). Full architecture
+described in [`../docs/technical/architecture.md`](../docs/technical/architecture.md);
+database schema in [`../docs/technical/database-schema.md`](../docs/technical/database-schema.md).
 
 ## Status
 
-Szkielet fundamentu — routing, konfiguracja, autentykacja JWT, dostęp do bazy z RLS,
-logging, globalny error handling. **Bez logiki biznesowej** (chat orchestrator, plan
-generation, moderacja) — to osobne, kolejne etapy. Miejsca oznaczone `TODO` /
-`NotImplementedError` w `app/domain/`, `app/llm/` i `app/core/security.py::require_admin`
-wskazują dokładnie co zostało odłożone i do jakiej sekcji dokumentacji się odnosi.
+Foundation skeleton — routing, configuration, JWT auth, database access with RLS,
+logging, global error handling. **Without business logic** (chat orchestrator, plan
+generation, moderation) — those are separate, subsequent stages. Places marked `TODO` /
+`NotImplementedError` in `app/domain/`, `app/llm/` and `app/core/security.py::require_admin`
+indicate exactly what was deferred and which documentation section it relates to.
 
-## Instalacja
+## Installation
 
 ```bash
 cd backend
 uv sync
 ```
 
-## Konfiguracja
+## Configuration
 
 ```bash
 cp .env.example .env
 ```
 
-Uzupełnij w `.env` realne wartości: `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_JWKS_URL`,
-`SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`. Nigdy nie commituj `.env` (już objęty
-głównym `.gitignore`). Rekomendowany setup lokalny: dev project Supabase Cloud — patrz
+Fill in real values in `.env`: `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_JWKS_URL`,
+`SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`. Never commit `.env` (already covered by
+the root `.gitignore`). Recommended local setup: Supabase Cloud dev project — see
 [`../docs/technical/local-setup.md`](../docs/technical/local-setup.md).
 
-## Uruchomienie
+## Running
 
 ```bash
 uv run uvicorn app.main:app --reload --port 8000
@@ -38,16 +38,16 @@ uv run uvicorn app.main:app --reload --port 8000
 
 Smoke test: `curl http://localhost:8000/api/health` → `{"status":"ok"}`.
 
-## Testy
+## Tests
 
 ```bash
 uv run pytest
 ```
 
-Testy wymagają obecności `.env` (ładowanego przez `pydantic-settings`) — wystarczą
-placeholdery z `.env.example`, endpoint health nie dotyka bazy ani zewnętrznych usług.
+Tests require the presence of `.env` (loaded by `pydantic-settings`) — placeholders from
+`.env.example` are enough, the health endpoint does not touch the database or external services.
 
-## Lint / typy
+## Lint / types
 
 ```bash
 uv run ruff check .

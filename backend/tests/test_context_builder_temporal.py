@@ -1,4 +1,4 @@
-"""Testy ContextBuilder — profil + kontekst czasowy (Europe/Warsaw)."""
+"""Tests for ContextBuilder — profile + temporal context (Europe/Warsaw)."""
 
 from __future__ import annotations
 

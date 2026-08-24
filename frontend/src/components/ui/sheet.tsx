@@ -49,9 +49,9 @@ export interface SheetContentProps
     VariantProps<typeof sheetVariants> {}
 
 /**
- * `side` steruje dokowaniem — używane do responsywnego DayPanel w /plans
- * (bottom na mobile / side="right" na desktop) i PersonaSessionDrawer w /chat
- * (docs/technical/frontend.md sekcje 4-5).
+ * `side` controls the docking edge — used for the responsive DayPanel in /plans
+ * (bottom on mobile / side="right" on desktop) and PersonaSessionDrawer in /chat
+ * (docs/technical/frontend.md sections 4-5).
  */
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>,

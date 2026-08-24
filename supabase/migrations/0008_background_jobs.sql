@@ -1,5 +1,5 @@
--- 0008: Kolejka zadań w tle (Postgres) + flaga tury czatu na sesji.
--- Uruchom w Supabase SQL Editor po 0007 (lokalnie: psql -f ...).
+-- 0008: Background job queue (Postgres) + chat turn flag on session.
+-- Run in Supabase SQL Editor after 0007 (locally: psql -f ...).
 
 alter table public.chat_sessions
   add column if not exists turn_in_progress boolean not null default false;

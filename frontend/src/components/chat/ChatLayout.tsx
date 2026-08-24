@@ -20,12 +20,12 @@ interface ChatLayoutProps {
 
 /**
  * `ChatLayout` (smart) — drawer open/closed (localStorage), URL sync sessionId
- * (docs/technical/frontend.md sekcja 4). Wysokość = `flex-1 min-h-0` w AppShell (`h-dvh`);
- * scroll tylko w MessageList / liście sesji — input „Wyślij” zawsze widoczny.
+ * (docs/technical/frontend.md section 4). Height = `flex-1 min-h-0` in AppShell (`h-dvh`);
+ * scroll only in MessageList / session list — the "Send" input is always visible.
  *
- * Mobile (spec 2026-08-17): `/chat` bez `:sessionId` = ekran listy rozmów; przy pierwszym
- * wejściu do appki auto-skok do najnowszej rozmowy (potem można wrócić na listę bez
- * ponownego redirectu).
+ * Mobile (spec 2026-08-17): `/chat` without `:sessionId` = conversation list screen; on
+ * the first app entry it auto-jumps to the most recent conversation (after that the user
+ * can return to the list without being redirected again).
  */
 export function ChatLayout({ sessionId }: ChatLayoutProps) {
   const navigate = useNavigate();
@@ -42,8 +42,8 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
   const personas = personasData?.items ?? [];
   const activeSession = sessions?.find((s) => s.id === sessionId);
 
-  // GWT-1: jednorazowe auto-wejście w ostatnią rozmowę (tylko mobile — na desktopie lista
-  // jest stale widoczna, więc redirect byłby zaskoczeniem).
+  // GWT-1: one-time auto-entry into the latest conversation (mobile only — on desktop
+  // the list is always visible, so a redirect would be surprising).
   useEffect(() => {
     if (!isMobile || sessionId || didAutoOpenRef.current || !sessions) return;
     const latest = latestSessionId(sessions);
@@ -60,7 +60,7 @@ export function ChatLayout({ sessionId }: ChatLayoutProps) {
     deleteSession.mutate(id, {
       onSuccess: () => {
         if (sessionId === id) {
-          // Po usunięciu user ma zostać na liście, nie zostać wciągnięty w inną rozmowę.
+          // After deletion the user should stay on the list, not be pulled into another conversation.
           didAutoOpenRef.current = true;
           navigate("/chat");
         }

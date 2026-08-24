@@ -1,10 +1,10 @@
-"""Parsowanie slash / wspólne typy routingu sesji `general` (ADR-13).
+"""Slash parsing / shared routing types for `general` sessions (ADR-13).
 
-**Produkcja:** tura Goata (`TeamLeadSpeaker` + `consult_persona`) albo slash
-(`parse_multi_slash_command`) — ADR-17. Nie `plan_consultation`.
+**Production:** Goat turn (`TeamLeadSpeaker` + `consult_persona`) or slash
+(`parse_multi_slash_command`) — ADR-17. Not `plan_consultation`.
 
-`ChatRoutingService` — **deprecated** (zastąpiony przez turę Goata + slash); moduł
-zachowuje `parse_multi_slash_command`, `RoutingResult`, `PersonaLike`.
+`ChatRoutingService` — **deprecated** (replaced by Goat turn + slash); the module
+keeps `parse_multi_slash_command`, `RoutingResult`, `PersonaLike`.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ class PersonaLike(Protocol):
 class RoutingResult:
     persona_ids: list[str]
     invoked_via: Literal["slash_command", "multi_slash", "auto_routed"]
-    content: str  # treść bez prefiksów `/slug`
+    content: str  # content without `/slug` prefixes
 
 
 class RoutingLLMClientProtocol(Protocol):
@@ -62,9 +62,10 @@ def _first_sentence(text: str, *, max_length: int = 200) -> str:
 def parse_multi_slash_command(
     message: str, active_personas: list[PersonaLike]
 ) -> tuple[list[PersonaLike], str] | None:
-    """Wszystkie `/slug` na początku wiadomości (kolejność zachowana, dedupe po id).
+    """All `/slug` at the start of the message (order preserved, dedupe by id).
 
-    `None` gdy brak prefiksu `/`, nieznany slug w łańcuchu albo pusta treść po slugach.
+    `None` when there's no `/` prefix, an unknown slug in the chain, or empty
+    content after the slashes.
     """
     text = message.strip()
     personas: list[PersonaLike] = []
@@ -93,7 +94,7 @@ def parse_multi_slash_command(
 def parse_slash_command(
     message: str, active_personas: list[PersonaLike]
 ) -> tuple[PersonaLike, str] | None:
-    """Kompatybilność: pojedynczy `/slug treść` → pierwsza persona z multi-parsera."""
+    """Compatibility: single `/slug content` -> first persona from the multi-parser."""
     multi = parse_multi_slash_command(message, active_personas)
     if multi is None or len(multi[0]) != 1:
         return None
@@ -112,9 +113,9 @@ def _normalize_persona_ids(raw_ids: list[str], allowlist: list[str]) -> list[str
 
 
 class ChatRoutingService:
-    """Deprecated — produkcja to tura Goata + slash, nie `plan_consultation` (ADR-17).
+    """Deprecated — production is the Goat turn + slash, not `plan_consultation` (ADR-17).
 
-    Zachowany dla testów regresji ADR-13; nie wołany z orchestratora.
+    Kept for ADR-13 regression tests; not called from the orchestrator.
     """
 
     def __init__(
@@ -125,7 +126,7 @@ class ChatRoutingService:
         chat_model: str,
     ) -> None:
         warnings.warn(
-            "ChatRoutingService jest deprecated — produkcja: tura Goata + slash (ADR-17).",
+            "ChatRoutingService is deprecated — production: Goat turn + slash (ADR-17).",
             DeprecationWarning,
             stacklevel=2,
         )
@@ -137,12 +138,12 @@ class ChatRoutingService:
         self, *, session_id: str, message: str, active_personas: list[PersonaLike]
     ) -> RoutingResult:
         warnings.warn(
-            "ChatRoutingService.route() jest deprecated.",
+            "ChatRoutingService.route() is deprecated.",
             DeprecationWarning,
             stacklevel=2,
         )
         if not active_personas:
-            raise ValueError("route() wymaga co najmniej jednej aktywnej persony.")
+            raise ValueError("route() requires at least one active persona.")
 
         slash_match = parse_multi_slash_command(message, active_personas)
         if slash_match is not None:
@@ -227,7 +228,7 @@ class ChatRoutingService:
             if normalized:
                 return normalized
             logger.warning("routing_classifier_invalid_ids", returned=raw_list)
-        except Exception as exc:  # noqa: BLE001 — fallback poniżej
+        except Exception as exc:  # noqa: BLE001 — fallback below
             logger.warning("routing_classifier_failed", error=str(exc))
 
         fallback = await self._chat_repo.get_last_responding_persona(session_id)

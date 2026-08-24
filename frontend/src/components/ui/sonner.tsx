@@ -3,9 +3,9 @@ import { Toaster as Sonner } from "sonner";
 type ToasterProps = React.ComponentProps<typeof Sonner>;
 
 /**
- * Toasty side-effectowe (np. zmiana statusu generowania planu, `usePlanGenerationStore`
- * — docs/technical/frontend.md sekcja 2). Motyw czytany z klasy `.dark` na <html>
- * (useThemeStore, ADR-15) zamiast osobnego providera motywu.
+ * Side-effect toasts (e.g. plan generation status changes, `usePlanGenerationStore`
+ * — docs/technical/frontend.md section 2). Theme is read from the `.dark` class on
+ * <html> (useThemeStore, ADR-15) instead of a dedicated theme provider.
  */
 function Toaster({ ...props }: ToasterProps) {
   const isDark = typeof document !== "undefined" && document.documentElement.classList.contains("dark");

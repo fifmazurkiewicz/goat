@@ -1,59 +1,59 @@
-# Design: Multi-persona tury czatu + toole Planów
+# Design: Multi-persona chat turns + Plans tools
 
-**Data:** 2026-08-04  
-**Status:** uzgodnione w brainstormingu; Faza 1 (statusy FE) wdrożona na `feature/chat-streaming-status`
+**Date:** 2026-08-04  
+**Status:** agreed in brainstorming; Phase 1 (FE statuses) implemented on `feature/chat-streaming-status`
 
-## Cel produktowy
+## Product goal
 
-Persony w czacie mają działać jak zespół trenerów: gdy pytanie styka się z ≥2 rolami (albo user poda kilka slashy), system oddaje **osobne wiadomości sekwencyjnie**. Persony mają też **czytać / edytować / przebudowywać plan** w zakładce Plany, z **uzgodnieniem między wszystkimi aktywnymi personami** (nie izolowana edycja jednego trenera).
+Personas in chat should work like a team of trainers: when the question touches ≥2 roles (or the user provides multiple slashes), the system returns **separate messages sequentially**. Personas should also **read / edit / rebuild the plan** in the Plans tab, with **agreement between all active personas** (not isolated editing of one trainer).
 
-## Fazy
+## Phases
 
-| Faza | Zakres | Zależności |
-|------|--------|------------|
-| **1** (done) | Linia statusu PL z `persona_turn_start` / `tool_call_start` | — |
-| **2** | Routing → N person; sekwencyjne N odpowiedzi w jednej turze SSE | Faza 1 (statusy) |
-| **3** | Toole czatu: odczyt planu, upsert pozycji, przebudowa (pipeline 1–3) | Faza 2 zalecana (narada przy przebudowie); działa też bez niej |
+| Phase | Scope | Dependencies |
+|-------|-------|--------------|
+| **1** (done) | PL status line with `persona_turn_start` / `tool_call_start` | — |
+| **2** | Routing → N personas; sequential N responses in one SSE turn | Phase 1 (statuses) |
+| **3** | Chat tools: plan read, items upsert, rebuild (pipeline 1–3) | Phase 2 recommended (consultation on rebuild); works without it |
 
-## Uzgodnienia UX / zachowania
+## UX / behavior agreements
 
-1. **Multi-reply zawsze, gdy routing uzna za stosowne** (≥2 role) **lub** user wymieni kilka person slashami.
-2. **Sekwencyjnie** (A): persona 1 kończy (tokeny + toole), potem 2, itd. — jeden aktywny status naraz.
-3. **Plan:** odczyt + edycja pozycji dnia + przebudowa; przebudowa = istniejący 3-etapowy pipeline (wszystkie aktywne persony + harmonizacja).
-4. **Hybryda edycji:** mała zmiana dnia → `upsert_plan_items` (+ opcjonalnie lekka harmonizacja etapu 3 na dotkniętych dniach w backlogu MVP-lite: najpierw sam upsert); „przebuduj / ułóż tydzień” → `rebuild_plan` = `POST /plans/generate` w tle.
-5. Statusy FE mapują nowe toole (`get_plan` → „przegląda plan”, `upsert_plan_items` → „zapisuje w Plany”, `rebuild_plan` → „uzgadnia plan…”).
+1. **Multi-reply always, when routing deems it appropriate** (≥2 roles) **or** the user lists multiple personas with slashes.
+2. **Sequentially** (A): persona 1 ends (tokens + tools), then 2, etc. — one active status at a time.
+3. **Plan:** read + edit day's entries + rebuild; rebuild = existing 3-stage pipeline (all active personas + harmonization).
+4. **Edit hybrid:** small day change → `upsert_plan_items` (+ optionally light stage-3 harmonization for touched days in MVP-lite backlog: upsert alone first); "rebuild / build a week" → `rebuild_plan` = `POST /plans/generate` in background.
+5. FE statuses map new tools (`get_plan` → "reviewing plan", `upsert_plan_items` → "saving in Plans", `rebuild_plan` → "agreeing on plan…").
 
-## Świadomie poza MVP Faz 2–3
+## Consciously out of MVP Phase 2–3
 
-- Równoległe / przeplatane tokeny wielu person.
-- Pełna harmonizacja (etap 3) po każdym drobnym upsertcie (koszt) — najpierw upsert bez auto-harmonizacji; etap 3 tylko przy `rebuild_plan`.
-- Zmiana ContextBuilder tak, by persona X widziała odpowiedzi innych person w tej samej turze (nadal filtr per `persona_id`; synchronizacja planu idzie przez DB `plan_items`, nie przez historię czatu).
-- Narzędzie do usuwania całego planu / zmiany `period_type` z czatu.
+- Parallel / interleaved tokens of multiple personas.
+- Full harmonization (stage 3) after every small upsert (cost) — upsert without auto-harmonization first; stage 3 only on `rebuild_plan`.
+- Changing ContextBuilder so that persona X sees other personas' responses in the same turn (still per `persona_id` filter; plan sync goes via DB `plan_items`, not via chat history).
+- Tool for deleting the entire plan / changing `period_type` from chat.
 
 ## ADR
 
-**Supersedes fragment ADR-13:** „dokładnie jedna persona na turę” → „jedna lub wiele person **sekwencyjnie** w jednej turze użytkownika, gdy routing / multi-slash tak zdecyduje”. Sesja `general`, atrybucja `chat_messages.persona_id`, event `persona_turn_start` — bez zmian modelu danych.
+**Supersedes fragment ADR-13:** "exactly one persona per turn" → "one or many personas **sequentially** in one user turn, when routing / multi-slash decides so". `general` session, `chat_messages.persona_id` attribution, `persona_turn_start` event — no data model change.
 
-## Kontrakt (skrót)
+## Contract (summary)
 
-### Faza 2 — routing
+### Phase 2 — routing
 
 ```ts
 // RoutingResult (BE)
 { persona_ids: string[]; invoked_via: 'slash_command' | 'auto_routed' | 'multi_slash'; content: string }
 ```
 
-- Klasyfikator JSON: `{ "persona_ids": ["uuid", ...] }` — 1..min(N_active, 3) unikalnych id z allowlisty.
-- Multi-slash: wszystkie `/slug` na początku wiadomości (kolejność = kolejność odpowiedzi), reszta = wspólna treść.
-- SSE: powtórzone `persona_turn_start` → tokeny/toole → … → jedno `done` na końcu całej tury.
-- FE: po zakończeniu tury persony (przed następną) dopisać ukończoną odpowiedź do cache historii (optimistic), wyczyścić `content` streamu, zachować chipy tooli per tura lub scalić w listę.
+- JSON classifier: `{ "persona_ids": ["uuid", ...] }` — 1..min(N_active, 3) unique ids from allowlist.
+- Multi-slash: all `/slug` at the start of message (order = response order), the rest = shared content.
+- SSE: repeated `persona_turn_start` → tokens/tools → … → one `done` at the end of the whole turn.
+- FE: after a persona's turn ends (before the next), append the completed response to history cache (optimistic), clear stream `content`, keep tool chips per turn or merge into a list.
 
-### Faza 3 — toole
+### Phase 3 — tools
 
-| Tool | Zachowanie |
-|------|------------|
-| `get_plan` | Opcjonalne `start_date`/`end_date`; zwraca skrót aktywnego planu + items w zakresie |
-| `upsert_plan_items` | Batch insert/update pozycji dla `persona_id` wołającej (lub jawnego id jeśli w allowliście usera); walidacja `PlanItemContent` |
-| `rebuild_plan` | Tworzy job jak `POST /plans/generate`; tool response = `{job_id, status}` + FE invaliduje `plans` + banner joba |
+| Tool | Behavior |
+|------|----------|
+| `get_plan` | Optional `start_date`/`end_date`; returns a summary of the active plan + items in range |
+| `upsert_plan_items` | Batch insert/update entries for the calling persona's `persona_id` (or explicit id if in user's allowlist); `PlanItemContent` validation |
+| `rebuild_plan` | Creates a job like `POST /plans/generate`; tool response = `{job_id, status}` + FE invalidates `plans` + job banner |
 
-Błąd walidacji → tool response JSON do modelu, nigdy 500 (wzorzec `log_result`).
+Validation error → tool response JSON to model, never 500 (`log_result` pattern).

@@ -1,4 +1,4 @@
-"""Testy rejestru aktywnych tur czatu."""
+"""Tests for the active chat-turn registry."""
 
 from __future__ import annotations
 

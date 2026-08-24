@@ -12,9 +12,9 @@ interface ChatSessionsScreenProps {
 }
 
 /**
- * `/chat` bez `:sessionId` na mobile — historia jako pełnoekranowy ekran listy
- * (spec 2026-08-17 GWT-2/GWT-3). Wcześniej lista żyła wyłącznie w zamkniętym `Sheet`,
- * którego trigger był w `ChatHeader` — niedostępny bez aktywnej sesji.
+ * `/chat` without `:sessionId` on mobile — history rendered as a fullscreen list
+ * screen (spec 2026-08-17 GWT-2/GWT-3). Previously the list lived only inside a closed
+ * `Sheet` whose trigger lived in `ChatHeader` — unreachable without an active session.
  */
 export function ChatSessionsScreen(props: ChatSessionsScreenProps) {
   return (

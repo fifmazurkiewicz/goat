@@ -17,8 +17,8 @@ interface NewSessionDialogProps {
 }
 
 /**
- * §4a — "+ Nowa rozmowa" otwiera krótki wybór: "Ogólna rozmowa" (auto-routing,
- * `persona_id: null`) vs wybór konkretnej persony z listy aktywnych (1:1).
+ * §4a — "+ New conversation" opens a short chooser: "General conversation"
+ * (auto-routing, `persona_id: null`) versus picking a specific active persona (1:1).
  */
 export function NewSessionDialog({ open, onOpenChange, personas, onCreated }: NewSessionDialogProps) {
   const [selected, setSelected] = useState<string | null>(null);

@@ -32,17 +32,17 @@ describe("team-lead", () => {
     ).toBe(true);
   });
 
-  it("isTeamLeadAssistantMessage: trener ma persona_id", () => {
+  it("isTeamLeadAssistantMessage: trainer has a persona_id", () => {
     expect(
       isTeamLeadAssistantMessage(assistant({ persona_id: "diet-uuid" }), "general")
     ).toBe(false);
   });
 
-  it("isTeamLeadAssistantMessage: sesja persona nigdy nie jest Goat", () => {
+  it("isTeamLeadAssistantMessage: a persona session is never Goat", () => {
     expect(isTeamLeadAssistantMessage(assistant(), "persona")).toBe(false);
   });
 
-  it("isTeamLeadAssistantMessage: wiadomość usera", () => {
+  it("isTeamLeadAssistantMessage: user message", () => {
     expect(
       isTeamLeadAssistantMessage(assistant({ role: "user", content: "Hej" }), "general")
     ).toBe(false);

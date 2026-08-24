@@ -30,7 +30,7 @@ interface SessionListItemProps {
   onDelete: (sessionId: string) => void;
 }
 
-/** Menu ⋯ (+ PPM) — zmiana tytułu / usunięcie rozmowy. */
+/** ⋯ menu (+ right click) — rename / delete conversation. */
 export function SessionListItem({
   session,
   isActive,

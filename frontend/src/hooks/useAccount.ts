@@ -6,8 +6,8 @@ import type { Account, AccountUpdateInput } from "@/types/api";
 const ACCOUNT_KEY = ["account"] as const;
 
 /**
- * `GET/PATCH /api/v1/account` (ADR-15) — celowo OSOBNY endpoint od `/api/v1/profile`
- * (biometria, ADR-11). Motyw NIE jest tu — czysto localStorage (`useThemeStore`).
+ * `GET/PATCH /api/v1/account` (ADR-15) — intentionally a SEPARATE endpoint from `/api/v1/profile`
+ * (biometrics, ADR-11). Theme is NOT here — purely localStorage (`useThemeStore`).
  */
 export function useAccount() {
   return useQuery({

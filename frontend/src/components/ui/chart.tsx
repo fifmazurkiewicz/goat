@@ -16,14 +16,14 @@ const ChartContext = React.createContext<ChartContextProps | null>(null);
 
 function useChart() {
   const context = React.useContext(ChartContext);
-  if (!context) throw new Error("useChart musi być użyty wewnątrz <ChartContainer />");
+  if (!context) throw new Error("useChart must be used inside <ChartContainer />");
   return context;
 }
 
 /**
- * Cienki wrapper na `recharts` (docs/technical/frontend.md sekcja 6, ADR-9) —
- * ustawia zmienne CSS `--color-{key}` z `config` tak, żeby wykresy dziedziczyły
- * styl spójny z resztą shadcn/ui zamiast twardo kodowanych kolorów recharts.
+ * Thin wrapper around `recharts` (docs/technical/frontend.md section 6, ADR-9) —
+ * sets `--color-{key}` CSS variables from `config` so the charts inherit the
+ * consistent shadcn/ui styling instead of hard-coded recharts colors.
  */
 const ChartContainer = React.forwardRef<
   HTMLDivElement,

@@ -30,7 +30,7 @@ export function gitCommitUrl(info: Pick<DeployInfo, "git_repo" | "git_sha_full">
   return `https://github.com/${info.git_repo}/commit/${sha}`;
 }
 
-/** Semver FE vs API — commit tylko metadane diagnostyczne. */
+/** FE vs API semver — the commit is only diagnostic metadata. */
 export function deployLabelsMatch(a: DeployInfo, b: DeployInfo): boolean {
   if (!a.app_version || !b.app_version) return true;
   if (a.app_version.endsWith("-dev") || b.app_version.endsWith("-dev")) return true;

@@ -3,9 +3,9 @@ import { useEffect } from "react";
 const CSS_VAR = "--app-height";
 
 /**
- * Ustawia `--app-height` na wysokość visual viewport.
- * Na iOS/Android kurczy layout razem z klawiaturą i paskiem URL —
- * composer czatu zostaje nad klawiaturą zamiast pod nią.
+ * Sets `--app-height` to the visual viewport height.
+ * On iOS/Android this shrinks the layout together with the keyboard and URL bar —
+ * the chat composer stays above the keyboard instead of below it.
  */
 export function useVisualViewportHeight(): void {
   useEffect(() => {

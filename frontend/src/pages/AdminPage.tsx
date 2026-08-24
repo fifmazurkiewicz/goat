@@ -12,8 +12,8 @@ import { useAdminUsers } from "@/hooks/useAdmin";
 import { PAGE_SHELL_CLASS, PAGE_TITLE_CLASS } from "@/lib/layout";
 
 /**
- * Chroniona auth + `is_admin`. Kwota w USD BEZ etykiet "Free"/"Pro" (ADR-16 — budżet
- * ochronny, nie plan subskrypcyjny). `max_active_personas` edytowalne per konto (ADR-12).
+ * Protected by auth + `is_admin`. Budget in USD WITHOUT "Free"/"Pro" labels (ADR-16 — protective
+ * budget, not a subscription plan). `max_active_personas` editable per account (ADR-12).
  */
 export default function AdminPage() {
   const { data: users, isLoading } = useAdminUsers();

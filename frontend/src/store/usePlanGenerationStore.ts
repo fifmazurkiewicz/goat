@@ -37,16 +37,16 @@ function persistJobId(jobId: string | null) {
       localStorage.removeItem(STORAGE_KEY);
     }
   } catch {
-    // localStorage niedostępny (np. tryb prywatny) — brak persystencji, nie krytyczne.
+    // localStorage unavailable (e.g. private mode) — no persistence, not critical.
   }
 }
 
 /**
- * Mountowany w app shell / root layout (nie w /plans) — patrz
- * docs/technical/frontend.md sekcja 2. Odtwarza `jobId` z localStorage przy
- * starcie, żeby polling przetrwał zamknięcie karty. Właściwy polling
- * (GET /plans/jobs/{id}) i side-effecty (toasty) będą podpięte w kolejnym
- * etapie, w miejscu gdzie ten store jest mountowany.
+ * Mounted in the app shell / root layout (not in /plans) — see
+ * docs/technical/frontend.md section 2. Restores `jobId` from localStorage at
+ * startup, so polling survives closing the tab. The actual polling
+ * (GET /plans/jobs/{id}) and side effects (toasts) will be wired up in a later
+ * step, in the place where this store is mounted.
  */
 export const usePlanGenerationStore = create<PlanGenerationState>((set) => ({
   status: readPersistedJobId() ? "generating" : "idle",

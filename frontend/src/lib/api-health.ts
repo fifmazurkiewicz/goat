@@ -25,7 +25,7 @@ export function initialWakeState(): WakeWindowState {
   };
 }
 
-/** Idempotentne, gdy okno już leci. Tap po `down` resetuje licznik. */
+/** Idempotent while the window is already running. A tap after `down` resets the counter. */
 export function openWakeWindow(
   state: WakeWindowState,
   now: number,

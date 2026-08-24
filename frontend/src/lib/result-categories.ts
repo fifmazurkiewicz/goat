@@ -1,16 +1,16 @@
 import type { Persona, PersonaType, ResultCategory } from "@/types/api";
 
-/** Mapowanie typ persony → kategoria wyników (allowed_metrics / GET /results). */
+/** Mapping of persona type → result category (allowed_metrics / GET /results). */
 const PERSONA_TYPE_TO_CATEGORY: Partial<Record<PersonaType, ResultCategory>> = {
   personal_trainer: "strength",
   motor_coach: "strength",
   dietitian: "diet",
   badminton_coach: "badminton",
-  // sport_psychologist / psychologist — bez osobnej kategorii wyników w MVP
+  // sport_psychologist / psychologist — no dedicated result category in MVP
 };
 
 const CATEGORY_LABELS: Record<ResultCategory, string> = {
-  // strength obejmuje siłownię + bieganie/kondycję (motor_coach) — nie tylko „Siłownia”.
+  // strength covers gym + running/cardio (motor_coach) — not just "Gym".
   strength: "Trening",
   diet: "Dieta",
   swimming: "Basen",
@@ -40,8 +40,8 @@ export function categoryLabel(key: ResultCategory): string {
 }
 
 /**
- * Taby `/results`: persony usera + kategorie, w których już są wpisy
- * (np. model zapisał bieg jako `triathlon` / `custom` — bez tego zakładka znika).
+ * Tabs for `/results`: user's personas + categories that already have entries
+ * (e.g. the model saved a run as `triathlon` / `custom` — without this the tab disappears).
  */
 export function resultCategoryTabsFromPersonas(
   personas: Persona[],

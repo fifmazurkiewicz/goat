@@ -1,4 +1,4 @@
-"""Testy schematu odpowiedzi joba generowania planu."""
+"""Tests for the plan-generation job response schema."""
 
 from __future__ import annotations
 

@@ -1,9 +1,10 @@
-"""Router `/chat` — SSE + multi-turn tool calling.
+"""`/chat` router — SSE + multi-turn tool calling.
 
-Wzorzec producer/consumer przez `asyncio.Queue` (`sse-starlette` `EventSourceResponse`,
-`ping=15`) DOKŁADNIE wg docs/technical/architecture.md sekcja 3. Orkiestracja właściwa
-żyje w `app/domain/chat/orchestrator.py` (`run_chat_turn`/`ChatOrchestrator`) — ten router
-zostaje CIENKI (parsing requestu, cykl życia SSE, cancellation), zero logiki biznesowej.
+Producer/consumer pattern via `asyncio.Queue` (`sse-starlette` `EventSourceResponse`,
+`ping=15`) EXACTLY per docs/technical/architecture.md section 3. The actual
+orchestration lives in `app/domain/chat/orchestrator.py`
+(`run_chat_turn`/`ChatOrchestrator`) — this router stays THIN (request parsing, SSE
+lifecycle, cancellation), zero business logic.
 """
 
 from __future__ import annotations
@@ -52,9 +53,10 @@ async def list_chat_sessions(auth: AuthContext = Depends(get_current_user)) -> l
 async def create_chat_session(
     payload: ChatSessionCreate, auth: AuthContext = Depends(get_current_user)
 ) -> ChatSessionOut:
-    """`persona_id=None` -> sesja `general` (auto-routing, ADR-13); podane -> sesja
-    `persona` (1:1). Waliduje, że persona istnieje i jest widoczna dla usera PRZED
-    utworzeniem sesji — inaczej FK `chat_sessions.persona_id` rzuciłby surowy błąd SQL."""
+    """`persona_id=None` -> `general` session (auto-routing, ADR-13); given -> `persona`
+    session (1:1). Validates that the persona exists and is visible to the user BEFORE
+    creating the session — otherwise the `chat_sessions.persona_id` FK would throw a raw
+    SQL error."""
     async with rls_connection(auth.claims) as conn:
         if payload.persona_id is not None:
             persona = await PersonasRepo(conn).get_visible(payload.persona_id)
@@ -131,8 +133,8 @@ async def chat_turn_status(
 async def cancel_chat_turn(
     session_id: str, auth: AuthContext = Depends(get_current_user)
 ) -> None:
-    """Przerwanie generowania — user kliknął Zatrzymaj (w przeciwieństwie do nawigacji
-    poza czat, gdzie tura może kontynuować w tle)."""
+    """Stop generation — user clicked Stop (unlike navigating away from the chat,
+    where the turn may continue in the background)."""
     async with rls_connection(auth.claims) as conn:
         session = await ChatRepo(conn).get_session(session_id)
         if session is None or session.user_id != auth.user_id:
@@ -147,9 +149,9 @@ async def send_chat_message(
     request: Request,
     auth: AuthContext = Depends(get_current_user),
 ) -> EventSourceResponse:
-    """SSE — wzorzec producer/consumer z architecture.md §3. Połączenie DB NIE jest
-    trzymane przez cały czas streamu (`run_chat_turn`/`ChatOrchestrator` otwierają
-    krótkie, per-rundowe transakcje) — ten endpoint nie bierze `Depends` na DB."""
+    """SSE — producer/consumer pattern from architecture.md §3. The DB connection is
+    NOT held for the entire stream duration (`run_chat_turn`/`ChatOrchestrator` open
+    short, per-round transactions) — this endpoint doesn't take a DB `Depends`."""
     queue: asyncio.Queue[dict] = asyncio.Queue()
 
     async def _run_and_cleanup() -> None:
@@ -174,7 +176,7 @@ async def send_chat_message(
             deadline = loop.time() + settings.chat_hard_timeout_s
             while True:
                 if await request.is_disconnected():
-                    # Tura kontynuuje w tle — user może wrócić i odświeżyć historię.
+                    # The turn continues in the background — the user can come back and refresh history.
                     break
                 remaining = deadline - loop.time()
                 if remaining <= 0:
@@ -184,7 +186,7 @@ async def send_chat_message(
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=min(15, remaining))
                 except asyncio.TimeoutError:
-                    continue  # sse-starlette samo wyśle ping (heartbeat)
+                    continue  # sse-starlette itself sends the ping (heartbeat)
                 yield event
                 if event["event"] in ("done", "error"):
                     break

@@ -6,24 +6,24 @@ import {
 } from "@/lib/persona-template-overrides";
 
 describe("persona-template-overrides", () => {
-  it("mapuje API { columns } na draft formularza", () => {
+  it("maps API { columns } to a form draft", () => {
     expect(columnsFromTemplateOverrides({ columns: ["Posiłek", "Kcal"] })).toEqual([
       { name: "Posiłek" },
       { name: "Kcal" },
     ]);
   });
 
-  it("mapuje draft formularza na kontrakt API", () => {
+  it("maps a form draft to the API contract", () => {
     expect(
       templateOverridesFromColumns([{ name: "  Posiłek " }, { name: "Kcal" }, { name: "  " }])
     ).toEqual({ columns: ["Posiłek", "Kcal"] });
   });
 
-  it("toleruje legacy tablicę { name }", () => {
+  it("tolerates a legacy { name } array", () => {
     expect(columnsFromTemplateOverrides([{ name: "Serie" }])).toEqual([{ name: "Serie" }]);
   });
 
-  it("zwraca domyślną kolumnę dla pustego overrides", () => {
+  it("returns a default column for empty overrides", () => {
     expect(columnsFromTemplateOverrides(null)).toEqual([{ name: "Kolumna 1" }]);
   });
 });

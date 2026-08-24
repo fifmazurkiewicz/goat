@@ -1,4 +1,4 @@
-"""Task 3 — consult_persona w orkiestratorze (emit_sse / persist_messages)."""
+"""Task 3 — consult_persona in orchestrator (emit_sse / persist_messages)."""
 
 from __future__ import annotations
 

@@ -1,8 +1,8 @@
-"""`ContextBuilder` — składa system prompt + historię wiadomości do formatu API OpenRoutera.
+"""`ContextBuilder` — assembles system prompt + message history into the OpenRouter API format.
 
-Patrz docs/technical/architecture.md sekcja 5 (kontekst czatu, token budget) i sekcja 3a
-(filtrowanie historii per-personę w sesji `general`), docs/technical/ai-pipeline.md
-sekcja 0 (profil użytkownika) i sekcja 3 (token budget).
+See docs/technical/architecture.md section 5 (chat context, token budget) and section 3a
+(history filtering per-persona in a `general` session), docs/technical/ai-pipeline.md
+section 0 (user profile) and section 3 (token budget).
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from app.domain.chat.preamble import build_system_prompt as build_preamble_compo
 from app.domain.chat.tools import build_profile_intake_instruction
 from app.models.schemas import UserProfileOut
 
-# Aplikacja PL — względne daty („wczoraj”) liczone w strefie usera, nie UTC serwera.
+# App is PL — relative dates ("yesterday") are counted in the user's timezone, not server UTC.
 _APP_TZ = ZoneInfo("Europe/Warsaw")
 
 _WEEKDAY_PL = (
@@ -66,8 +66,8 @@ def _age_years(date_of_birth: date | None) -> int | None:
 
 
 def build_temporal_context_block(*, today: date | None = None) -> str:
-    """Dzisiejsza data (Europe/Warsaw) — model nie zna kalendarza z treningu; bez tego
-    „wczoraj” / ISO `date` w `log_result` jest zgadywane."""
+    """Today's date (Europe/Warsaw) — the model doesn't know the calendar from training;
+    without this "yesterday" / ISO `date` in `log_result` is guessed."""
     day = today or _today_warsaw()
     weekday = _WEEKDAY_PL[day.weekday()]
     return (
@@ -80,8 +80,8 @@ def build_temporal_context_block(*, today: date | None = None) -> str:
 
 
 def build_user_profile_block(profile: UserProfileOut | None) -> str | None:
-    """Blok deterministyczny (bez LLM) doklejany do KAŻDEJ wiadomości (architecture.md §5) —
-    `None` gdy brak jakichkolwiek danych (zamiast pustej sekcji w prompcie)."""
+    """Deterministic block (no LLM) appended to EVERY message (architecture.md §5) —
+    `None` when there's no data at all (instead of an empty section in the prompt)."""
     if profile is None:
         return None
 
@@ -108,7 +108,7 @@ def build_user_profile_block(profile: UserProfileOut | None) -> str | None:
 
 
 def build_recent_results_block(results: list[Any]) -> str | None:
-    """Skrót ostatnich wyników — persona ma pamięć o tym co user raportował."""
+    """Summary of recent results — the persona has memory of what the user reported."""
     if not results:
         return None
     lines: list[str] = []
@@ -124,16 +124,16 @@ def build_recent_results_block(results: list[Any]) -> str | None:
 
 
 def build_plan_summary_block(plan: Any | None, items: list[Any]) -> str | None:
-    """Aktywny plan w kalendarzu — skrót pozycji na najbliższe dni."""
+    """Active plan in the calendar — summary of items for the coming days."""
     if plan is None:
-        return "[PLAN TRENINGOWY]\nBrak aktywnego planu w kalendarzu."
+        return "[PLAN TRENINGOWY]\nNo active plan in the calendar."
     header = (
         f"Plan {plan.period_type} {plan.start_date.isoformat()}–{plan.end_date.isoformat()} "
         f"(status: {plan.status})"
     )
     if not items:
-        return f"[PLAN TRENINGOWY]\n{header}\nBrak pozycji — możesz zaproponować rebuild_plan."
-    lines = [header, "Najbliższe pozycje:"]
+        return f"[PLAN TRENINGOWY]\n{header}\nNo items — you can suggest rebuild_plan."
+    lines = [header, "Upcoming items:"]
     for item in items[:14]:
         content = item.content if isinstance(getattr(item, "content", None), dict) else {}
         title = content.get("title") or item.item_type
@@ -142,7 +142,7 @@ def build_plan_summary_block(plan: Any | None, items: list[Any]) -> str | None:
 
 
 class ContextBuilder:
-    """Nie zna FastAPI/HTTP — testowalna z fake `ChatRepositoryProtocol`."""
+    """Doesn't know FastAPI/HTTP — testable with a fake `ChatRepositoryProtocol`."""
 
     def __init__(self, chat_repo: ChatRepositoryProtocol, *, history_window_messages: int) -> None:
         self._chat_repo = chat_repo
@@ -193,8 +193,8 @@ class ContextBuilder:
     async def build_message_history(
         self, *, session_id: str, session_type: str, persona_id: str | None
     ) -> list[dict[str, Any]]:
-        """Sliding window ostatnich M wiadomości -> format OpenAI/OpenRouter (`role`,
-        `content`, opcjonalnie `tool_calls`/`tool_call_id`) — bez rolling summary (ADR-7)."""
+        """Sliding window of the last M messages -> OpenAI/OpenRouter format (`role`,
+        `content`, optionally `tool_calls`/`tool_call_id`) — without rolling summary (ADR-7)."""
         rows = await self._chat_repo.list_recent_messages_for_context(
             session_id=session_id,
             persona_id=persona_id,

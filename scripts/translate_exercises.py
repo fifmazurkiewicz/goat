@@ -1,18 +1,19 @@
-"""Tłumaczenie ćwiczeń free-exercise-db na polski przez OpenRouter (jednorazowo, offline).
+"""One-off offline translation of free-exercise-db exercises to Polish via OpenRouter.
 
-Wejście: `.tmp/free-exercise-db-translations.json` (cache, tworzony/wznowiony automatycznie).
-Wyjście: ten sam plik uzupełniony o `name_pl`, `short_pl`, `detail_pl`, `done`.
+Input: `.tmp/free-exercise-db-translations.json` (cache, created/resumed automatically).
+Output: the same file enriched with `name_pl`, `short_pl`, `detail_pl`, `done`.
 
-Zasady:
-- Batch po ~12 ćwiczeń, odpowiedź w JSON (response_format json_object); batch zapisywany
-  do cache od razu — przerwanie skryptu nie traci postępu, rerun kontynuuje.
-- Instrukcje techniczne: tłumaczenie wiernie, BEZ dodawania porad od siebie
-  (red flags/technika to domena person; katalog = referencja).
-- Klucz: OPENROUTER_API_KEY z env; model: OPENROUTER_CHAT_MODEL (ten sam co czat).
+Rules:
+- Batches of ~12 exercises, response as JSON (response_format json_object); each batch is
+  written to the cache immediately — interrupting the script does not lose progress,
+  rerun continues.
+- Technical instructions: translate faithfully, do NOT add advice of your own
+  (red flags / technique are the persona's domain; the catalog is just reference).
+- Key: OPENROUTER_API_KEY from env; model: OPENROUTER_CHAT_MODEL (same as chat).
 
-Użycie (z backend/, venv aplikacji):
-    uv run python ../scripts/translate_exercises.py            # pełny przebieg + raport
-    uv run python ../scripts/translate_exercises.py --limit 20 # smoke na próbce
+Usage (from backend/, app venv):
+    uv run python ../scripts/translate_exercises.py            # full run + report
+    uv run python ../scripts/translate_exercises.py --limit 20 # smoke on a sample
 """
 
 from __future__ import annotations
@@ -90,8 +91,8 @@ Odpowiedz WYŁĄCZNIE obiektem JSON:
 
 
 def translate_batch(client: httpx.Client, model: str, batch: list[dict[str, object]]) -> dict[str, dict[str, object]]:
-    # Klucz z konfiguracji aplikacji (pydantic-settings czyta backend/.env) — sam skrypt
-    # NIGDY nie otwiera .env ani nie drukuje wartości sekretów.
+    # Key from app configuration (pydantic-settings reads backend/.env) — this script
+    # NEVER opens .env or prints secret values.
     from app.core.config import settings as app_settings
 
     api_key = app_settings.openrouter_api_key.get_secret_value()
@@ -161,7 +162,7 @@ def main() -> None:
                 try:
                     results = translate_batch(client, model, batch)
                     break
-                except Exception as exc:  # noqa: BLE001 — retry na dowolny błąd API/deserializacji
+                except Exception as exc:  # noqa: BLE001 — retry on any API/deserialize error
                     wait = attempt * 15
                     print(f"  [retry] batch od #{start}: {exc} — ponawiam za {wait}s ({attempt}/{RETRY_LIMIT})")
                     time.sleep(wait)

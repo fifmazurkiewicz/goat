@@ -1,4 +1,4 @@
-"""Testy mapowania zakresu ról person."""
+"""Tests for persona role-scope mapping."""
 
 from __future__ import annotations
 

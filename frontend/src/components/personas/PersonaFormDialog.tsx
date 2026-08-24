@@ -46,10 +46,10 @@ const DETAIL_LEVEL_OPTIONS: { value: PersonaFormValues["detail_level"]; label: s
 ];
 
 /**
- * Dialog "Dodaj personę" / edycja promptu — React Hook Form + Zod, sekcje: podstawowe
- * dane / system prompt / struktura dnia (Accordion, zaawansowane).
- * docs/technical/frontend.md sekcja 7. `Sheet` na mobile (§11) przez `ResponsiveDialog`.
- * `persona_constraints` celowo nieobecne — pole systemowe (ai-pipeline.md).
+ * "Add persona" / edit-prompt dialog — React Hook Form + Zod, sections: basic data /
+ * system prompt / day structure (Accordion, advanced). docs/technical/frontend.md
+ * section 7. `Sheet` on mobile (§11) via `ResponsiveDialog`. `persona_constraints` is
+ * deliberately absent — it's a system field (ai-pipeline.md).
  */
 export function PersonaFormDialog({ open, onOpenChange, persona }: PersonaFormDialogProps) {
   const isEdit = Boolean(persona);

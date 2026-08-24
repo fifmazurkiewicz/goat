@@ -3,7 +3,7 @@ import type { ChatMessage } from "@/types/api";
 export const TEAM_LEAD_PERSONA_ID = "__team_lead__";
 export const TEAM_LEAD_DISPLAY_LABEL = "Goat · Kierownik Zespołu";
 
-/** Wiadomość od Goata (kierownik) — assistant bez persona_id w sesji general. */
+/** Message from Goat (team lead) — assistant without persona_id in a general session. */
 export function isTeamLeadAssistantMessage(
   message: ChatMessage,
   sessionType: "general" | "persona" | string

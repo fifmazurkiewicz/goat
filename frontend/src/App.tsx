@@ -21,8 +21,8 @@ import ResultsPage from "@/pages/ResultsPage";
 import SettingsPage from "@/pages/SettingsPage";
 
 /**
- * Routing zgodny z docs/technical/frontend.md sekcja 1. Guard "min. 1
- * aktywna persona" na /chat i /plans — świadomie odłożony (ADR-8).
+ * Routing per docs/technical/frontend.md section 1. "Min. 1 active persona" guard on
+ * /chat and /plans — intentionally deferred (ADR-8).
  */
 const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/personas" replace /> },

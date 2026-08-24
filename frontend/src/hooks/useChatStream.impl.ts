@@ -4,7 +4,7 @@ import { messagesKey } from "@/hooks/useChatSessions";
 import type { ChatMessage, ConsultDetail } from "@/types/api";
 import type { ChatStreamToolResultEvent } from "@/types/chat-stream";
 
-/** Dopina ukończoną turę persony do cache zanim wystartuje kolejna (multi-reply). */
+/** Attaches a finished persona turn to the cache before the next one starts (multi-reply). */
 export function finalizeStreamingTurn(
   queryClient: QueryClient,
   sessionId: string,
@@ -30,8 +30,8 @@ export function finalizeStreamingTurn(
       persona_id: turn.personaId,
       invoked_via: null,
       created_at: new Date().toISOString(),
-      // Dedup po toolCallId: invalidate w tle może już przynieść konsultacje z parsowania
-      // historii — nie dublujemy wpisu z live.
+      // Dedup by toolCallId: a background invalidate may already bring consult details
+      // from history parsing — don't duplicate the entry from live.
       consultDetails: dedupeConsultDetails(turn.consultDetails ?? [], old ?? []),
     },
   ]);

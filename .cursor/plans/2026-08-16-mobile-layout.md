@@ -2,24 +2,24 @@
 
 ## Problem
 
-Na telefonach historia czatu nie była widoczna od razu. Pozostałe ekrany: za duży gutter, brak safe area, touch < 44px.
+On phones the chat history was not visible right away. Other screens: too large gutter, lack of safe area, touch < 44px.
 
-## Decyzje
+## Decisions
 
-| Data | Decyzja | Dlaczego |
-|------|---------|----------|
-| 2026-08-16 | Wariant A: zamek viewportu czatu (`dvh` + visualViewport, `main overflow-hidden` tylko na `/chat`, pin historii na dół) | Leczy zgłoszony bug bez zmiany IA |
-| 2026-08-16 | Bez wirtualizacji MessageList w MVP | `estimateSize: 88` psuło first paint |
-| 2026-08-16 | Bottom nav odłożony | Świadoma zmiana IA; nie mieszać z hotfixem wysokości |
-| 2026-08-16 | Safe area + `PAGE_SHELL_CLASS` na pozostałych stronach | Jedna zmiana layoutu naprawia wiele ekranów |
-| 2026-08-16 | `useIsMobile` = szerokość &lt;768 **lub** wysokość &lt;500 | iPhone landscape nie dostaje desktopowego Dialogu / siatki miesiąca |
-| 2026-08-16 | Input/textarea `text-base` na mobile | Safari nie zoomuje przy focusie (font ≥16px) |
-| 2026-08-16 | `ResponsiveDialog`: jeden scroll, footer shrink-0 + safe area | Klawiatura nie chowa Zapisz |
+| Date | Decision | Why |
+|------|---------|-----|
+| 2026-08-16 | Variant A: lock the chat viewport (`dvh` + visualViewport, `main overflow-hidden` only on `/chat`, pin history at the bottom) | Fixes the reported bug without changing IA |
+| 2026-08-16 | No MessageList virtualization in MVP | `estimateSize: 88` broke first paint |
+| 2026-08-16 | Bottom nav deferred | Conscious IA change; not mixed with the height hotfix |
+| 2026-08-16 | Safe area + `PAGE_SHELL_CLASS` on the remaining pages | One layout change fixes many screens |
+| 2026-08-16 | `useIsMobile` = width <768 **or** height <500 | iPhone landscape doesn't get a desktop Dialog / month grid |
+| 2026-08-16 | Input/textarea `text-base` on mobile | Safari doesn't zoom on focus (font ≥16px) |
+| 2026-08-16 | `ResponsiveDialog`: one scroll, footer shrink-0 + safe area | Keyboard doesn't hide Save |
 
 ## Given / When / Then
 
-- Given otwarta sesja z historią na telefonie, When user wchodzi na `/chat/:id`, Then ostatnie wiadomości są w kadrze, pole Wyślij widoczne.
-- Given klawiatura iOS/Android, When user focusuje composer, Then layout kurczy się z visualViewport, historia zostaje nad klawiaturą.
-- Given `/plans` / `/results` / `/personas` / `/profile` / `/settings`, When user scrolluje, Then treść nie jest obcięta przez home indicator.
-- Given iPhone landscape, When user otwiera formularz persony, Then widzi Sheet (nie wyśrodkowany Dialog).
-- Given focus w polu czatu na iOS, When pojawia się klawiatura, Then strona nie zoomuje (font ≥16px).
+- Given an open session with history on phone, When the user enters `/chat/:id`, Then the latest messages are in frame, the Send field is visible.
+- Given iOS/Android keyboard, When the user focuses the composer, Then the layout shrinks with visualViewport, history stays above the keyboard.
+- Given `/plans` / `/results` / `/personas` / `/profile` / `/settings`, When the user scrolls, Then content is not cut off by the home indicator.
+- Given iPhone landscape, When the user opens a persona form, Then they see a Sheet (not a centered Dialog).
+- Given focus in a chat field on iOS, When the keyboard appears, Then the page doesn't zoom (font ≥16px).

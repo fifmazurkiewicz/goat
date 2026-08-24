@@ -2,8 +2,8 @@ import { UserProfileForm } from "@/components/profile/UserProfileForm";
 import { PAGE_SHELL_CLASS, PAGE_TITLE_CLASS } from "@/lib/layout";
 
 /**
- * `/profile` — podgląd i ręczna edycja `user_profile` (ADR-11).
- * Główna ścieżka uzupełniania pozostaje konwersacyjna (`update_user_profile` w czacie).
+ * `/profile` — view and manual edit of `user_profile` (ADR-11).
+ * The main path for filling in data remains conversational (`update_user_profile` in chat).
  */
 export default function ProfilePage() {
   return (

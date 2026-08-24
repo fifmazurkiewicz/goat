@@ -1,4 +1,4 @@
-"""Widoczność konsultacji — `question` w tool response + SSE `consult_detail`."""
+"""Consult transparency — `question` in tool response + SSE `consult_detail`."""
 
 from __future__ import annotations
 
@@ -53,7 +53,7 @@ def _patch_handle(
 
 @pytest.mark.asyncio
 async def test_consult_ok_response_includes_question(monkeypatch: pytest.MonkeyPatch) -> None:
-    """GWT-1 (backend): persystowany tool response niesie pytanie Goata."""
+    """GWT-1 (backend): persisted tool response carries Goat's question."""
     orch = _consult_orch()
     _patch_handle(monkeypatch, orch, (True, "Plyometria 2x."))
     orch._consult_user_queue = None
@@ -71,8 +71,8 @@ async def test_consult_ok_response_includes_question(monkeypatch: pytest.MonkeyP
 async def test_consult_detail_event_after_tool_result(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Live: `consult_detail` emitowany z `_execute_tool_calls`, PO `tool_result`."""
-    from tests.test_consult_persona import _P as _LegacyP  # noqa: F401  (wzorzec)
+    """Live: `consult_detail` emitted from `_execute_tool_calls`, AFTER `tool_result`."""
+    from tests.test_consult_persona import _P as _LegacyP  # noqa: F401  (pattern reference)
 
     orch = _consult_orch()
     held = {"depth": 0}
@@ -125,11 +125,11 @@ async def test_consult_detail_event_after_tool_result(
 
 
 def test_consult_detail_not_emitted_on_error() -> None:
-    """GWT-3: błąd konsultacji nie tworzy załącznika."""
+    """GWT-3: consult failure does not create an attachment."""
     body = json.dumps({"error": "Brak aktywnej persony o slugu 'x'."}, ensure_ascii=False)
     payload = _tool_result_event_payload("consult_persona", body)
     assert payload["success"] is False
-    # Emisja consult_detail warunkowana `status == ok` — error JSON jej nie spełnia.
+    # `consult_detail` emission conditioned on `status == ok` — error JSON does not satisfy it.
     parsed = json.loads(body)
     assert parsed.get("status") != "ok"
 
@@ -138,7 +138,7 @@ def test_consult_detail_not_emitted_on_error() -> None:
 async def test_consult_execute_skips_consult_detail_when_emit_sse_false(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Konsultacje bez SSE (nested handle_message) nie emitują consult_detail."""
+    """Consults without SSE (nested handle_message) do not emit consult_detail."""
     orch = _consult_orch()
 
     @asynccontextmanager

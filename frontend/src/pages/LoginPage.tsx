@@ -13,9 +13,9 @@ import { useApiHealthStore } from "@/store/useApiHealthStore";
 import { useAuthStore } from "@/store/useAuthStore";
 
 /**
- * Publiczna strona logowania.
- * Lokalnie (`VITE_ENABLE_DEV_LOGIN=true`): email/hasło przez backend.
- * Produkcja: wyłącznie Google OAuth przez Supabase Auth (ADR-5).
+ * Public login page.
+ * Locally (`VITE_ENABLE_DEV_LOGIN=true`): email/password through backend.
+ * Production: Google OAuth via Supabase Auth only (ADR-5).
  */
 export default function LoginPage() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated());

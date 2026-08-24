@@ -1,8 +1,8 @@
-"""Pydantic DTO dla API `/personas` — kolumny zgodne z docs/technical/database-schema.md.
+"""Pydantic DTOs for the `/personas` API — columns per docs/technical/database-schema.md.
 
-`moderation_checked_prompt_hash` i `preamble_version` to szczegóły wewnętrzne warstwy
-moderacji (security.md) — `preamble_version` jest zwracany w `PersonaOut` dla debugowania/
-UI (np. baner "wymaga re-checku"), hash pozostaje wyłącznie wewnętrzny (nigdy w DTO).
+`moderation_checked_prompt_hash` and `preamble_version` are internal moderation layer
+details (security.md) — `preamble_version` is returned in `PersonaOut` for
+debugging/UI (e.g. "requires re-check" banner), the hash stays internal only (never in DTO).
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ ModerationStatus = Literal["pending", "approved", "rejected"]
 
 
 class TemplateOverrides(BaseModel):
-    """Kształt `personas.template_overrides` — `{"columns":[...]}` (database-schema.md)."""
+    """Shape of `personas.template_overrides` — `{"columns":[...]}` (database-schema.md)."""
 
     columns: list[str] = Field(min_length=1, max_length=8)
 
@@ -45,21 +45,21 @@ class TemplateOverrides(BaseModel):
 class PersonaBase(BaseModel):
     type: PersonaType
     name: str = Field(min_length=1, max_length=100)
-    # WYŁĄCZNIE sekcja edytowalna usera — platform preambuł jest doklejany server-side,
-    # nigdy zapisywany tutaj (security.md sekcja 1, warstwa A).
+    # ONLY the user-editable section — the platform preamble is appended server-side,
+    # never stored here (security.md section 1, layer A).
     system_prompt: str = Field(min_length=1, max_length=4000)
     detail_level: DetailLevel = "simple"
     custom_result_category: str | None = None
     is_shared: bool = False
-    # `persona_constraints` celowo NIE jest w DTO API — pole systemowe/operatorskie
-    # (ai-pipeline.md); żyje w DB i jest czytane tylko server-side (chat/plan).
+    # `persona_constraints` is INTENTIONALLY NOT in the API DTO — a system / operator
+    # field (ai-pipeline.md); it lives in DB and is only read server-side (chat/plan).
 
 
 class PersonaCreate(PersonaBase):
     base_template_id: str | None = None
     plan_template_id: str | None = None
-    # Walidowane (schema-level, dodatkowo do przyszłej walidacji semantycznej w
-    # PersonaService) PRZED zapisem — fail fast, patrz database-schema.md.
+    # Validated (schema-level, in addition to future semantic validation in
+    # PersonaService) BEFORE write — fail fast, see database-schema.md.
     template_overrides: TemplateOverrides | None = None
 
     @model_validator(mode="after")
@@ -70,11 +70,11 @@ class PersonaCreate(PersonaBase):
 
 
 class PersonaUpdate(BaseModel):
-    """Wszystkie pola opcjonalne — semantyka PATCH.
+    """All fields optional — PATCH semantics.
 
-    Edycja `system_prompt` invaliduje `moderation_checked_prompt_hash` i wymaga
-    recheck moderacji przed zapisem (security.md warstwa B, ADR-4) — ta logika żyje
-    w `PersonaService`/`ModerationService`, nie w tym DTO.
+    Editing `system_prompt` invalidates `moderation_checked_prompt_hash` and requires
+    a moderation re-check before writing (security.md layer B, ADR-4) — that logic
+    lives in `PersonaService`/`ModerationService`, not in this DTO.
     """
 
     name: str | None = Field(default=None, min_length=1, max_length=100)
@@ -111,14 +111,14 @@ class PersonaShareUpdate(BaseModel):
 
 
 class PersonasListOut(BaseModel):
-    """`GET /api/v1/personas` — lista + limit aktywnych z `profiles` (ADR-12)."""
+    """`GET /api/v1/personas` — list + active limit from `profiles` (ADR-12)."""
 
     items: list[PersonaOut]
     max_active_personas: int
 
 
 class PersonaTemplateOut(BaseModel):
-    """`GET /api/v1/persona-templates` — gotowce person (read-only seed)."""
+    """`GET /api/v1/persona-templates` — persona templates (read-only seed)."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -130,7 +130,7 @@ class PersonaTemplateOut(BaseModel):
 
 
 class PlanTemplateOut(BaseModel):
-    """`GET /api/v1/plan-templates` — gotowce struktury dnia (read-only seed)."""
+    """`GET /api/v1/plan-templates` — day structure templates (read-only seed)."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -142,7 +142,7 @@ class PlanTemplateOut(BaseModel):
     created_at: datetime
 
 
-# ============ Profil użytkownika (biometria) — patrz database-schema.md, ai-pipeline.md §0, ADR-11 ============
+# ============ User profile (biometrics) — see database-schema.md, ai-pipeline.md §0, ADR-11 ============
 
 Sex = Literal["male", "female", "other"]
 ActivityLevel = Literal["sedentary", "light", "moderate", "active", "very_active"]
@@ -150,9 +150,9 @@ PrimaryGoal = Literal[
     "lose_weight", "build_muscle", "improve_endurance", "general_health", "sport_specific"
 ]
 
-# Pola uznane za "krytyczne" dla personalizacji — używane przez ContextBuilder do
-# wykrycia niekompletności profilu i doklejenia instrukcji "dopytaj o brakujące dane"
-# (ai-pipeline.md §0). `notes` i `sex` celowo NIE są krytyczne (opcjonalny kontekst).
+# Fields considered "critical" for personalization — used by ContextBuilder to detect
+# incomplete profile and append the "ask about missing data" instruction
+# (ai-pipeline.md §0). `notes` and `sex` are intentionally NOT critical (optional context).
 CRITICAL_PROFILE_FIELDS: tuple[str, ...] = (
     "height_cm",
     "weight_kg",
@@ -163,13 +163,14 @@ CRITICAL_PROFILE_FIELDS: tuple[str, ...] = (
 
 
 class UserProfileUpdate(BaseModel):
-    """Argumenty narzędzia `update_user_profile` ORAZ ciało `PATCH /api/v1/profile`
-    (ten sam kształt — obie ścieżki, konwersacyjna i formularz, piszą to samo).
+    """Arguments for the `update_user_profile` tool AND body of `PATCH /api/v1/profile`
+    (same shape — both paths, conversational and form, write the same thing).
 
-    Wszystkie pola opcjonalne — częściowa aktualizacja, tylko podane pola są nadpisywane.
-    Walidacja zakresów zgodna z CHECK constraints w `supabase/migrations/0002_user_profile.sql`
-    — zduplikowana świadomie po stronie Pydantic, żeby błąd wracał do modelu jako czytelny
-    tool response PRZED uderzeniem w bazę (ai-pipeline.md §0), nie jako surowy błąd SQL.
+    All fields optional — partial update, only the given fields are overwritten.
+    Range validation matches the CHECK constraints in
+    `supabase/migrations/0002_user_profile.sql` — intentionally duplicated on the
+    Pydantic side so the error returns to the model as a readable tool response
+    BEFORE hitting the DB (ai-pipeline.md §0), not as a raw SQL error.
     """
 
     height_cm: float | None = Field(default=None, ge=100, le=250)
@@ -196,16 +197,17 @@ class UserProfileOut(BaseModel):
 
     @property
     def missing_critical_fields(self) -> list[str]:
-        """Używane przez `ContextBuilder` (ai-pipeline.md §0) do zbudowania instrukcji
-        "dopytaj o brakujące dane" — znika automatycznie z promptu, gdy lista jest pusta."""
+        """Used by `ContextBuilder` (ai-pipeline.md §0) to build the
+        "ask about missing data" instruction — disappears automatically from the
+        prompt when the list is empty."""
         return [field for field in CRITICAL_PROFILE_FIELDS if getattr(self, field) is None]
 
 
-# ============ Admin — limit person per konto (ADR-12) ============
+# ============ Admin — personas limit per account (ADR-12) ============
 
 
 class DeployInfoOut(BaseModel):
-    """`GET /api/v1/admin/deploy-info` — semver aplikacji + metadane commita deployu."""
+    """`GET /api/v1/admin/deploy-info` — app semver + deploy commit metadata."""
 
     component: Literal["api"] = "api"
     app_version: str
@@ -218,20 +220,20 @@ class DeployInfoOut(BaseModel):
 
 
 class PersonaLimitUpdate(BaseModel):
-    """Ciało `PATCH /api/v1/admin/users/{user_id}/persona-limit`.
+    """Body of `PATCH /api/v1/admin/users/{user_id}/persona-limit`.
 
-    Zakres 0-50 zgodny z `CHECK` w `supabase/migrations/0003_persona_limit_per_account.sql`
-    — walidacja tutaj jest szybszym, czytelniejszym feedbackiem dla admina, NIE jedyną
-    barierą (baza pozostaje ostateczną linią obrony, tak jak przy `log_result`)."""
+    Range 0-50 per `CHECK` in `supabase/migrations/0003_persona_limit_per_account.sql`
+    — validation here is faster, more readable feedback for the admin, NOT the only
+    barrier (the DB remains the last line of defense, just like `log_result`)."""
 
     max_active_personas: int = Field(ge=0, le=50)
 
 
 class AdminUserOut(BaseModel):
-    """`GET /api/v1/admin/users` — widok admina na konto usera (nie mylić z `PersonaOut`).
+    """`GET /api/v1/admin/users` — admin view of a user account (don't confuse with `PersonaOut`).
 
-    `cost_usd_used`/`usage_budget_usd` pokazywane WPROST jako kwota, BEZ etykiet
-    "Free"/"Pro" (ADR-16) — `email` z `auth.users` (Supabase Admin API), nie z `profiles`."""
+    `cost_usd_used`/`usage_budget_usd` shown DIRECTLY as an amount, WITHOUT "Free"/"Pro"
+    labels (ADR-16) — `email` from `auth.users` (Supabase Admin API), not from `profiles`."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -245,16 +247,16 @@ class AdminUserOut(BaseModel):
 
 
 class UsageBudgetUpdate(BaseModel):
-    """Ciało `PATCH /api/v1/admin/users/{user_id}/usage-budget` (ADR-16) — wzorzec
-    identyczny jak `PersonaLimitUpdate`."""
+    """Body of `PATCH /api/v1/admin/users/{user_id}/usage-budget` (ADR-16) — same
+    pattern as `PersonaLimitUpdate`."""
 
     usage_budget_usd: float = Field(ge=0, le=1000)
 
 
 class PasswordResetOut(BaseModel):
-    """`POST /api/v1/admin/users/{user_id}/reset-password` — hasło tymczasowe do
-    JEDNORAZOWEGO wyświetlenia adminowi (nigdy nie logowane/persystowane poza tym
-    response), patrz `app/core/supabase_admin.py`."""
+    """`POST /api/v1/admin/users/{user_id}/reset-password` — temporary password for
+    ONE-TIME display to the admin (never logged/persisted beyond this response),
+    see `app/core/supabase_admin.py`."""
 
     temporary_password: str
 
@@ -285,7 +287,7 @@ class DevLoginResponse(BaseModel):
     email: str
 
 
-# ============ Konto — nick (ADR-15, oddzielne od /profile — biometria) ============
+# ============ Account — nick (ADR-15, separate from /profile — biometrics) ============
 
 
 class AccountOut(BaseModel):
@@ -304,7 +306,7 @@ class AccountUpdate(BaseModel):
 
 
 class UsageLimitsOut(BaseModel):
-    """`GET /api/v1/usage` — budżet + zużycie bieżącego okresu (badge 90% na FE)."""
+    """`GET /api/v1/usage` — budget + current period consumption (90% badge on FE)."""
 
     user_id: str
     period_start: date
@@ -316,7 +318,7 @@ class UsageLimitsOut(BaseModel):
     usage_budget_usd: float
 
 
-# ============ Katalog ćwiczeń (ADR-14) ============
+# ============ Exercise catalog (ADR-14) ============
 
 ExerciseLevel = Literal["beginner", "intermediate", "advanced"]
 
@@ -337,7 +339,7 @@ class ExerciseOut(BaseModel):
     photo_path: str | None = None
 
 
-# ============ Wyniki (`/results`, database-schema.md, ADR-9) ============
+# ============ Results (`/results`, database-schema.md, ADR-9) ============
 
 ResultCategory = Literal["strength", "diet", "swimming", "triathlon", "badminton", "custom"]
 ResultSource = Literal["agent", "manual"]
@@ -378,9 +380,9 @@ class ResultOut(BaseModel):
     created_at: datetime
 
 
-# ============ `log_result` tool — walidacja argumentów LLM (ai-pipeline.md §2, ADR-6) ============
-# Niezaufany input mimo że pochodzi z "naszego" modelu (security.md §3) — walidacja Pydantic
-# PRZED jakimkolwiek zapisem, oddzielnie per-entry (częściowy sukces batcha).
+# ============ `log_result` tool — LLM argument validation (ai-pipeline.md §2, ADR-6) ============
+# Untrusted input even though it comes from "our" model (security.md §3) — Pydantic
+# validation BEFORE any write, separately per entry (partial batch success).
 
 
 class LogResultEntry(BaseModel):
@@ -404,8 +406,8 @@ InvokedVia = Literal["auto_routed", "slash_command", "multi_slash"]
 
 
 class ChatSessionCreate(BaseModel):
-    """`persona_id=None` -> sesja `general` (auto-routing, ADR-13); podane -> sesja
-    `persona` (1:1, bez zmian względem pierwotnego zachowania)."""
+    """`persona_id=None` -> `general` session (auto-routing, ADR-13); given -> `persona`
+    session (1:1, no change from the original behavior)."""
 
     persona_id: str | None = None
     title: str | None = Field(default=None, max_length=200)
@@ -439,8 +441,8 @@ class ChatMessageOut(BaseModel):
     session_id: str
     role: ChatRole
     content: str | None = None
-    # Widoczność konsultacji (2026-08-22): FE paruje `role='tool'` z wywołaniami
-    # `consult_persona` w poprzedzającej wiadomości Goata po tool_call_id.
+    # Consultation visibility (2026-08-22): the FE pairs `role='tool'` with
+    # `consult_persona` invocations in the preceding Goat message by tool_call_id.
     tool_calls: dict[str, Any] | list[dict[str, Any]] | None = None
     persona_id: str | None = None
     invoked_via: InvokedVia | None = None
@@ -449,12 +451,12 @@ class ChatMessageOut(BaseModel):
 
 class ChatSendMessage(BaseModel):
     content: str = Field(min_length=1, max_length=4000)
-    # Ponowienie po urwanym SSE — nie wstawiaj drugi raz tej samej wiadomości usera
-    # (frontend.md: "Wyślij ponownie" = nowy request, historia usera już w DB).
+    # Retry after broken SSE — don't insert the same user message twice
+    # (frontend.md: "Send again" = new request, user history is already in DB).
     retry: bool = False
 
 
-# ============ Plany (`/plans`, architecture.md §4, ADR-1/2) ============
+# ============ Plans (`/plans`, architecture.md §4, ADR-1/2) ============
 
 PlanPeriodType = Literal["week", "month"]
 PlanStatus = Literal["generating", "ready", "partial_ready", "error"]
@@ -468,8 +470,8 @@ class PlanGenerateRequest(BaseModel):
 
 
 class PlanItemContent(BaseModel):
-    """Kształt `plan_items.content` (jsonb) — ZAMROŻONY snapshot w momencie generowania,
-    nigdy live-ref do `plan_templates`/`personas.template_overrides`."""
+    """Shape of `plan_items.content` (jsonb) — a FROZEN snapshot at generation time,
+    never a live ref to `plan_templates`/`personas.template_overrides`."""
 
     title: str
     columns: list[str]
@@ -504,7 +506,7 @@ class PlanOut(BaseModel):
 
 
 class PlanSummaryOut(BaseModel):
-    """Metadane planu bez `items` — kontrakt `GET /plans?start_date=&end_date=`."""
+    """Plan metadata without `items` — contract for `GET /plans?start_date=&end_date=`."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -548,5 +550,5 @@ class PlanGenerationJobOut(BaseModel):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def job_id(self) -> str:
-        """Alias dla frontendu (kontrakt historyczny używał `job_id` zamiast `id`)."""
+        """Alias for the frontend (historical contract used `job_id` instead of `id`)."""
         return self.id

@@ -10,8 +10,8 @@ interface ApiStatusLampProps {
 }
 
 /**
- * Kropka statusu API — tylko gdy backend się budzi albo leży (ADR-19).
- * Hover / tap pokazuje krótki tekst. Po wybudzeniu rodzic podaje `hidden`.
+ * API status dot — only when the backend is waking up or down (ADR-19).
+ * Hover/tap shows a short text. After the backend is awake the parent passes `hidden`.
  */
 export function ApiStatusLamp({ lamp, onRetry }: ApiStatusLampProps) {
   const [open, setOpen] = useState(false);

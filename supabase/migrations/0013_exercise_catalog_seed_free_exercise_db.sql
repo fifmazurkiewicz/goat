@@ -1,9 +1,9 @@
--- Wygenerowany seed: import free-exercise-db (yuhonas/free-exercise-db, Unlicense).
--- Generator: scripts/import_free_exercise_db.py; pin SHA datasetu: b0eed061e1c832b3ed815fbaa4b45b3cdc14df49
--- NIE EDYTUJ RĘCZNIE — treść regenerowalna (re-import: DELETE WHERE source='free_exercise_db', potem rerun).
--- Uruchomić po 0012_exercise_catalog_source_nullable.sql. Idempotentny (ON CONFLICT DO NOTHING);
--- ręcznie kuratorowane wpisy (source='manual') pozostają nietknięte.
--- photo_path = ścieżka w buckecie exercise-photos (nie pełny URL — API/FE składa publiczny adres).
+-- Generated seed: import of free-exercise-db (yuhonas/free-exercise-db, Unlicense).
+-- Generator: scripts/import_free_exercise_db.py; dataset SHA pin: b0eed061e1c832b3ed815fbaa4b45b3cdc14df49
+-- DO NOT EDIT BY HAND — content is regeneratable (re-import: DELETE WHERE source='free_exercise_db', then rerun).
+-- Run after 0012_exercise_catalog_source_nullable.sql. Idempotent (ON CONFLICT DO NOTHING);
+-- manually curated entries (source='manual') remain untouched.
+-- photo_path = path inside the exercise-photos bucket (not a full URL — API/FE compose the public address).
 
 insert into public.exercises
   (slug, name, name_en, persona_type, level, categories, short_description, detail_full, common_mistakes, photo_path, source)

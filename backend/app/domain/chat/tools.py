@@ -1,15 +1,15 @@
-"""Definicje narzędzi (tool calling) dostępnych dla `chat_model` w każdej rozmowie.
+"""Tool definitions (tool calling) available for `chat_model` in every conversation.
 
-Dwa narzędzia, ta sama klasa wzorca (batch/częściowa aktualizacja, walidacja Pydantic,
-błąd wraca do modelu jako tool response — NIGDY wyjątek/500):
-- `log_result` — batch zapisu wyników (ai-pipeline.md sekcja 2).
-- `update_user_profile` — częściowa aktualizacja profilu biometrycznego (ai-pipeline.md
-  sekcja 0, ADR-11). Dostępne dla KAŻDEJ persony, nie tylko dietetyka/trenera — user może
-  podać wagę w rozmowie z dowolną personą.
+Two tools, same pattern class (batch/partial update, Pydantic validation, error returns
+to the model as a tool response — NEVER an exception/500):
+- `log_result` — batch result logging (ai-pipeline.md section 2).
+- `update_user_profile` — partial biometric profile update (ai-pipeline.md section 0,
+  ADR-11). Available for EVERY persona, not only dietitian/trainer — user can give
+  weight in a conversation with any persona.
 
-Schematy w formacie OpenRouter/OpenAI `tools=[...]` (function calling) — przekazywane
-wprost do `ChatOrchestrator`/`app/llm/openrouter_client.py`, jeszcze niezaimplementowane
-(patrz `app/domain/chat/orchestrator.py`).
+Schemas in OpenRouter/OpenAI `tools=[...]` (function calling) format — passed directly
+to `ChatOrchestrator`/`app/llm/openrouter_client.py`, not yet implemented (see
+`app/domain/chat/orchestrator.py`).
 """
 
 from __future__ import annotations
@@ -252,7 +252,7 @@ CONSULT_PERSONA_TOOL_SCHEMA: dict[str, Any] = {
 
 
 def get_chat_tools() -> list[dict[str, Any]]:
-    """Narzędzia dostępne dla `chat_model` w KAŻDEJ rozmowie (persona i general)."""
+    """Tools available for `chat_model` in EVERY conversation (persona and general)."""
     return [
         LOG_RESULT_TOOL_SCHEMA,
         UPDATE_USER_PROFILE_TOOL_SCHEMA,
@@ -263,7 +263,7 @@ def get_chat_tools() -> list[dict[str, Any]]:
 
 
 def get_trainer_chat_tools() -> list[dict[str, Any]]:
-    """Trenerzy — bez rebuild_plan (harmonizację uruchamia Goat)."""
+    """Trainers — without rebuild_plan (harmonization is triggered by Goat)."""
     return [
         t
         for t in get_chat_tools()
@@ -284,10 +284,10 @@ TEAM_LEAD_CHAT_TOOL_NAMES = frozenset(
 
 
 def get_team_lead_plan_tools() -> list[dict[str, Any]]:
-    """Goat (kierownik) — plan (upsert dowolnej persony), profil oraz `log_result`.
+    """Goat (team lead) — plan (upsert for any persona), profile, and `log_result`.
 
-    Wyniki zaraportowane w sesji `general` trafiają do Goata, nie do trenera — zapisuje je
-    sam z `source_persona_id=NULL` (spec 2026-08-17, nowelizacja ADR-17).
+    Results reported in a `general` session go to Goat, not to a trainer — it writes
+    them itself with `source_persona_id=NULL` (spec 2026-08-17, ADR-17 revision).
     """
     return [
         t
@@ -297,10 +297,10 @@ def get_team_lead_plan_tools() -> list[dict[str, Any]]:
 
 
 def build_profile_intake_instruction(profile: UserProfileOut | None) -> str | None:
-    """Dynamiczny segment system promptu (ai-pipeline.md sekcja 0) — `None` gdy profil
-    kompletny (nic do doklejenia). Wołane przez `ContextBuilder` przy KAŻDEJ wiadomości,
-    nie tylko pierwszej — instrukcja znika sama, gdy dane się uzupełnią, bez potrzeby
-    śledzenia "czy to już było pytane".
+    """Dynamic system prompt segment (ai-pipeline.md section 0) — `None` when the
+    profile is complete (nothing to append). Called by `ContextBuilder` on EVERY
+    message, not only the first — the instruction disappears on its own when data is
+    filled in, without needing to track "has this already been asked".
     """
     missing = list(CRITICAL_PROFILE_FIELDS) if profile is None else profile.missing_critical_fields
     if not missing:

@@ -5,13 +5,13 @@ import { PlanItemTable } from "@/components/plans/PlanItemTable";
 import type { PlanItemContent } from "@/types/api";
 
 describe("PlanItemTable", () => {
-  it("renderuje komunikat, gdy brak wierszy", () => {
+  it("renders an empty-state message when there are no rows", () => {
     const content: PlanItemContent = { title: "Trening", columns: ["Ćwiczenie", "Serie"], rows: [], notes: null };
     render(<PlanItemTable content={content} variant="table" />);
     expect(screen.getByText("Brak pozycji do wyświetlenia.")).toBeInTheDocument();
   });
 
-  it("renderuje wariant table z nagłówkami kolumn i wierszami", () => {
+  it("renders the table variant with column headers and rows", () => {
     const content: PlanItemContent = {
       title: "Trening",
       columns: ["Ćwiczenie", "Serie", "Powtórzenia"],
@@ -23,7 +23,7 @@ describe("PlanItemTable", () => {
     expect(screen.getByText("Przysiad")).toBeInTheDocument();
   });
 
-  it("renderuje wariant cards jako listę definicyjną etykieta/wartość", () => {
+  it("renders the cards variant as a definition list of label/value", () => {
     const content: PlanItemContent = {
       title: "Trening",
       columns: ["Ćwiczenie", "Serie"],
@@ -35,7 +35,7 @@ describe("PlanItemTable", () => {
     expect(screen.getByText("Przysiad")).toBeInTheDocument();
   });
 
-  it("obsługuje niedopasowaną długość wiersza względem kolumn (brakujące komórki jako —)", () => {
+  it("handles mismatched row length vs columns (missing cells rendered as —)", () => {
     const content: PlanItemContent = {
       title: "Trening",
       columns: ["Ćwiczenie", "Serie", "Powtórzenia"],
@@ -46,7 +46,7 @@ describe("PlanItemTable", () => {
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 
-  it("renderuje wiersze zapisane jako obiekty (format backendu)", () => {
+  it("renders rows stored as objects (backend format)", () => {
     const content: PlanItemContent = {
       title: "Trening",
       columns: ["Ćwiczenie", "Serie", "Powtórzenia"],
@@ -58,7 +58,7 @@ describe("PlanItemTable", () => {
     expect(screen.getByText("4")).toBeInTheDocument();
   });
 
-  it("obsługuje wiersz dłuższy niż lista kolumn bez wyrzucania błędu (nadmiarowe komórki ignorowane)", () => {
+  it("handles rows longer than the column list without throwing (extra cells ignored)", () => {
     const content: PlanItemContent = {
       title: "Trening",
       columns: ["Ćwiczenie"],

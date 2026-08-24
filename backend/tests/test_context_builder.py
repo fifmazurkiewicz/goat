@@ -1,4 +1,4 @@
-"""Regresja składania kontekstu czatu (preambuł → safety → zachowanie → constraints → profil)."""
+"""Regression test for chat context assembly (preamble → safety → behavior → constraints → profile)."""
 
 from __future__ import annotations
 

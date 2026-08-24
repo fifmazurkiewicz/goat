@@ -16,9 +16,9 @@ interface ResultsTableProps {
 }
 
 /**
- * Tabela z edycją inline i dodawaniem ręcznym (docs/technical/frontend.md sekcja 6).
- * Pierwsza kolumna `sticky left-0` + poziomy scroll (sekcja 11 — dane tabelaryczne
- * czytelniejsze jako tabela nawet przy scrollu, w odróżnieniu od `PlanItemTable`).
+ * Table with inline editing and manual add (docs/technical/frontend.md section 6).
+ * First column `sticky left-0` + horizontal scroll (section 11 — tabular data reads
+ * better as a table even when scrolling, unlike `PlanItemTable`).
  */
 export function ResultsTable({ results, category }: ResultsTableProps) {
   const updateResult = useUpdateResult(category);

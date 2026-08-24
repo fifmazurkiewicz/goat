@@ -16,8 +16,8 @@ interface ResponsiveDialogProps {
 }
 
 /**
- * `Sheet` (bottom) na mobile / niskim ekranie zamiast wyśrodkowanego `Dialog`.
- * Jeden scroller (body), footer przyklejony nad safe area — klawiatura nie gubi Zapisz.
+ * `Sheet` (bottom) on mobile / short screens instead of a centered `Dialog`.
+ * Single scroller (body), footer pinned above the safe area — the keyboard never hides Save.
  */
 export function ResponsiveDialog({ open, onOpenChange, title, description, children, footer, className }: ResponsiveDialogProps) {
   const isMobile = useIsMobile();

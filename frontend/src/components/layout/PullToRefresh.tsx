@@ -12,10 +12,10 @@ interface PullToRefreshProps {
 }
 
 /**
- * Wrapper pull-to-refresh (mobile, spec 2026-08-22) — wskaźnik wysuwa się NAD treścią
- * (transform, bez layout shift). Montowany w AppShell wokół `<Outlet />`, więc działa
- * na wszystkich ekranach. `data-pull-to-refresh` kończy łańcuch scrollerów w hooku.
- * Gest zablokowany gdy tura czatu streamuje się w tle — nie przerywamy SSE.
+ * Pull-to-refresh wrapper (mobile, spec 2026-08-22) — the indicator slides OVER the
+ * content (transform, no layout shift). Mounted in AppShell around `<Outlet />`, so it
+ * works on every screen. `data-pull-to-refresh` ends the scroller chain in the hook.
+ * Gesture is locked while a chat turn streams in the background — we never cut SSE.
  */
 export function PullToRefresh({ children, className }: PullToRefreshProps) {
   const queryClient = useQueryClient();

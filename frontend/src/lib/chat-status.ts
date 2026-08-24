@@ -1,6 +1,6 @@
 /**
- * Mapowanie tooli / faz streamu na czytelne statusy PL (jedna linia w MessageList).
- * Teksty żyją na FE — przy 3+ nowych toolach można przenieść na BE (event `status`).
+ * Mapping of tools / stream phases to readable PL statuses (one line in MessageList).
+ * Texts live on the FE — once we have 3+ new tools, this can move to the BE (`status` event).
  */
 
 export const TOOL_ACTION_LABELS: Record<string, string> = {
@@ -21,7 +21,7 @@ export function toolActionLabel(toolName: string): string {
   return TOOL_ACTION_LABELS[toolName] ?? DEFAULT_TOOL_ACTION;
 }
 
-/** Etykieta chipa tool_result — po polsku, bez surowego identyfikatora. */
+/** tool_result chip label — in Polish, without the raw identifier. */
 export function toolChipLabel(toolName: string): string {
   const labels: Record<string, string> = {
     log_result: "Wynik",
@@ -34,13 +34,13 @@ export function toolChipLabel(toolName: string): string {
   return labels[toolName] ?? "Akcja";
 }
 
-/** "{Persona} analizuje…" — po `persona_turn_start`, przed tokenami/toolami. */
+/** "{Persona} is analyzing…" — after `persona_turn_start`, before tokens/tools. */
 export function personaThinkingStatus(personaLabel: string | null | undefined): string {
   const name = personaLabel?.trim();
   return name ? `${name} analizuje…` : PREPARING_STATUS;
 }
 
-/** "{Persona} zapisuje wynik…" — po `tool_call_start`. */
+/** "{Persona} is saving a result…" — after `tool_call_start`. */
 export function personaToolStatus(
   personaLabel: string | null | undefined,
   toolName: string
@@ -50,18 +50,18 @@ export function personaToolStatus(
   return name ? `${name} ${action}…` : `${action.charAt(0).toUpperCase()}${action.slice(1)}…`;
 }
 
-/** Status startowy przed pierwszym eventem SSE. */
+/** Initial status before the first SSE event. */
 export function initialStreamStatus(sessionType: "general" | "persona" | string): string {
   return sessionType === "general" ? TEAM_STATUS_DEFAULT : PREPARING_STATUS;
 }
 
-/** Kierownik zespołu — przed odpowiedziami trenerów. */
+/** Team lead — before the trainers' replies. */
 export function teamStatusLabel(message: string | null | undefined): string {
   const text = message?.trim();
   return text || TEAM_STATUS_DEFAULT;
 }
 
-/** Normalizacja `tool_call_start` — BE emituje `name`, kontrakt FE `tool_name`. */
+/** Normalizes `tool_call_start` — the BE emits `name`, the FE contract is `tool_name`. */
 export function resolveToolName(event: { tool_name?: unknown; name?: unknown }): string | null {
   if (typeof event.tool_name === "string" && event.tool_name.trim()) return event.tool_name;
   if (typeof event.name === "string" && event.name.trim()) return event.name;

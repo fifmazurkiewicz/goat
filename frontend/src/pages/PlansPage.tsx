@@ -28,9 +28,9 @@ import { usePlanGenerationStore } from "@/store/usePlanGenerationStore";
 const DATE_FORMAT = "yyyy-MM-dd";
 
 /**
- * `activeMonth`/`activeDate` z URL search params (linkowalne) — docs/technical/
- * frontend.md sekcja 5. `PlansPage` NIE inicjuje pollingu generowania — to żyje w
- * AppShell (`usePlanGenerationPolling`), tu tylko czytamy wynikowy stan.
+ * `activeMonth`/`activeDate` from URL search params (linkable) — docs/technical/
+ * frontend.md section 5. `PlansPage` does NOT initiate generation polling — that lives in
+ * AppShell (`usePlanGenerationPolling`); here we only read the resulting state.
  */
 export default function PlansPage() {
   const isMobile = useIsMobile();

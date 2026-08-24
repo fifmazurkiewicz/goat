@@ -14,15 +14,15 @@ interface ChatInputProps {
   isStreaming?: boolean;
   disabled: boolean;
   disabledReason?: string;
-  /** Dropdown "/" tylko w sesji `general` — w sesji `persona` kontekst już wiadomy (ADR-13). */
+  /** "/" dropdown only in `general` sessions — in a `persona` session the context is already known (ADR-13). */
   showSlashAutocomplete: boolean;
   activePersonas: Persona[];
   initialValue?: string;
 }
 
 /**
- * `ChatInput` (dumb) — disabled podczas streamu i przy 429; nasłuchuje na "/" na
- * starcie treści → `PersonaSlashAutocomplete` (docs/technical/frontend.md sekcja 4).
+ * `ChatInput` (dumb) — disabled while streaming and on 429; listens for "/" at the
+ * start of the message → `PersonaSlashAutocomplete` (docs/technical/frontend.md section 4).
  */
 export function ChatInput({
   onSend,

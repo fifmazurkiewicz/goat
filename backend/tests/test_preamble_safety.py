@@ -1,4 +1,4 @@
-"""Skład system promptu: preamble + safety + zachowanie."""
+"""System prompt assembly: preamble + safety + behavior."""
 
 from __future__ import annotations
 

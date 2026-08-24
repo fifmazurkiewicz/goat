@@ -1,5 +1,5 @@
-"""Testy `PersonaService.assert_can_activate_persona` — limit aktywnych person PER KONTO,
-edytowalny przez admina zamiast globalnej stałej (ADR-12)."""
+"""Tests for `PersonaService.assert_can_activate_persona` — per-account active-persona limit,
+editable by admin instead of a global constant (ADR-12)."""
 
 from __future__ import annotations
 
@@ -37,8 +37,8 @@ class _FakeProfilesRepo:
 
 
 class _FakeModerationService:
-    """No-op — `assert_can_activate_persona` nie dotyka moderacji, ale konstruktor
-    `PersonaService` wymaga zależności (DI przez konstruktor, architecture.md §7)."""
+    """No-op — `assert_can_activate_persona` doesn't touch moderation, but
+    `PersonaService`'s constructor requires the dependency (DI via constructor, architecture.md §7)."""
 
     async def check_persona_prompt(self, **kwargs: object) -> None:
         raise NotImplementedError
@@ -51,7 +51,7 @@ async def test_allows_activation_below_custom_limit() -> None:
         moderation_service=_FakeModerationService(),
     )
 
-    await service.assert_can_activate_persona("user-1")  # nie powinno rzucić
+    await service.assert_can_activate_persona("user-1")  # should not raise
 
 
 async def test_blocks_activation_at_custom_limit() -> None:

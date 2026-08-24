@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { parseSseEvent, parseSseEvents } from "@/lib/sse";
 
 describe("parseSseEvent", () => {
-  it("parsuje event token z pojedynczą linią data", () => {
+  it("parses a token event with a single data line", () => {
     const chunk = 'event: token\ndata: {"text":"cześć"}';
     expect(parseSseEvent(chunk)).toEqual({ type: "token", text: "cześć" });
   });
@@ -18,7 +18,7 @@ describe("parseSseEvent", () => {
     });
   });
 
-  it("parsuje persona_turn_start z persona_id null (Goat, ADR-17)", () => {
+  it("parses persona_turn_start with persona_id null (Goat, ADR-17)", () => {
     const chunk =
       'event: persona_turn_start\ndata: {"persona_id":null,"persona_label":"Goat · Kierownik Zespołu"}';
     expect(parseSseEvent(chunk)).toEqual({
@@ -28,7 +28,7 @@ describe("parseSseEvent", () => {
     });
   });
 
-  it("parsuje team_status i team_phase", () => {
+  it("parses team_status and team_phase", () => {
     expect(
       parseSseEvent('event: team_status\ndata: {"message":"Uzgodniam z dietetykiem…"}')
     ).toEqual({ type: "team_status", message: "Uzgodniam z dietetykiem…" });
@@ -43,7 +43,7 @@ describe("parseSseEvent", () => {
     });
   });
 
-  it("parsuje tool_result", () => {
+  it("parses tool_result", () => {
     const chunk =
       'event: tool_result\ndata: {"tool_name":"log_result","summary":"Zapisano sprint 10m: 1.8s","success":true}';
     expect(parseSseEvent(chunk)).toEqual({
@@ -54,38 +54,38 @@ describe("parseSseEvent", () => {
     });
   });
 
-  it("parsuje done bez danych", () => {
+  it("parses done without data", () => {
     const chunk = "event: done\ndata: {}";
     expect(parseSseEvent(chunk)).toEqual({ type: "done" });
   });
 
-  it("scala wielolinijkowe pole data zgodnie ze specyfikacją SSE", () => {
+  it("joins multiline data fields per the SSE specification", () => {
     const chunk = 'event: token\ndata: {"text":"linia1\\nlinia2"}';
     expect(parseSseEvent(chunk)).toEqual({ type: "token", text: "linia1\nlinia2" });
   });
 
-  it("ignoruje linie komentarza (heartbeat ping) i zwraca null", () => {
+  it("ignores comment lines (heartbeat ping) and returns null", () => {
     expect(parseSseEvent(": ping")).toBeNull();
   });
 
-  it("zwraca null dla pustego chunku", () => {
+  it("returns null for an empty chunk", () => {
     expect(parseSseEvent("")).toBeNull();
     expect(parseSseEvent("\n")).toBeNull();
   });
 
-  it("obsługuje malformed JSON jako komunikat błędu, nie rzuca wyjątku", () => {
+  it("treats malformed JSON as an error message, without throwing", () => {
     const chunk = "event: error\ndata: not-json{{{";
     const result = parseSseEvent(chunk);
     expect(result?.type).toBe("error");
     expect((result as { message?: string })?.message).toBe("not-json{{{");
   });
 
-  it("wywnioskowuje typ z payloadu gdy brak linii event:", () => {
+  it("infers the type from the payload when no event: line is present", () => {
     const chunk = 'data: {"type":"tool_call_start","tool_name":"log_result"}';
     expect(parseSseEvent(chunk)).toEqual({ type: "tool_call_start", tool_name: "log_result" });
   });
 
-  it("rozdziela dwa eventy sklejone w jednym chunku bez podwójnego \\n\\n", () => {
+  it("splits two events glued together in one chunk without a double \\n\\n", () => {
     const chunk =
       'event: persona_turn_start\ndata: {"persona_id":"p1","persona_label":"Dietetyk"}\nevent: error\ndata: {"code":"internal_error","message":"Wystąpił nieoczekiwany błąd czatu."}';
     const events = parseSseEvents(chunk);

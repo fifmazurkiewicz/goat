@@ -5,7 +5,7 @@ export const PULL_THRESHOLD_PX = 72;
 export interface UsePullToRefreshOptions {
   onRefresh: () => Promise<unknown> | void;
   threshold?: number;
-  /** Blokada gestu (np. stream czatu w toku) — pociągnięcia są wtedy ignorowane. */
+  /** Locks the gesture (e.g. chat stream in progress) — pulls are then ignored. */
   isLocked?: boolean;
 }
 
@@ -16,10 +16,10 @@ export interface PullToRefreshState {
 
 /**
  * Pull-to-refresh (mobile, touch-only) — spec 2026-08-22-pull-to-refresh-design.md.
- * Pointer events (`pointerType === "touch"`); „czy scroller pod palcem jest na górze"
- * rozstrzygane RAZ na pointerdown (perf — pointermove przychodzi co ~8 ms). Na iOS
- * scroll przejmuje gest przez pointercancel, więc wrapper dołącza też touchmove
- * z warunkowym preventDefault ({passive: false}) — tylko w trakcie aktywnego pulla.
+ * Pointer events (`pointerType === "touch"`); "is the scroller under the finger at the top"
+ * is decided ONCE on pointerdown (perf — pointermove arrives every ~8 ms). On iOS
+ * scroll takes over the gesture via pointercancel, so the wrapper also attaches touchmove
+ * with a conditional preventDefault ({passive: false}) — only during an active pull.
  */
 export function usePullToRefresh({ onRefresh, threshold = PULL_THRESHOLD_PX, isLocked = false }: UsePullToRefreshOptions) {
   const [state, setState] = useState<PullToRefreshState>({ pullDistance: 0, isRefreshing: false });
@@ -29,8 +29,8 @@ export function usePullToRefresh({ onRefresh, threshold = PULL_THRESHOLD_PX, isL
   stateRef.current = state;
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // iOS Safari: bez preventDefault na touchmove scroll wygra i wyśle pointercancel,
-  // zanim pull osiągnie próg. Aktywne tylko gdy trzymamy aktywny pull (pullDistance > 0).
+  // iOS Safari: without preventDefault on touchmove, scroll wins and sends pointercancel,
+  // before the pull reaches the threshold. Active only while we hold an active pull (pullDistance > 0).
   useEffect(() => {
     const node = containerRef.current;
     if (!node) return;
@@ -73,7 +73,7 @@ export function usePullToRefresh({ onRefresh, threshold = PULL_THRESHOLD_PX, isL
       if (!start.canPull) return;
       const dy = e.clientY - start.y;
       const dx = Math.abs(e.clientX - start.x);
-      // Poziomy swipe albo ruch w górę → gest anulowany do następnego dotyku (GWT-2/6).
+      // Horizontal swipe or upward movement → gesture canceled until next touch (GWT-2/6).
       if (dy <= 0 || dx > dy) {
         start.canPull = false;
         setPull(0);
@@ -109,7 +109,7 @@ export function usePullToRefresh({ onRefresh, threshold = PULL_THRESHOLD_PX, isL
   };
 }
 
-/** Czy żaden scroller między targetem a kontenerem PTR nie jest przewinięty w dół. */
+/** Whether no scroller between the target and the PTR container is scrolled down. */
 function canPullFromTarget(target: Element | null): boolean {
   let node: Element | null = target;
   while (node) {
@@ -119,7 +119,7 @@ function canPullFromTarget(target: Element | null): boolean {
         return false;
       }
     }
-    // Kontener PTR kończy łańcuch — powyżej niego gest i tak nie ma sensu.
+    // The PTR container ends the chain — above it the gesture makes no sense anyway.
     if (node instanceof HTMLElement && node.dataset.pullToRefresh !== undefined) break;
     node = node.parentElement;
   }

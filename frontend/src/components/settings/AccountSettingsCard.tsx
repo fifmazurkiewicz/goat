@@ -17,8 +17,8 @@ const THEME_OPTIONS = [
 ] as const;
 
 /**
- * Nick (input + jawny „Zapisz nick”) + motyw (localStorage, ADR-15).
- * docs/technical/frontend.md sekcja 7a.
+ * Nickname (input + explicit "Save nick") + theme (localStorage, ADR-15).
+ * docs/technical/frontend.md section 7a.
  */
 export function AccountSettingsCard() {
   const { data: account } = useAccount();

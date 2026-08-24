@@ -1,25 +1,25 @@
-# Architektura — Multi-Persona Coaching App
+# Architecture — Multi-Persona Coaching App
 
-## 1. Przegląd
+## 1. Overview
 
-Monorepo: `backend/` (FastAPI, Render), `frontend/` (Vite+React, Vercel), `supabase/migrations/` (jedyne źródło prawdy schematu).
+Monorepo: `backend/` (FastAPI, Render), `frontend/` (Vite+React, Vercel), `supabase/migrations/` (single source of truth for the schema).
 
 ```
 coach-app/
 ├── backend/app/
-│   ├── api/routers/      # personas, chat, results, plans, admin, health — CIENKIE
+│   ├── api/routers/      # personas, chat, results, plans, admin, health — THIN
 │   ├── core/             # config, security (JWT+JWKS), middleware, rate_limit, exceptions
 │   ├── domain/
 │   │   ├── chat/         # ChatOrchestrator, ContextBuilder, routing.py (ChatRoutingService — ADR-13)
-│   │   ├── plans/        # PlanOrchestrator (3-etapowy), jobs runner
+│   │   ├── plans/        # PlanOrchestrator (3-stage), jobs runner
 │   │   ├── personas/     # PersonaService, resolve_persona_columns()
-│   │   ├── moderation/   # ModerationService (klasyfikator + runtime guard)
-│   │   └── usage/        # UsageLimitService (atomic increment+check, budżet USD — ADR-16)
+│   │   ├── moderation/   # ModerationService (classifier + runtime guard)
+│   │   └── usage/        # UsageLimitService (atomic increment+check, USD budget — ADR-16)
 │   ├── llm/
 │   │   ├── openrouter_client.py   # transport (httpx)
-│   │   ├── streaming.py           # parser SSE OpenRoutera -> zdarzenia domenowe
-│   │   └── tool_calling.py        # akumulacja fragmentów tool_call
-│   ├── repositories/     # cała wiedza SQL, jedyne miejsce dotykające DB
+│   │   ├── streaming.py           # OpenRouter SSE parser -> domain events
+│   │   └── tool_calling.py        # accumulating tool_call fragments
+│   ├── repositories/     # all SQL knowledge, the only place touching the DB
 │   └── models/ / schemas/
 ├── frontend/src/
 │   ├── pages/  ├── components/  ├── lib/  └── store/
@@ -27,25 +27,25 @@ coach-app/
 └── .github/workflows/
 ```
 
-Zasada: routery są cienkie (parsing + wywołanie orkiestratora), cała logika biznesowa żyje w `domain/`, cała wiedza SQL w `repositories/`. Domenowe serwisy to zwykłe klasy Pythona (Protocol dla zależności) — nie znają FastAPI, żeby dało się je testować bez bazy/HTTP.
+Rule: routers are thin (parsing + calling the orchestrator), all business logic lives in `domain/`, all SQL knowledge in `repositories/`. Domain services are plain Python classes (Protocol for dependencies) — they don't know FastAPI, so they can be tested without a database/HTTP.
 
-## 2. Baza danych — dostęp i RLS
+## 2. Database — access and RLS
 
-**SQLAlchemy 2.0 Core** (nie pełny ORM) + `asyncpg` — migracje idą osobnym torem (Supabase CLI, surowy SQL), więc ORM-owe mapowanie relacji/migracji byłoby dublowaniem systemu.
+**SQLAlchemy 2.0 Core** (not full ORM) + `asyncpg` — migrations go on a separate path (Supabase CLI, raw SQL), so ORM-based relation/migration mapping would be duplicating the system.
 
-**RLS przez Supavisor (transaction mode) — konkretny wzorzec:**
+**RLS through Supavisor (transaction mode) — the specific pattern:**
 
-- `NullPool` w `create_async_engine` — pooling robi Supavisor, nie dublujemy go w aplikacji.
-- `connect_args={"statement_cache_size": 0}` — **obowiązkowe**. `asyncpg` domyślnie cache'uje prepared statements po stronie klienta; w trybie transaction Supavisor przydziela inne fizyczne połączenie do każdej transakcji, więc statement przygotowany na jednym backendzie nie istnieje na kolejnym (`prepared statement does not exist`).
-- `SET LOCAL` (nigdy `SET`) + `set_config('request.jwt.claims', json, true)` — ustawiane w tej samej transakcji co zapytania, cofa się automatycznie na `COMMIT`/`ROLLBACK`. `SET` sesyjne przeciekłoby między userami przy współdzielonym fizycznym połączeniu.
-- `service_role` — osobny silnik/DSN, używany **wyłącznie** do Supabase Admin API i `/admin/*`, nigdy jako fallback domyślnej zależności. Endpointy `/admin/*` mają jawną, kodową weryfikację `profiles.is_admin` — ukrycie w UI to nie jest autoryzacja.
-- Format claimów musi być spójny z tym, czego oczekują polityki RLS w migracjach SQL (typowo `auth.uid()` czyta `request.jwt.claims->>'sub'`) — to współdzielony kontrakt między SQL a kodem backendu, udokumentowany w [`database-schema.md`](database-schema.md).
+- `NullPool` in `create_async_engine` — pooling is done by Supavisor, we don't duplicate it in the app.
+- `connect_args={"statement_cache_size": 0}` — **mandatory**. `asyncpg` caches prepared statements client-side by default; in transaction mode Supavisor assigns a different physical connection to each transaction, so a statement prepared on one backend doesn't exist on the next (`prepared statement does not exist`).
+- `SET LOCAL` (never `SET`) + `set_config('request.jwt.claims', json, true)` — set in the same transaction as the queries, auto-undone on `COMMIT`/`ROLLBACK`. Session `SET` would leak between users with a shared physical connection.
+- `service_role` — separate engine/DSN, used **exclusively** for Supabase Admin API and `/admin/*`, never as a fallback default dependency. `/admin/*` endpoints have explicit, in-code verification of `profiles.is_admin` — hiding in the UI is not authorization.
+- Claim format must be consistent with what RLS policies in SQL migrations expect (typically `auth.uid()` reads `request.jwt.claims->>'sub'`) — this is a shared contract between SQL and backend code, documented in [`database-schema.md`](database-schema.md).
 
 ## 3. Chat — SSE + multi-turn tool calling
 
-Backend jest **aktywnym agregatorem**, nie 1:1 tunelem SSE z OpenRoutera do frontendu.
+The backend is an **active aggregator**, not a 1:1 SSE tunnel from OpenRouter to the frontend.
 
-**Implementacja:** `sse-starlette` (`EventSourceResponse`, wbudowany `ping=15` heartbeat — Render proxy zrywa idle SSE connections, heartbeat temu zapobiega). Wzorzec producer/consumer przez `asyncio.Queue`:
+**Implementation:** `sse-starlette` (`EventSourceResponse`, built-in `ping=15` heartbeat — Render proxy breaks idle SSE connections, the heartbeat prevents it). Producer/consumer pattern via `asyncio.Queue`:
 
 ```python
 async def chat_stream_endpoint(request: Request, ...):
@@ -67,7 +67,7 @@ async def chat_stream_endpoint(request: Request, ...):
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=min(15, remaining))
                 except asyncio.TimeoutError:
-                    continue  # sse-starlette samo wyśle ping
+                    continue  # sse-starlette itself will send ping
                 yield event
                 if event["event"] in ("done", "error"):
                     break
@@ -78,140 +78,140 @@ async def chat_stream_endpoint(request: Request, ...):
     return EventSourceResponse(event_generator(), ping=15)
 ```
 
-**Pętla orkiestratora (`run_chat_orchestrator`):**
+**Orchestrator loop (`run_chat_orchestrator`):**
 
-1. `httpx.AsyncClient.stream("POST", ..., tools=[log_result_schema])` do OpenRoutera.
+1. `httpx.AsyncClient.stream("POST", ..., tools=[log_result_schema])` to OpenRouter.
 2. `delta.content` → `queue.put({"event": "token", ...})`.
-3. `delta.tool_calls` (fragmenty: `id`+`name` w pierwszym chunku, `arguments` doklejane kawałkami) → akumulacja w buforze `dict[int, ToolCallBuffer]` keyed po `index`, aż `finish_reason == "tool_calls"`.
-4. Parsowanie JSON argumentów + walidacja Pydantic (**niezaufany input mimo że pochodzi z "naszego" modelu**) → wykonanie `log_result` (batch, patrz [`ai-pipeline.md`](ai-pipeline.md)) → zapis do `results`.
-5. Zapis `assistant` message (z `tool_calls`) + `tool` message (z wynikiem) **w jednej transakcji** — inaczej crash między nimi zostawia niespójną historię.
-6. Kolejny request do OpenRoutera z pełną historią → powtórz aż `finish_reason == "stop"` lub **twardy limit 3-5 rund** (chroni przed pętlą/kosztem).
-7. `queue.put({"event": "tool_result", "data": {"tool_name", "summary", "success"}})` po każdym
-   zapisie — frontend pokazuje inline chip (nie surowy JSON tool response).
+3. `delta.tool_calls` (fragments: `id`+`name` in first chunk, `arguments` glued piece by piece) → accumulate in `dict[int, ToolCallBuffer]` keyed by `index`, until `finish_reason == "tool_calls"`.
+4. Parsing JSON arguments + Pydantic validation (**untrusted input even though it comes from "our" model**) → execute `log_result` (batch, see [`ai-pipeline.md`](ai-pipeline.md)) → save to `results`.
+5. Saving `assistant` message (with `tool_calls`) + `tool` message (with result) **in one transaction** — otherwise a crash between them leaves inconsistent history.
+6. Next request to OpenRouter with full history → repeat until `finish_reason == "stop"` or **hard limit of 3-5 rounds** (protects against loops/cost).
+7. `queue.put({"event": "tool_result", "data": {"tool_name", "summary", "success"}})` after each
+   save — frontend shows an inline chip (not raw JSON tool response).
 
-**Krytyczne — połączenie DB nie może żyć przez cały czas streamu.** Endpoint czatu NIE bierze długożyjącej zależności DB przez `Depends`. Orkiestrator otwiera krótkie transakcje tylko na moment zapisu (per rundę), zwalniając połączenie natychmiast — inaczej przy kilku równoległych czatach (60-90s każdy) szybko wyczerpuje się pula Supavisor.
+**Critical — the DB connection cannot live for the whole stream.** The chat endpoint does NOT take a long-lived DB dependency via `Depends`. The orchestrator opens short transactions only for the moment of save (per round), releasing the connection immediately — otherwise with a few parallel chats (60–90s each) the Supavisor pool exhausts quickly.
 
-**Cancellation:** Przycisk **Zatrzymaj** → `POST /chat/sessions/{id}/cancel` (`cancel_turn` w `turn_registry`) + `AbortController` na FE zamyka SSE i anuluje `orchestrator_task` — przerywa też `httpx.AsyncClient.stream`. Samo rozłączenie SSE (nawigacja poza czat) **nie** anuluje tury — generowanie może kontynuować w tle (`turn_in_progress`). Orkiestrator nie może łapać `asyncio.CancelledError` szerokim `except Exception`.
+**Cancellation:** **Stop** button → `POST /chat/sessions/{id}/cancel` (`cancel_turn` in `turn_registry`) + `AbortController` on FE closes the SSE and cancels `orchestrator_task` — also breaks `httpx.AsyncClient.stream`. Just disconnecting SSE (navigation away from chat) **does not** cancel the turn — generation can continue in the background (`turn_in_progress`). The orchestrator must not catch `asyncio.CancelledError` with a broad `except Exception`.
 
-**Frontend SSE eventy (kontrakt):** `token`, `tool_call_start`, `tool_result`, `consult_detail` (2026-08-22, tylko Goat/`consult_persona` — payload `{tool_call_id, slug, persona_label, question, answer}`; FE renderuje rozwijany podgląd konsultacji pod wiadomością Goata), `done`, `error`, oraz `persona_turn_start` (patrz niżej) — zdefiniowane jako współdzielony JSON Schema/Pydantic model, żeby frontend i backend nie rozjechały się na nazwach pól.
+**Frontend SSE events (contract):** `token`, `tool_call_start`, `tool_result`, `consult_detail` (2026-08-22, only Goat/`consult_persona` — payload `{tool_call_id, slug, persona_label, question, answer}`; FE renders expandable consultation preview under the Goat message), `done`, `error`, and `persona_turn_start` (see below) — defined as a shared JSON Schema/Pydantic model, so frontend and backend don't drift on field names.
 
-### 3a. "Ogólna rozmowa" — Goat + `/slug` (ADR-13 / ADR-17)
+### 3a. "General conversation" — Goat + `/slug` (ADR-13 / ADR-17)
 
-Obok sesji `persona` (1:1) istnieje sesja `general` (`session_type='general'`, `persona_id IS NULL`).
+Alongside the `persona` session (1:1) there is a `general` session (`session_type='general'`, `persona_id IS NULL`).
 
-1. **Bez slashy (2026-08-16):** jedna tura `TeamLeadSpeaker` — user widzi tylko Goata
-   (`persona_id=null`). Ekspert: tool `consult_persona` (slug z rosteru aktywnych person
-   **tego usera**, w tym `custom`; nested `client_visible=false`, bez widocznej wiadomości
-   trenera). Status: `Goat konsultuje z {etykieta}…`. Cap 5 consultów / turę.
-2. **Slash / multi-slash:** `parse_multi_slash_command` — persona(y) bezpośrednio; Goat nie
-   startuje.
-3. **Plan:** Goat woła `rebuild_plan` w swojej turze.
-4. `ContextBuilder`: Goat — pełna historia sesji `general`; trener w consult — kontekst profilu /
-   planu / wyników (historia 1:1 nie jest wymagana w v1).
-5. `done` raz na końcu tury usera.
+1. **Without slashes (2026-08-16):** one `TeamLeadSpeaker` turn — the user sees only Goat
+   (`persona_id=null`). Expert: `consult_persona` tool (slug from the active personas roster
+   **of this user**, including `custom`; nested `client_visible=false`, no visible trainer
+   message). Status: `Goat is consulting with {label}…`. Cap 5 consults / turn.
+2. **Slash / multi-slash:** `parse_multi_slash_command` — persona(s) directly; Goat does not
+   start.
+3. **Plan:** Goat calls `rebuild_plan` in its turn.
+4. `ContextBuilder`: Goat — full `general` session history; trainer in consult — profile / plan /
+   results context (1:1 history not required in v1).
+5. `done` once at the end of the user's turn.
 
-Szczegóły: `docs/technical/team-lead.md`. Spec: `docs/superpowers/specs/2026-08-16-goat-consult-persona-design.md`.
+Details: `docs/technical/team-lead.md`. Spec: `docs/superpowers/specs/2026-08-16-goat-consult-persona-design.md`.
 
-Narzędzia: Goat — `get_plan`, `rebuild_plan`, `update_user_profile`, `consult_persona`; trenerzy —
-`get_plan`, `upsert_plan_items`, `log_result`, profil (**bez** `rebuild_plan` / `consult_persona`). Goat ma te same narzędzia plus `rebuild_plan` i `consult_persona`; jego `log_result` zapisuje z `source_persona_id=NULL` (patrz [team-lead.md](team-lead.md)).
+Tools: Goat — `get_plan`, `rebuild_plan`, `update_user_profile`, `consult_persona`; trainers —
+`get_plan`, `upsert_plan_items`, `log_result`, profile (**without** `rebuild_plan` / `consult_persona`). Goat has the same tools plus `rebuild_plan` and `consult_persona`; its `log_result` saves with `source_persona_id=NULL` (see [team-lead.md](team-lead.md)).
 
-## 4. Generowanie planu — pipeline (decyzja: priorytet to SYNCHRONIZACJA między personami)
+## 4. Plan generation — pipeline (decision: priority is SYNCHRONIZATION between personas)
 
-Generowanie planu ma **przede wszystkim** dawać spójny, zsynchronizowany plan między wszystkimi aktywnymi personami (dieta pod trening, regeneracja uwzględniona, brak konfliktów obciążenia) — to ważniejsze niż maksymalna jakość pojedynczej persony w izolacji. Stąd **trzy etapy**, nie dwa:
+Plan generation **first of all** must produce a consistent, synchronized plan across all active personas (diet matching training, regeneration considered, no load conflicts) — this is more important than maximum quality of a single persona in isolation. Hence **three stages**, not two:
 
 ```
-Etap 1 — COORDINATOR PASS (tani model)
-  Input: aktywne persony (role), ostatnie wyniki, poprzedni plan
-  Output: wspólny szkielet — rozkład dni treningowych/odpoczynku, priorytety,
-          orientacyjne cele (np. cel kaloryczny, dni intensywne vs regeneracyjne)
-  ~500-1000 tok. output, niski koszt
+Stage 1 — COORDINATOR PASS (cheap model)
+  Input: active personas (roles), recent results, previous plan
+  Output: shared skeleton — training/rest day layout, priorities,
+          indicative goals (e.g. calorie target, intense vs recovery days)
+  ~500-1000 tok output, low cost
 
-Etap 2 — PER-PERSONA GENERACJA (PLANNER_MODEL, RÓWNOLEGLE — asyncio.gather)
-  Każda persona dostaje: swój system_prompt + swoje kolumny/detail_level +
-  swoje wyniki + szkielet z etapu 1 jako wspólny kontekst
-  Output: PlanItemContent (draft) dla swoich dni
-  Walidacja + retry PER PERSONA osobno (nie całościowo)
+Stage 2 — PER-PERSONA GENERATION (PLANNER_MODEL, PARALLEL — asyncio.gather)
+  Each persona gets: its own system_prompt + its columns/detail_level +
+  its results + the skeleton from stage 1 as shared context
+  Output: PlanItemContent (draft) for its own days
+  Validation + retry PER PERSONA separately (not for the whole)
 
-Etap 3 — HARMONIZACJA / "zarządca kalendarza" (PLANNER_MODEL)
-  Input: WSZYSTKIE draft plan_items z etapu 2 razem + system prompty person
-  Zadanie: wykryć i skorygować konflikty (np. ciężki trening nóg + długi bieg
-  tego samego dnia, dieta niedopasowana do dnia treningowego, brak odpoczynku),
-  dopisać cross-referencing notes między personami, finalizować kalendarz.
-  Output: TARGETED PATCHE do konkretnych plan_items (nie pełna regeneracja
-  wszystkiego — kontrola kosztu), albo potwierdzenie że draft jest spójny.
+Stage 3 — HARMONIZATION / "calendar steward" (PLANNER_MODEL)
+  Input: ALL draft plan_items from stage 2 together + personas' system prompts
+  Task: detect and correct conflicts (e.g. heavy leg training + long run
+  same day, diet mismatched to training day, lack of recovery),
+  add cross-referencing notes between personas, finalize the calendar.
+  Output: TARGETED PATCHES to specific plan_items (not full regeneration
+  of everything — cost control), or confirmation that the draft is consistent.
 ```
 
-**Uzasadnienie 3 etapów zamiast pojedynczego mega-promptu:** przy 5 personach output dla planu miesięcznego sięga 20-45k tokenów w jednym wywołaniu — realne ryzyko ucięcia JSON w połowie i "rozmycia" jakości dla dalszych person w kolejce. Rozbicie na małe, równoległe wywołania + osobna warstwa harmonizacji daje kontrolowany koszt, tani retry (per persona, nie całość) i **explicit krok odpowiedzialny za spójność międzypersonową**, czego wymaga priorytet "przede wszystkim zsynchronizowane".
+**Why 3 stages instead of a single mega-prompt:** with 5 personas the output for a monthly plan reaches 20–45k tokens in a single call — real risk of cutting off JSON mid-way and "diluting" quality for later personas in the queue. Breaking into small, parallel calls + a separate harmonization layer gives controlled cost, cheap retry (per persona, not whole) and **an explicit step responsible for inter-person consistency**, which the "first of all synchronized" priority requires.
 
-Pojedyncze wywołanie (bez etapu 1 i 3) dopuszczalne tylko przy 1-2 aktywnych personach + plan tygodniowy — tam ryzyko jest niskie i jest to tańsze.
+A single call (without stages 1 and 3) is allowed only with 1–2 active personas + a weekly plan — there the risk is low and it's cheaper.
 
-### Background job — bez osobnego workera na Render
+### Background job — without a separate worker on Render
 
-**Decyzja (potwierdzona):** generowanie planu wykonywane jest w tym samym procesie co web (`BackgroundTasks` FastAPI), **bez** osobnego Render Background Workera. Uzasadnienie i próg migracji w [`devops.md`](devops.md) i [`../adr/decisions.md`](../adr/decisions.md#adr-1).
+**Decision (confirmed):** plan generation runs in the same process as web (FastAPI `BackgroundTasks`), **without** a separate Render Background Worker. Justification and migration threshold in [`devops.md`](devops.md) and [`../adr/decisions.md`](../adr/decisions.md#adr-1).
 
-Model stanu (obsługa partial success — 4/5 person ok, 1 zawiodła nawet po retry):
+State model (handling partial success — 4/5 personas ok, 1 failed even after retry):
 
-- `plan_generation_jobs(id, plan_id, status, error_message, attempts, created_at, started_at, finished_at)` — status: `pending|running|success|partial_success|error`, **pochodna** stanu per-persona.
-- `plan_generation_job_personas(job_id, persona_id, status, retry_count, last_error)` — per-persona granularność.
-- Retry pojedynczej persony **reużywa ten sam `job_id`** (nie tworzy nowego) — inaczej niezmiennik "max 1 aktywny job na usera" (partial unique index w bazie, patrz [`database-schema.md`](database-schema.md)) pęka przy pierwszym partial failure.
-- **Reaper** przy starcie aplikacji (`startup` event): joby `running` starsze niż 5 min → oznacz jako `error` (chroni przed zawieszeniem po restarcie Render). Na MVP reaper **nie wznawia** automatycznie — user klika "generuj ponownie" ręcznie.
-- Frontend polluje `GET /plans/jobs/{id}` z breakdown per-persona; UI obsługuje `partial_success` jako osobny stan (nie binarnie success/error) — pokazuje częściowy plan + baner z listą person, dla których się nie udało, z akcją retry.
+- `plan_generation_jobs(id, plan_id, status, error_message, attempts, created_at, started_at, finished_at)` — status: `pending|running|success|partial_success|error`, **derived** from per-persona state.
+- `plan_generation_job_personas(job_id, persona_id, status, retry_count, last_error)` — per-persona granularity.
+- Retrying a single persona **reuses the same `job_id`** (does not create a new one) — otherwise the invariant "max 1 active job per user" (partial unique index in the DB, see [`database-schema.md`](database-schema.md)) breaks on the first partial failure.
+- **Reaper** on app startup (`startup` event): `running` jobs older than 5 min → mark as `error` (protects against hanging after Render restart). In MVP reaper **does not** auto-resume — user clicks "regenerate" manually.
+- Frontend polls `GET /plans/jobs/{id}` with per-persona breakdown; UI handles `partial_success` as a separate state (not binary success/error) — shows partial plan + banner with the list of personas that failed, with retry action.
 
-### Konkurencja — pułapki asyncio
+### Concurrency — asyncio traps
 
-- `asyncio.gather(*persona_tasks, return_exceptions=True)` dla per-persona retry — **nie** `asyncio.TaskGroup` (anuluje wszystko przy pierwszym wyjątku, odwrotność pożądanego zachowania).
-- Każda coroutine bierze **własne** połączenie DB z puli (`engine.connect()`), nigdy współdzielone między coroutines.
-- `asyncio.Semaphore` ograniczający równoczesne LLM/DB calls, dobrany do limitu Supavisora i planu Render Free.
-- Blokujące operacje (np. tiktoken na dużym tekście) przez `asyncio.to_thread` — Render Free to prawdopodobnie 1 worker uvicorn, blokada zamraża wszystkie aktywne streamy SSE innych userów.
+- `asyncio.gather(*persona_tasks, return_exceptions=True)` for per-persona retry — **not** `asyncio.TaskGroup` (cancels everything on first exception, opposite of the desired behavior).
+- Each coroutine takes **its own** DB connection from the pool (`engine.connect()`), never shared between coroutines.
+- `asyncio.Semaphore` limiting concurrent LLM/DB calls, chosen for the Supavisor limit and the Render Free plan.
+- Blocking operations (e.g. tiktoken on large text) via `asyncio.to_thread` — Render Free is probably 1 uvicorn worker, a block freezes all active SSE streams of other users.
 
-## 5. Kontekst czatu — zarządzanie tokenami
+## 5. Chat context — token management
 
-- **Profil użytkownika (`user_profile`)**: deterministyczny, zwięzły blok (waga/wzrost/wiek/poziom aktywności/cel) doklejany do system promptu przy KAŻDEJ wiadomości — to dane rzadko się zmieniające, tanie do wstrzyknięcia zawsze. Gdy niekompletny, `ContextBuilder` dokleja dodatkowo dynamiczną instrukcję "dopytaj o brakujące dane" — patrz [`ai-pipeline.md`](ai-pipeline.md#0-profil-użytkownika--personalizacja-waga-wzrost-wiek-cel) sekcja 0.
-- **Wyniki (`results`)**: deterministyczne query ostatnich N rekordów per kategoria, **bez** LLM-owej sumaryzacji (niepotrzebny koszt/niedeterminizm).
-- **Historia czatu**: sliding window ostatnich M wiadomości. **Decyzja: bez rolling summary w MVP** — dodać dopiero gdy dane z produkcji pokażą realne ucinanie istotnego kontekstu (data-driven, nie projektowane z góry). Stare wiadomości nigdy nie są kasowane z bazy.
-- **Plan generation bazuje na `results` + poprzednim planie + `user_profile` + `persona_constraints`**, nie na historii/summary czatu (zbyt niedeterministyczne dla 3-etapowego pipeline'u). Twarde ograniczenia zdrowotne (np. kontuzja wspomniana w czacie) i dane biometryczne wymagają osobnego, jawnego mechanizmu — patrz [`ai-pipeline.md`](ai-pipeline.md).
+- **User profile (`user_profile`)**: deterministic, concise block (weight/height/age/activity level/goal) attached to the system prompt on EVERY message — this data rarely changes, cheap to always inject. When incomplete, `ContextBuilder` additionally attaches a dynamic "ask about missing data" instruction — see [`ai-pipeline.md`](ai-pipeline.md#0-profil-użytkownika--personalizacja-waga-wzrost-wiek-cel) section 0.
+- **Results**: deterministic query of the last N records per category, **without** LLM summarization (unnecessary cost/non-determinism).
+- **Chat history**: sliding window of the last M messages. **Decision: no rolling summary in MVP** — only add when production data shows real cutting of important context (data-driven, not designed up-front). Old messages are never deleted from the DB.
+- **Plan generation is based on `results` + previous plan + `user_profile` + `persona_constraints`**, not on chat history/summary (too non-deterministic for a 3-stage pipeline). Hard health constraints (e.g. injury mentioned in chat) and biometric data require a separate, explicit mechanism — see [`ai-pipeline.md`](ai-pipeline.md).
 
-## 6. Wyjątki i logging
+## 6. Exceptions and logging
 
-Hierarchia `AppError` (`PersonaLimitExceededError`→409, `UsageLimitExceededError`→429, `ModerationRejectedError`→400, `ConflictError`→409, `ExternalServiceError`→502) + globalny exception handler FastAPI — routery bez `try/except`.
+`AppError` hierarchy (`PersonaLimitExceededError`→409, `UsageLimitExceededError`→429, `ModerationRejectedError`→400, `ConflictError`→409, `ExternalServiceError`→502) + global FastAPI exception handler — routers without `try/except`.
 
-`structlog`, JSON w produkcji, `request_id`/`job_id` przez `contextvars` (dla background joba trzeba jawnie zbindować nowy kontekst — request context się nie propaguje automatycznie). Nigdy pełna treść promptów/wiadomości na poziomie INFO (PII + koszt).
+`structlog`, JSON in production, `request_id`/`job_id` via `contextvars` (for background jobs you must explicitly bind a new context — request context doesn't propagate automatically). Never full prompt/message contents at INFO level (PII + cost).
 
-## 7. DI i testowalność
+## 7. DI and testability
 
-Domenowe serwisy = klasy Pythona przyjmujące zależności w konstruktorze (Protocol dla `LLMClient`/repo), nie znają FastAPI. `Depends` żyje wyłącznie w `core/dependencies.py`. Testy jednostkowe instancjonują serwisy bezpośrednio z fake'ami — zero FastAPI, zero bazy.
+Domain services = Python classes taking dependencies in the constructor (Protocol for `LLMClient`/repo), they don't know FastAPI. `Depends` lives exclusively in `core/dependencies.py`. Unit tests instantiate services directly with fakes — zero FastAPI, zero DB.
 
-Szczegóły strategii testów w [`ai-pipeline.md`](ai-pipeline.md) (golden cases) i [`devops.md`](devops.md) (CI).
+Test strategy details in [`ai-pipeline.md`](ai-pipeline.md) (golden cases) and [`devops.md`](devops.md) (CI).
 
-## 8. Autentykacja
+## 8. Authentication
 
-**Decyzja: wyłącznie Google OAuth przez Supabase Auth — bez magic linka.** Upraszcza UI logowania (jeden przycisk "Zaloguj się przez Google") i eliminuje potrzebę obsługi emaili transakcyjnych. Konfiguracja redirect URL w Supabase Auth settings, szczegóły w [`local-setup.md`](local-setup.md).
+**Decision: Google OAuth only via Supabase Auth — no magic link.** Simplifies the login UI (one "Sign in with Google" button) and eliminates the need to handle transactional emails. Redirect URL configuration in Supabase Auth settings, details in [`local-setup.md`](local-setup.md).
 
-## 9. Limity — budżet kosztowy w USD per konto (ADR-16)
+## 9. Limits — USD cost budget per account (ADR-16)
 
-Zamiast planów Free/Pro (nieobecnych w reszcie specyfikacji — MVP jest non-commercial, kilku znanych
-userów), `UsageLimitService` egzekwuje **jawny budżet w dolarach per konto**
-(`profiles.usage_budget_usd`, domyślnie $10, edytowalny przez admina — dokładnie ten sam wzorzec co
+Instead of Free/Pro plans (absent from the rest of the spec — MVP is non-commercial, a few known
+users), `UsageLimitService` enforces **an explicit dollar budget per account**
+(`profiles.usage_budget_usd`, $10 default, admin-editable — exactly the same pattern as
 `profiles.max_active_personas`, ADR-12).
 
-- **Koszt liczony z odpowiedzi OpenRoutera** (`prompt_tokens`/`completion_tokens` zwracane w chunku
-  `usage` na końcu streamu SSE — wymaga `usage: {include: true}` w request body OpenRoutera) ×
-  cennik modelu. Cennik pobierany z `/api/v1/models` OpenRoutera i cache'owany in-memory (odświeżany
-  okresowo, nie hardkodowany w kodzie — ceny modeli się zmieniają).
-- `usage_limits.cost_usd_used` — suma kosztu w bieżącym okresie (`(user_id, period_start)`, ten sam
-  wiersz co istniejące liczniki `messages_used`/`tokens_used`/`plan_generations_used`).
-- **Atomowy check+increment** (ten sam wzorzec co liczniki): `UPDATE usage_limits SET cost_usd_used =
+- **Cost counted from OpenRouter response** (`prompt_tokens`/`completion_tokens` returned in the `usage`
+  chunk at the end of the SSE stream — requires `usage: {include: true}` in OpenRouter request body) ×
+  model pricing. Pricing fetched from OpenRouter's `/api/v1/models` and cached in-memory (refreshed
+  periodically, not hardcoded — model prices change).
+- `usage_limits.cost_usd_used` — sum of cost in the current period (`(user_id, period_start)`, same
+  row as the existing `messages_used`/`tokens_used`/`plan_generations_used` counters).
+- **Atomic check+increment** (same pattern as counters): `UPDATE usage_limits SET cost_usd_used =
   cost_usd_used + :delta WHERE cost_usd_used + :delta <= (SELECT usage_budget_usd FROM profiles WHERE
-  id = :user_id) RETURNING ...` — race-condition-safe przy równoległych requestach, bez osobnego
+  id = :user_id) RETURNING ...` — race-condition-safe under parallel requests, without a separate
   SELECT-then-UPDATE.
-- Koszt generowania planu (3 wywołania LLM per etap, patrz sekcja 4) debituje z TEGO SAMEGO budżetu co
-  czat — jedna pula per user, nie osobne limity per funkcja.
-- Przekroczenie budżetu → `UsageLimitExceededError` (429) z czytelnym komunikatem (kwota
-  wykorzystana/limit, data odnowienia okresu) — `frontend.md` sekcja 10.
-- Panel admina (`GET /admin/users`) pokazuje `cost_usd_used`/`usage_budget_usd` wprost jako kwotę,
-  **bez** etykiet "Free"/"Pro" (odrzucone jako mylące — sugerują subskrypcję, której MVP nie ma).
+- Plan generation cost (3 LLM calls per stage, see section 4) debits from THIS SAME budget as
+  chat — one pool per user, not separate per-function limits.
+- Budget exceeded → `UsageLimitExceededError` (429) with a readable message (amount
+  used / limit, period renewal date) — `frontend.md` section 10.
+- Admin panel (`GET /admin/users`) shows `cost_usd_used`/`usage_budget_usd` directly as an amount,
+  **without** "Free"/"Pro" labels (rejected as misleading — suggesting a subscription MVP doesn't have).
 
-## 10. Graft — poza runtime (ADR-20)
+## 10. Graft — outside runtime (ADR-20)
 
-Lokalny graf kontekstu dla coding agentów (`graft/`). Nie wchodzi w request path, CI ani deploy.
-Setup i kiedy odpalać `graft build`: [`local-setup.md`](local-setup.md) §G. Decyzja: [`../adr/decisions.md`](../adr/decisions.md#adr-20-graft-jako-lokalna-mapa-kodu-dla-agenta-nie-runtime).
+Local context graph for coding agents (`graft/`). Does not enter request path, CI, or deploy.
+Setup and when to run `graft build`: [`local-setup.md`](local-setup.md) §G. Decision: [`../adr/decisions.md`](../adr/decisions.md#adr-20-graft-jako-lokalna-mapa-kodu-dla-agenta-nie-runtime).

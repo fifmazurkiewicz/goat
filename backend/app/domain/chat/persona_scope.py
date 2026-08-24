@@ -1,8 +1,8 @@
-"""Zakres ról person — wspólne mapowanie dla routingu, promptu czatu i testów (ADR-13)."""
+"""Persona role scopes — shared mapping for routing, chat prompt, and tests (ADR-13)."""
 
 from __future__ import annotations
 
-# Co persona MOŻE — klasyfikator routingu i blok [ZAKRES ROLI].
+# What the persona CAN — routing classifier and [ROLE SCOPE] block.
 PERSONA_TYPE_SCOPE: dict[str, str] = {
     "personal_trainer": (
         "siła, hipertrofia, plan treningowy siłowy, technika podstawowych ćwiczeń, progresja obciążenia"
@@ -29,7 +29,7 @@ PERSONA_TYPE_SCOPE: dict[str, str] = {
     "custom": "wyłącznie zakres opisany w zachowaniu tej persony",
 }
 
-# Czego persona NIE MOŻE — nie wypowiada się za inne role.
+# What the persona CANNOT — doesn't speak for other roles.
 PERSONA_OUT_OF_SCOPE: dict[str, str] = {
     "personal_trainer": (
         "dieta, makro, posiłki → dietetyk; plyometria, bieganie, mobilność jako główny plan → trener motoryczny; "
@@ -74,7 +74,7 @@ ROUTING_CLASSIFIER_RULES = """Zasady wyboru person:
 
 
 def build_persona_scope_block(persona_type: str) -> str:
-    """Server-side granica roli — doklejana do każdego promptu czatu/planu."""
+    """Server-side role boundary — appended to every chat/plan prompt."""
     scope = PERSONA_TYPE_SCOPE.get(persona_type, PERSONA_TYPE_SCOPE["custom"])
     out_of_scope = PERSONA_OUT_OF_SCOPE.get(persona_type, PERSONA_OUT_OF_SCOPE["custom"])
     return (

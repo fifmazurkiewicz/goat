@@ -1,27 +1,26 @@
-"""Jednorazowy import ćwiczeń z yuhonas/free-exercise-db (Unlicense) do katalogu goat.
+"""One-off import of exercises from yuhonas/free-exercise-db (Unlicense) into the goat catalog.
 
-Generator SQL-seeda — NIGDY nie łączy się z bazą. Produkuje
+SQL-seed generator — it NEVER connects to the database. It produces
 `supabase/migrations/0013_exercise_catalog_seed_free_exercise_db.sql`
-(idempotentny: `ON CONFLICT (slug) DO NOTHING`; ręczne wpisy `source='manual'` nietykalne).
+(idempotent: `ON CONFLICT (slug) DO NOTHING`; manual entries `source='manual'` untouched).
 
-Kroki:
-  1. Pobranie `dist/exercises.json` z przypiętego SHA commitu datasetu (cache w `.tmp/`).
-  2. Transform offline: skip rekordów bez `instructions`, mapowanie pól (plan §2),
-     kategorie/mięśnie EN→PL ze słownika poniżej, deterministyczny sort po slug.
-  3. (`--upload-photos`) Upload pierwszego zdjęcia każdego ćwiczenia do Supabase Storage
-     bucket `exercise-photos` — httpx + Storage REST, klucze wyłącznie z env:
+Steps:
+  1. Download `dist/exercises.json` from the pinned dataset commit SHA (cache in `.tmp/`).
+  2. Offline transform: skip records without `instructions`, map fields (plan §2),
+     categories/muscles EN→PL via the dictionaries below, deterministic sort by slug.
+  3. (`--upload-photos`) Upload the first photo of each exercise to the Supabase Storage
+     bucket `exercise-photos` — httpx + Storage REST, keys only from env:
        SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
-     Bez supabase-py (zgodnie z regułą backendu). Bez tej flagi skrypt nie potrzebuje
-     żadnych sekretów.
-  4. Generacja SQL: chunkowane multi-row INSERT-y; `photo_path` = ścieżka w buckecie
-     (`free-exercise-db/<Id>/0.jpg`), nie pełny URL projektu.
+     No supabase-py (per backend rule). Without this flag the script needs no secrets.
+  4. SQL generation: chunked multi-row INSERTs; `photo_path` = bucket path
+     (`free-exercise-db/<Id>/0.jpg`), not the project's full URL.
 
-Re-import (odświeżenie treści z nowszej wersji datasetu):
+Re-import (refresh content from a newer dataset version):
     DELETE FROM exercises WHERE source = 'free_exercise_db';
-    -- potem ponowne uruchomienie wygenerowanego pliku (SQL Editor / psql).
+    -- then rerun the generated file (SQL Editor / psql).
 
-Użycie:
-    uv run python ../scripts/import_free_exercise_db.py            # tylko generacja SQL
+Usage:
+    uv run python ../scripts/import_free_exercise_db.py            # SQL only
     uv run python ../scripts/import_free_exercise_db.py --upload-photos
 """
 
@@ -44,11 +43,11 @@ OUTPUT_PATH = (
 )
 
 SOURCE_REPO = "yuhonas/free-exercise-db"
-# Pin wersji datasetu — re-import z innym SHA = inna treść; zmieniaj świadomie (patrz plan).
+# Dataset version pin — re-import with a different SHA = different content; change deliberately (see plan).
 SOURCE_COMMIT_SHA = "b0eed061e1c832b3ed815fbaa4b45b3cdc14df49"
 
 BUCKET = "exercise-photos"
-STORAGE_PREFIX = "free-exercise-db"  # <prefix>/<Id>/0.jpg w buckecie
+STORAGE_PREFIX = "free-exercise-db"  # <prefix>/<Id>/0.jpg in the bucket
 LOCAL_PHOTO_DIRS = (
     CACHE_DIR / "exercise-photos-upload2" / STORAGE_PREFIX,
     CACHE_DIR / "exercise-photos-upload" / STORAGE_PREFIX,
@@ -57,7 +56,7 @@ CHUNK_SIZE = 100
 
 LEVEL_MAP = {"beginner": "beginner", "intermediate": "intermediate", "expert": "advanced"}
 
-# Słownik EN→PL: 7 category + 17 primaryMuscles (pełne pokrycie datasetu, pomiar 2026-08-23).
+# EN→PL dictionary: 7 categories + 17 primaryMuscles (full coverage of the dataset, measured 2026-08-23).
 CATEGORY_PL = {
     "strength": "Siłowe",
     "stretching": "Rozciąganie",
@@ -90,12 +89,12 @@ MUSCLE_PL = {
 
 
 def slugify(source_id: str) -> str:
-    """`Barbell_Squat` -> `barbell-squat` (id datasetu jest [A-Za-z0-9_ -], więc wystarczy)."""
+    """`Barbell_Squat` -> `barbell-squat` (dataset id is [A-Za-z0-9_ -], so this is enough)."""
     normalized = unicodedata.normalize("NFKD", source_id)
     ascii_only = normalized.encode("ascii", "ignore").decode("ascii")
     slug = re.sub(r"[^a-z0-9]+", "-", ascii_only.lower()).strip("-")
     if not slug:
-        raise ValueError(f"Nie udało się slugify id: {source_id!r}")
+        raise ValueError(f"Could not slugify id: {source_id!r}")
     return slug
 
 
@@ -118,7 +117,7 @@ def fetch_dataset(client: httpx.Client) -> dict[str, object]:
         return json.loads(cache_file.read_text(encoding="utf-8"))
 
     url = f"https://raw.githubusercontent.com/{SOURCE_REPO}/{SOURCE_COMMIT_SHA}/dist/exercises.json"
-    print(f"[pobieram] {url}")
+    print(f"[downloading] {url}")
     response = client.get(url, timeout=120)
     response.raise_for_status()
     data = response.json()
@@ -127,12 +126,12 @@ def fetch_dataset(client: httpx.Client) -> dict[str, object]:
 
 
 def load_translations() -> dict[str, dict[str, object]]:
-    """Cache z scripts/translate_exercises.py (jeśli jest) — inaczej seed zostaje po EN."""
+    """Cache from scripts/translate_exercises.py (if present) — otherwise seed stays EN."""
     path = CACHE_DIR / "free-exercise-db-translations.json"
     if path.exists():
         data: dict[str, dict[str, object]] = json.loads(path.read_text(encoding="utf-8"))
         complete = {k: v for k, v in data.items() if v.get("done")}
-        print(f"[tłumaczenia] {len(complete)} pozycji z cache")
+        print(f"[translations] {len(complete)} entries from cache")
         return complete
     return []
 
@@ -165,8 +164,8 @@ def transform(raw: list[dict[str, object]]) -> tuple[list[dict[str, object]], li
         rows.append(
             {
                 "slug": slugify(source_id),
-                # PL z LLM gdy tłumaczenie jest w cache; inaczej EN (katalog nadal działa,
-                # name_en zawsze trzyma oryginał dla matcherów linków z planów).
+                # PL from LLM when a translation is in cache; otherwise EN (catalog still works,
+                # name_en always holds the original for plan-link matchers).
                 "name": str(translation["name_pl"]) if translation else name,
                 "name_en": name,
                 "level": LEVEL_MAP[str(item["level"])],
@@ -185,7 +184,7 @@ def transform(raw: list[dict[str, object]]) -> tuple[list[dict[str, object]], li
 
 
 def load_backend_env() -> None:
-    """Uzupełnia brakujące zmienne z backend/.env — nie nadpisuje już ustawionego env."""
+    """Fills missing variables from backend/.env — does not override already-set env."""
     env_path = REPO_ROOT / "backend" / ".env"
     if not env_path.exists():
         return
@@ -219,8 +218,8 @@ def ensure_public_bucket(client: httpx.Client, supabase_url: str, headers: dict[
         timeout=30,
     )
     if created.status_code not in (200, 201):
-        sys.exit(f"Nie udało się utworzyć bucketa {BUCKET}: {created.status_code} {created.text}")
-    print(f"[zdjęcia] utworzono publiczny bucket {BUCKET}")
+        sys.exit(f"Failed to create bucket {BUCKET}: {created.status_code} {created.text}")
+    print(f"[photos] created public bucket {BUCKET}")
 
 
 def upload_photos(rows: list[dict[str, object]], client: httpx.Client) -> None:
@@ -229,10 +228,10 @@ def upload_photos(rows: list[dict[str, object]], client: httpx.Client) -> None:
     service_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
     if not supabase_url or not service_key:
         sys.exit(
-            "--upload-photos: w env / backend/.env brak SUPABASE_URL albo "
-            "SUPABASE_SERVICE_ROLE_KEY. Lokalny tryb (email/hasło) ich nie potrzebuje, "
-            "ale Storage tak. Dopisz obie z dashboardu Supabase (Project Settings → API) "
-            "i odpal ponownie — nie wklejaj kluczy do czatu."
+            "--upload-photos: env / backend/.env is missing SUPABASE_URL or "
+            "SUPABASE_SERVICE_ROLE_KEY. Local mode (email/password) doesn't need them, "
+            "but Storage does. Add both from the Supabase dashboard (Project Settings → API) "
+            "and rerun — do not paste keys into the chat."
         )
 
     auth_headers = {
@@ -275,21 +274,21 @@ def upload_photos(rows: list[dict[str, object]], client: httpx.Client) -> None:
             timeout=120,
         )
         if upload.status_code not in (200, 201):
-            sys.exit(f"Upload nieudany ({upload.status_code}) dla {path}: {upload.text}")
+            sys.exit(f"Upload failed ({upload.status_code}) for {path}: {upload.text}")
         uploaded += 1
         if (uploaded + skipped) % 50 == 0:
-            print(f"  ...{uploaded + skipped}/{len(rows)} (nowe {uploaded})")
+            print(f"  ...{uploaded + skipped}/{len(rows)} (new {uploaded})")
 
-    print(f"[zdjęcia] gotowe: {uploaded} wgranych, {skipped} już było, łącznie {len(rows)}")
+    print(f"[photos] done: {uploaded} uploaded, {skipped} already present, {len(rows)} total")
 
 
 def generate_sql(rows: list[dict[str, object]]) -> str:
-    header = f"""-- Wygenerowany seed: import free-exercise-db ({SOURCE_REPO}, Unlicense).
--- Generator: scripts/import_free_exercise_db.py; pin SHA datasetu: {SOURCE_COMMIT_SHA}
--- NIE EDYTUJ RĘCZNIE — treść regenerowalna (re-import: DELETE WHERE source='free_exercise_db', potem rerun).
--- Uruchomić po 0012_exercise_catalog_source_nullable.sql. Idempotentny (ON CONFLICT DO NOTHING);
--- ręcznie kuratorowane wpisy (source='manual') pozostają nietknięte.
--- photo_path = ścieżka w buckecie exercise-photos (nie pełny URL — API/FE składa publiczny adres).
+    header = f"""-- Generated seed: import of free-exercise-db ({SOURCE_REPO}, Unlicense).
+-- Generator: scripts/import_free_exercise_db.py; dataset SHA pin: {SOURCE_COMMIT_SHA}
+-- DO NOT EDIT BY HAND — content is regeneratable (re-import: DELETE WHERE source='free_exercise_db', then rerun).
+-- Run after 0012_exercise_catalog_source_nullable.sql. Idempotent (ON CONFLICT DO NOTHING);
+-- manually curated entries (source='manual') remain untouched.
+-- photo_path = path inside the exercise-photos bucket (not a full URL — API/FE compose the public address).
 
 insert into public.exercises
   (slug, name, name_en, persona_type, level, categories, short_description, detail_full, common_mistakes, photo_path, source)
@@ -324,12 +323,12 @@ def main() -> None:
     parser.add_argument(
         "--upload-photos",
         action="store_true",
-        help="Upload zdjęć do Supabase Storage (klucze z env albo backend/.env).",
+        help="Upload photos to Supabase Storage (keys from env or backend/.env).",
     )
     parser.add_argument(
         "--skip-sql",
         action="store_true",
-        help="Nie nadpisuj migracji 0013 (sam upload / dry-run transform).",
+        help="Don't overwrite migration 0013 (upload only / dry-run transform).",
     )
     args = parser.parse_args()
 
@@ -337,7 +336,7 @@ def main() -> None:
         raw = fetch_dataset(client)
         rows, skipped = transform(raw)  # type: ignore[arg-type]
 
-        print(f"[transform] {len(rows)} ćwiczeń do importu, pominięte: {skipped or 'brak'}")
+        print(f"[transform] {len(rows)} exercises to import, skipped: {skipped or 'none'}")
 
         if args.upload_photos:
             upload_photos(rows, client)

@@ -1,14 +1,14 @@
 import type { TemplateOverrides } from "@/types/api";
 
-/** Kolumna w edytorze formularza (React Hook Form `useFieldArray`). */
+/** Column in the form editor (React Hook Form `useFieldArray`). */
 export interface PersonaColumnDraft {
   name: string;
 }
 
 /**
- * Mapowanie UI ↔ API dla `template_overrides`.
- * Kontrakt backendu: `{ columns: string[] }` (`resolve_persona_columns`).
- * Starsze/kształty legacy (tablica `{name}` albo tablica stringów) są tolerowane przy odczycie.
+ * UI ↔ API mapping for `template_overrides`.
+ * Backend contract: `{ columns: string[] }` (`resolve_persona_columns`).
+ * Legacy shapes (an array of `{name}` or an array of strings) are tolerated on read.
  */
 export function columnsFromTemplateOverrides(
   overrides: TemplateOverrides | PersonaColumnDraft[] | string[] | null | undefined

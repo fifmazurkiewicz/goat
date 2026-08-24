@@ -1,28 +1,28 @@
-# Multi-persona sequential chat turns (Faza 2) Implementation Plan
+# Multi-persona sequential chat turns (Phase 2) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Gdy routing uzna ≥2 role albo user poda kilka slashy, jedna wiadomość usera dostaje N osobnych odpowiedzi asystenta sekwencyjnie w jednym streamie SSE.
+**Goal:** When routing considers ≥2 roles or the user provides multiple slashes, one user message gets N separate assistant responses sequentially in one SSE stream.
 
-**Architecture:** `ChatRoutingService` zwraca uporządkowaną listę `persona_ids` + wspólną treść. `run_chat_turn` wstawia user message raz, potem w pętli emituje `persona_turn_start` i woła istniejący `ChatOrchestrator.handle_message` per personę. Frontend po każdej turze dopina ukończoną odpowiedź do cache historii i resetuje bufor streamu przed następną personą. Statusy z Fazy 1 działają bez zmian (jedna linia naraz).
+**Architecture:** `ChatRoutingService` returns an ordered list of `persona_ids` + shared content. `run_chat_turn` inserts the user message once, then in a loop emits `persona_turn_start` and calls the existing `ChatOrchestrator.handle_message` per persona. The frontend, after each persona's turn, pins the completed response to the history cache and resets the stream buffer before the next persona. Statuses from Phase 1 work without changes (one line at a time).
 
-**Tech Stack:** FastAPI, asyncio.Queue SSE, Pydantic, Vitest, istniejący `useChatStream` / `MessageList`.
+**Tech Stack:** FastAPI, asyncio.Queue SSE, Pydantic, Vitest, existing `useChatStream` / `MessageList`.
 
 **Spec:** `docs/superpowers/specs/2026-08-04-chat-multi-persona-and-plans-design.md`
 
 ## Global Constraints
 
-- Sekwencyjnie, nie równolegle — jedna persona kończy zanim startuje następna.
-- Max person w jednej turze auto-routingu: `min(liczba_aktywnych, 3)` (stała `CHAT_MAX_PERSONAS_PER_TURN = 3`).
-- Multi-slash: kolejność slashy = kolejność odpowiedzi; treść wspólna po ostatnim slugu.
-- Jedno `done` na końcu całej tury użytkownika; wiele `persona_turn_start`.
-- ADR-13: zaktualizować decyzję „1 persona” → „1..N sekwencyjnie”; bez migracji DB.
-- Komunikacja / UI PL; bez sekretów w docs.
-- ContextBuilder nadal filtruje historię per `persona_id` (bez zmian w MVP Fazy 2).
+- Sequentially, not in parallel — one persona ends before the next starts.
+- Max personas in one auto-routing turn: `min(number_active, 3)` (constant `CHAT_MAX_PERSONAS_PER_TURN = 3`).
+- Multi-slash: order of slashes = order of responses; shared content after the last slash.
+- One `done` at the end of the user's entire turn; multiple `persona_turn_start`.
+- ADR-13: update "1 persona" → "1..N sequentially" decision; no DB migration.
+- Communication / UI in PL; no secrets in docs.
+- ContextBuilder still filters history per `persona_id` (no change in MVP Phase 2).
 
 ---
 
-### Task 1: Multi-slash parser + RoutingResult z listą id
+### Task 1: Multi-slash parser + RoutingResult with id list
 
 **Files:**
 - Modify: `backend/app/domain/chat/routing.py`
@@ -31,24 +31,24 @@
 **Interfaces:**
 - Produces: `RoutingResult(persona_ids: list[str], invoked_via: Literal[...], content: str)`
 - Produces: `parse_multi_slash_command(message, active) -> tuple[list[PersonaLike], str] | None`
-- Consumes: istniejące `PersonaLike`, `ChatRoutingService.route`
+- Consumes: existing `PersonaLike`, `ChatRoutingService.route`
 
 - [ ] **Step 1: Write failing tests for multi-slash and RoutingResult shape**
 
 ```python
 def test_parse_multi_slash_two_personas():
     result = parse_multi_slash_command(
-        "/trener /dietetyk jak połączyć trening z dietą?",
+        "/trainer /dietitian how to combine training with diet?",
         [_TRAINER, _DIETITIAN],
     )
     assert result is not None
     personas, rest = result
     assert [p.id for p in personas] == [_TRAINER.id, _DIETITIAN.id]
-    assert rest == "jak połączyć trening z dietą?"
+    assert rest == "how to combine training with diet?"
 
 
 def test_parse_multi_slash_single_falls_back_to_legacy_shape():
-    # jeden slash nadal działa; route zwraca listę 1-elementową
+    # one slash still works; route returns a 1-element list
     ...
 
 
@@ -58,25 +58,25 @@ async def test_route_multi_slash_sets_invoked_via_multi_slash():
     assert result.invoked_via == "multi_slash"
 ```
 
-- [ ] **Step 2: Run tests — expect FAIL (brak symboli)**
+- [ ] **Step 2: Run tests — expect FAIL (no symbols)**
 
 Run: `cd backend && uv run pytest tests/test_chat_routing.py -k multi_slash -v`  
 Expected: FAIL import / AttributeError
 
 - [ ] **Step 3: Implement parser + change RoutingResult**
 
-W `routing.py`:
+In `routing.py`:
 
 ```python
 _MULTI_SLASH_RE = re.compile(
-    r"^(?:/([a-z0-9_]+)\s+)+(.+)$",  # nie używaj ślepo — zaimplementuj pętlę
+    r"^(?:/([a-z0-9_]+)\s+)+(.+)$",  # don't use blindly — implement the loop
 )
 
 def parse_multi_slash_command(
     message: str, active_personas: list[PersonaLike]
 ) -> tuple[list[PersonaLike], str] | None:
-    """Wszystkie `/slug` na początku (kolejność zachowana, dedupe po id).
-    Wymaga ≥1 znanego slugu; nieznany slug w prefiksie → None (klasyfikator)."""
+    """All `/slug` at the start (order preserved, dedupe by id).
+    Requires ≥1 known slug; unknown slug in prefix → None (classifier)."""
     text = message.strip()
     personas: list[PersonaLike] = []
     seen: set[str] = set()
@@ -108,15 +108,15 @@ class RoutingResult:
     content: str
 ```
 
-Zaktualizuj `route()`:
-1. `parse_multi_slash_command` — jeśli `len(personas) > 1` → `multi_slash`; jeśli 1 → `slash_command` (kompatybilność).
-2. Usuń stary `parse_slash_command` **albo** zostaw jako wrapper wołający multi (1 wynik).
-3. Wszystkie returny: `persona_ids=[...]` zamiast `persona_id=`.
+Update `route()`:
+1. `parse_multi_slash_command` — if `len(personas) > 1` → `multi_slash`; if 1 → `slash_command` (compatibility).
+2. Remove the old `parse_slash_command` **or** leave it as a wrapper calling multi (1 result).
+3. All returns: `persona_ids=[...]` instead of `persona_id=`.
 
 - [ ] **Step 4: Fix all call sites / tests using `.persona_id`**
 
-Grep: `RoutingResult` / `.persona_id` w `backend/`.  
-`orchestrator.run_chat_turn` jeszcze nie pętli — tymczasowo `persona_ids[0]` OK do Task 3, ale typ już lista.
+Grep: `RoutingResult` / `.persona_id` in `backend/`.  
+`orchestrator.run_chat_turn` doesn't loop yet — temporarily `persona_ids[0]` OK until Task 3, but the type is already a list.
 
 - [ ] **Step 5: Run full routing tests — PASS**
 
@@ -131,7 +131,7 @@ git commit -m "feat(chat): route to ordered persona_ids including multi-slash"
 
 ---
 
-### Task 2: Klasyfikator JSON → `persona_ids[]`
+### Task 2: JSON classifier → `persona_ids[]`
 
 **Files:**
 - Modify: `backend/app/domain/chat/routing.py` (`_classify` + schema)
@@ -151,7 +151,7 @@ async def test_route_classifier_can_return_multiple_persona_ids():
     service = ChatRoutingService(llm, _FakeChatRepo(), chat_model="m")
     result = await service.route(
         session_id="s1",
-        message="Ułóż trening nóg i powiedz co jeść potem",
+        message="Build a leg training and tell me what to eat after",
         active_personas=[_TRAINER, _DIETITIAN],
     )
     assert result.persona_ids == [_TRAINER.id, _DIETITIAN.id]
@@ -176,15 +176,15 @@ CHAT_MAX_PERSONAS_PER_TURN = 3
 # required: ["persona_ids"]
 ```
 
-System prompt PL: wybierz 1..K person (K=max), **tylko gdy pytanie realnie wymaga wielu ról**; inaczej dokładnie jedną. Kolejność = kolejność odpowiedzi.
+System prompt PL: pick 1..K personas (K=max), **only when the question really requires multiple roles**; otherwise exactly one. Order = order of responses.
 
-Walidacja odpowiedzi:
-- filtruj id spoza allowlisty,
-- dedupe zachowując kolejność,
-- pusta lista → fallback jak dziś (last responding / first active) jako `[id]`,
-- obetnij do `CHAT_MAX_PERSONAS_PER_TURN`.
+Response validation:
+- filter ids outside the allowlist,
+- dedupe preserving order,
+- empty list → fallback as today (last responding / first active) as `[id]`,
+- trim to `CHAT_MAX_PERSONAS_PER_TURN`.
 
-Zachowaj kompatybilność: jeśli LLM zwróci legacy `{persona_id: "..."}` → owrapuj w listę 1-el.
+Maintain compatibility: if LLM returns legacy `{persona_id: "..."}` → wrap in 1-element list.
 
 - [ ] **Step 4: Tests PASS + commit**
 
@@ -194,21 +194,21 @@ git commit -m "feat(chat): classifier returns ordered persona_ids up to 3"
 
 ---
 
-### Task 3: `run_chat_turn` — pętla sekwencyjna po personach
+### Task 3: `run_chat_turn` — sequential loop over personas
 
 **Files:**
 - Modify: `backend/app/domain/chat/orchestrator.py` (`_run_chat_turn_inner`)
-- Test: `backend/tests/test_run_chat_turn_multi.py` (nowy; mock orchestrator/LLM)
+- Test: `backend/tests/test_run_chat_turn_multi.py` (new; mock orchestrator/LLM)
 
 **Interfaces:**
 - Consumes: `RoutingResult.persona_ids`, `ChatOrchestrator.handle_message`
-- Produces: N × `persona_turn_start` + stream per persona; jedno `done` z `handle_message` ostatniej **albo** emit `done` raz po pętli jeśli `handle_message` dziś emituje `done` za każdym razem
+- Produces: N × `persona_turn_start` + stream per persona; one `done` from the last `handle_message` **or** emit `done` once after the loop if `handle_message` today emits `done` every time
 
-**Uwaga krytyczna:** sprawdź czy `handle_message` emituje `done` na końcu. Jeśli tak — przy multi:
-- albo parametr `emit_done: bool = True` na ostatniej iteracji,
-- albo zdejmij `done` z `handle_message` i emituj wyłącznie w `run_chat_turn` po pętli.
+**Critical note:** check if `handle_message` emits `done` at the end. If so, for multi:
+- either parameter `emit_done: bool = True` on the last iteration,
+- or remove `done` from `handle_message` and emit only in `run_chat_turn` after the loop.
 
-Router SSE kończy się na pierwszym `done` — **musi być dokładnie jedno `done` na końcu**.
+The SSE router ends on the first `done` — **there must be exactly one `done` at the end**.
 
 - [ ] **Step 1: Inspect current done emission; write failing integration-style test**
 
@@ -225,7 +225,7 @@ async def test_run_chat_turn_emits_two_persona_turn_starts_before_single_done():
 - [ ] **Step 2: Implement loop**
 
 ```python
-# po insert user message (raz, content=routing.content, invoked_via=routing.invoked_via)
+# after inserting user message (once, content=routing.content, invoked_via=routing.invoked_via)
 for index, persona_id in enumerate(routing.persona_ids):
     persona = next(p for p in active_personas if p.id == persona_id)
     await _emit(queue, "persona_turn_start", {
@@ -241,7 +241,7 @@ for index, persona_id in enumerate(routing.persona_ids):
     )
 ```
 
-Dla sesji `persona` (1:1): `persona_ids = [session.persona_id]` — bez zmian zachowania.
+For `persona` session (1:1): `persona_ids = [session.persona_id]` — no behavior change.
 
 - [ ] **Step 3: Tests PASS + commit**
 
@@ -251,27 +251,27 @@ git commit -m "feat(chat): sequential multi-persona turns in one SSE stream"
 
 ---
 
-### Task 4: FE — finalizacja tury persony w `useChatStream`
+### Task 4: FE — finalizing a persona's turn in `useChatStream`
 
 **Files:**
 - Modify: `frontend/src/hooks/useChatStream.ts`
-- Modify: `frontend/src/types/chat-stream.ts` (opcjonalnie event `persona_turn_end` — **preferuj detekcję kolejnego `persona_turn_start` / `done`**)
-- Test: `frontend/src/hooks/useChatStream.test.ts` (nowy, z mockowanym async generator SSE)
+- Modify: `frontend/src/types/chat-stream.ts` (optionally `persona_turn_end` event — **prefer detecting the next `persona_turn_start` / `done`**)
+- Test: `frontend/src/hooks/useChatStream.test.ts` (new, with mocked async SSE generator)
 
 **Interfaces:**
-- Consumes: kolejne `persona_turn_start` w jednym `for await`
-- Produces: po starcie nowej tury (gdy jest już content/toolResults poprzedniej) — `queryClient.setQueryData` z syntetyczną wiadomością `assistant` + reset `content`/`toolResults`/`pendingContentRef`, nowy `statusLabel`
+- Consumes: consecutive `persona_turn_start` in one `for await`
+- Produces: after start of a new turn (when there's already content/toolResults from the previous) — `queryClient.setQueryData` with a synthetic `assistant` message + reset `content`/`toolResults`/`pendingContentRef`, new `statusLabel`
 
-- [ ] **Step 1: Failing unit test — dwa persona_turn_start → dwie wiadomości w cache**
+- [ ] **Step 1: Failing unit test — two persona_turn_start → two messages in cache**
 
 Mock `streamChatMessage` yields:
 1. persona_turn_start A
-2. token "cześć"
+2. token "hi"
 3. persona_turn_start B
-4. token "witaj"
+4. token "welcome"
 5. done
 
-Assert: po streamie `messagesKey` ma 2 assistant (lub w trakcie: po evencie 3 już 1 assistant w cache + streaming B).
+Assert: after the stream `messagesKey` has 2 assistants (or during: after event 3 already 1 assistant in cache + streaming B).
 
 - [ ] **Step 2: Implement `finalizeStreamingTurn(sessionId)`**
 
@@ -299,9 +299,9 @@ function finalizeStreamingTurn(
 }
 ```
 
-Na `persona_turn_start`: najpierw `finalize` poprzedniego (flush RAF sync), potem ustaw nową personę + status.
+On `persona_turn_start`: first `finalize` the previous (flush RAF sync), then set new persona + status.
 
-Chipów tool_result: albo dopnij jako osobne wiersze w MessageList z historii (dziś znikają po refresh) — w MVP zostaw tylko w streamie bieżącej tury; po finalize historii bez chipów (jak dziś).
+Tool chips: either pin as separate rows in MessageList from history (today they disappear after refresh) — in MVP leave only in the current turn's stream; after finalizing history without chips (as today).
 
 - [ ] **Step 3: Tests PASS + commit**
 
@@ -314,14 +314,14 @@ git commit -m "feat(chat): finalize assistant turn before next persona in stream
 ### Task 5: Docs + ADR-13 update
 
 **Files:**
-- Modify: `docs/adr/decisions.md` (ADR-13 — sekcja decyzja + konsekwencje)
+- Modify: `docs/adr/decisions.md` (ADR-13 — decision + consequences section)
 - Modify: `docs/technical/architecture.md` §3a
 - Modify: `docs/technical/frontend.md` §3–4
-- Modify: `docs/technical/ai-pipeline.md` (klasyfikator multi)
+- Modify: `docs/technical/ai-pipeline.md` (multi classifier)
 
-- [ ] **Step 1: Update ADR-13** — routing może zwrócić 1..N; sekwencja; multi-slash; max 3.
+- [ ] **Step 1: Update ADR-13** — routing may return 1..N; sequence; multi-slash; max 3.
 
-- [ ] **Step 2: Update architecture/frontend/ai-pipeline** — kontrakt SSE (wiele `persona_turn_start`, jedno `done`), FE finalize.
+- [ ] **Step 2: Update architecture/frontend/ai-pipeline** — SSE contract (multiple `persona_turn_start`, one `done`), FE finalize.
 
 - [ ] **Step 3: Commit**
 
@@ -333,16 +333,16 @@ git commit -m "docs: ADR-13 multi-persona sequential turns"
 
 ### Task 6: Smoke checklist (manual / staging)
 
-- [ ] Sesja general, 1 rola → 1 odpowiedź (regresja).
-- [ ] Pytanie trening+dieta → 2 statusy + 2 bubble.
-- [ ] `/trener /dietetyk treść` → kolejność zgodna ze slashami.
-- [ ] Sesja persona 1:1 bez zmian.
-- [ ] Urwanie sieci mid-stream → retry bez duplikatu user message.
+- [ ] General session, 1 role → 1 answer (regression).
+- [ ] Training + diet question → 2 statuses + 2 bubbles.
+- [ ] `/trainer /dietitian content` → order matches slashes.
+- [ ] Persona 1:1 session unchanged.
+- [ ] Network drop mid-stream → retry without duplicate user message.
 
 ---
 
 ## Self-review (plan)
 
 1. Spec coverage: multi-slash, classifier N, sequential loop, single done, FE finalize, docs — Tasks 1–5.
-2. Placeholders: brak TBD.
-3. Types: `persona_ids: list[str]` spójne w BE; FE bez nowego typu event jeśli finalize na kolejnym `persona_turn_start`.
+2. Placeholders: no TBDs.
+3. Types: `persona_ids: list[str]` consistent in BE; FE no new event type if finalize on next `persona_turn_start`.

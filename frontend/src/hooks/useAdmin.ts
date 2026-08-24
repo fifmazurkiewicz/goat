@@ -12,7 +12,7 @@ export function useAdminUsers() {
   });
 }
 
-/** ADR-12 — limit aktywnych person PER KONTO, edytowalny przez admina. */
+/** ADR-12 — active persona limit PER ACCOUNT, editable by admin. */
 export function useUpdatePersonaLimit() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -27,7 +27,7 @@ export function useUpdatePersonaLimit() {
   });
 }
 
-/** ADR-16 — budżet USD per konto, edytowalny przez admina (BEZ etykiet Free/Pro). */
+/** ADR-16 — USD budget per account, editable by admin (WITHOUT Free/Pro labels). */
 export function useUpdateUsageBudget() {
   const queryClient = useQueryClient();
   return useMutation({

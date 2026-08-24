@@ -12,7 +12,7 @@ const ACTION_LABELS: Record<AdminAuditAction, string> = {
   edit_usage_budget: "Edycja budżetu",
 };
 
-/** Log audytowy akcji admina (`admin_audit_log`) — kto, co, komu, kiedy. */
+/** Admin audit log (`admin_audit_log`) — who, what, to whom, when. */
 export function AuditLogPanel() {
   const { data: entries, isLoading } = useAdminAuditLog();
 

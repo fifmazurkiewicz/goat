@@ -1,8 +1,9 @@
-"""Router `/admin` — wyłącznie `service_role` + jawna, kodowa weryfikacja `profiles.is_admin`.
+"""`/admin` router — ONLY `service_role` + explicit, code-level verification of `profiles.is_admin`.
 
-"Ukrycie w UI to nie jest autoryzacja" — docs/technical/security.md sekcja 2 i
-docs/technical/architecture.md sekcja 2. Zależność `require_admin` (`app/core/security.py`)
-weryfikuje `profiles.is_admin` w kontekście `service_role`, niezależnie od RLS.
+"Hiding in UI is not authorization" — docs/technical/security.md section 2 and
+docs/technical/architecture.md section 2. The `require_admin` dependency
+(`app/core/security.py`) verifies `profiles.is_admin` in the `service_role` context,
+independent of RLS.
 """
 
 from __future__ import annotations
@@ -80,9 +81,9 @@ async def update_persona_limit(
     payload: PersonaLimitUpdate,
     auth: AuthContext = Depends(require_admin),
 ) -> AdminUserOut:
-    """Ustawia `profiles.max_active_personas` per konto (ADR-12) — zastępuje globalną
-    stałą "5". Trigger DB (`enforce_persona_limit`) pozostaje ostateczną linią obrony
-    niezależnie od tego ustawienia."""
+    """Sets `profiles.max_active_personas` per account (ADR-12) — replaces the global
+    "5" constant. The DB trigger (`enforce_persona_limit`) remains the last line of
+    defense regardless of this setting."""
     async with service_role_connection() as conn:
         profile = await ProfilesRepo(conn).update_max_active_personas(
             user_id, payload.max_active_personas
@@ -109,7 +110,7 @@ async def update_usage_budget(
     payload: UsageBudgetUpdate,
     auth: AuthContext = Depends(require_admin),
 ) -> AdminUserOut:
-    """Ustawia `profiles.usage_budget_usd` per konto (ADR-16) — wzorzec identyczny jak
+    """Sets `profiles.usage_budget_usd` per account (ADR-16) — pattern identical to
     `update_persona_limit`."""
     async with service_role_connection() as conn:
         profile = await ProfilesRepo(conn).update_usage_budget(user_id, payload.usage_budget_usd)
@@ -131,8 +132,8 @@ async def update_usage_budget(
 
 @router.post("/users/{user_id}/reset-password", response_model=PasswordResetOut)
 async def reset_password(user_id: str, auth: AuthContext = Depends(require_admin)) -> PasswordResetOut:
-    """Reset hasła przez Supabase Admin API (`app/core/supabase_admin.py`) — hasło
-    tymczasowe zwrócone JEDNORAZOWO w response, do ręcznego przekazania userowi."""
+    """Password reset via Supabase Admin API (`app/core/supabase_admin.py`) — the
+    temporary password is returned ONCE in the response, for manual delivery to the user."""
     temp_password = await get_supabase_admin_client().reset_password(user_id)
     async with service_role_connection() as conn:
         await AdminAuditRepo(conn).log(

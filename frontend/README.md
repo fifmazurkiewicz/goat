@@ -1,59 +1,59 @@
 # Coach — frontend
 
-Vite + React + TypeScript + Tailwind + shadcn/ui (kod komponentów UI kopiowany ręcznie do
-`src/components/ui/`, zgodnie z filozofią shadcn — to nie jest paczka npm).
+Vite + React + TypeScript + Tailwind + shadcn/ui (UI component code copied manually to
+`src/components/ui/`, following the shadcn philosophy — this is not an npm package).
 
-Pełna architektura: [`docs/technical/frontend.md`](../docs/technical/frontend.md).
+Full architecture: [`docs/technical/frontend.md`](../docs/technical/frontend.md).
 
 ## Status
 
-To jest **szkielet** (routing, layout, stores, klienci Supabase/API, strony-placeholdery).
-Logika biznesowa (SSE chat streaming, formularz person, wykresy z realnymi danymi) — kolejne etapy.
+This is a **skeleton** (routing, layout, stores, Supabase/API clients, placeholder pages).
+Business logic (SSE chat streaming, persona form, charts with real data) — subsequent stages.
 
-## Wymagania
+## Requirements
 
 - Node.js 20+
-- Dev project w Supabase Cloud (URL + anon key) — patrz [`../docs/technical/local-setup.md`](../docs/technical/local-setup.md)
-- Uruchomiony lokalnie backend (domyślnie `http://localhost:8000`) — opcjonalnie na start, część ekranów
-  (np. logowanie) działa bez niego
+- Dev project in Supabase Cloud (URL + anon key) — see [`../docs/technical/local-setup.md`](../docs/technical/local-setup.md)
+- Backend running locally (by default `http://localhost:8000`) — optional at start, some screens
+  (e.g. login) work without it
 
-## Instalacja i uruchomienie lokalne
+## Installation and local running
 
 ```bash
 cd frontend
 npm install
 cp .env.example .env.local
-# uzupełnij VITE_SUPABASE_URL i VITE_SUPABASE_ANON_KEY w .env.local
+# fill in VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in .env.local
 npm run dev
 ```
 
-Aplikacja wystartuje pod `http://localhost:3000`.
+The application will start at `http://localhost:3000`.
 
-## Skrypty
+## Scripts
 
-| Skrypt | Opis |
+| Script | Description |
 |---|---|
-| `npm run dev` | Serwer deweloperski (Vite, HMR) |
-| `npm run build` | Sprawdzenie typów (`tsc -b`) + build produkcyjny |
-| `npm run preview` | Podgląd builda produkcyjnego |
+| `npm run dev` | Development server (Vite, HMR) |
+| `npm run build` | Type check (`tsc -b`) + production build |
+| `npm run preview` | Preview production build |
 | `npm run lint` | ESLint |
-| `npm run test` | Testy jednostkowe (Vitest + React Testing Library) |
+| `npm run test` | Unit tests (Vitest + React Testing Library) |
 
-## Zmienne środowiskowe
+## Environment variables
 
-Patrz [`.env.example`](./.env.example). Wszystkie zmienne muszą mieć prefiks `VITE_`, żeby Vite
-wystawił je do kodu klienckiego.
+See [`.env.example`](./.env.example). All variables must have the `VITE_` prefix so Vite
+exposes them to client code.
 
-## Struktura
+## Structure
 
 ```
 src/
 ├── components/
-│   ├── ui/        # shadcn/ui — kod kopiowany ręcznie (button, card, input, textarea, sheet...)
-│   └── layout/    # AppShell (app shell dla tras chronionych)
+│   ├── ui/        # shadcn/ui — code copied manually (button, card, input, textarea, sheet...)
+│   └── layout/    # AppShell (app shell for protected routes)
 ├── lib/           # supabase.ts, api-client.ts, utils.ts (cn helper)
-├── pages/         # strony routowane w App.tsx
-├── store/         # zustand — stan kliencki/UI (patrz frontend.md #2)
-├── types/         # typy API (docelowo generowane z /openapi.json)
+├── pages/         # pages routed in App.tsx
+├── store/         # zustand — client/UI state (see frontend.md #2)
+├── types/         # API types (eventually generated from /openapi.json)
 └── App.tsx / main.tsx
 ```

@@ -1,15 +1,15 @@
-# Plan roboczy: Goat — ostateczny głos nad planem
+# Working plan: Goat — final voice over the plan
 
-**Data:** 2026-08-17  
+**Date:** 2026-08-17  
 **Spec:** [docs/superpowers/specs/2026-08-17-goat-plan-authority-design.md](../../docs/superpowers/specs/2026-08-17-goat-plan-authority-design.md)
 
-## Decyzje
+## Decisions
 
-| Data | Decyzja | Dlaczego |
-|------|---------|----------|
-| 2026-08-17 | Wariant 1: persony szkicują, Goat harmonizuje + upsert w czacie | Akceptacja usera (C = scala i modyfikuje); persony nadal mogą zapisywać |
-| 2026-08-17 | Ostateczny głos = Goat | Feeling „kierownik ogarnia” w Plany i w czacie |
+| Date | Decision | Why |
+|------|---------|-----|
+| 2026-08-17 | Variant 1: personas draft, Goat harmonizes + upsert in chat | User's acceptance (C = merges and modifies); personas can still save |
+| 2026-08-17 | Final voice = Goat | "The lead handles it" feeling in Plans and in chat |
 
 ## Status
 
-**Wdrożone** (2026-08-17): Goat upsert + harmonizacja jako Goat + FE wiersz + brief delete.
+**Implemented** (2026-08-17): Goat upsert + harmonization as Goat + FE row + brief delete.

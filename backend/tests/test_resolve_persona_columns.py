@@ -1,5 +1,6 @@
-"""Testy `resolve_persona_columns` — merge kolumn planu (persona.template_overrides
-nadpisuje plan_templates.default_columns), patrz database-schema.md i frontend.md §7."""
+"""Tests for `resolve_persona_columns` — merge of plan columns
+(persona.template_overrides overrides plan_templates.default_columns),
+see database-schema.md and frontend.md §7."""
 
 from __future__ import annotations
 

@@ -29,8 +29,8 @@ function snapshot(wake: WakeWindowState, now: number) {
 }
 
 /**
- * Stan okna wybudzania Rendera (ADR-19). Sonda HTTP żyje w `useApiHealthProbe`;
- * `apiFetch` woła `startWakeWindow({ force: true })` przy błędzie sieci.
+ * State of the Render wake window (ADR-19). The HTTP probe lives in `useApiHealthProbe`;
+ * `apiFetch` calls `startWakeWindow({ force: true })` on a network error.
  */
 export const useApiHealthStore = create<ApiHealthStore>((set, get) => ({
   ...snapshot(initialWakeState(), 0),
@@ -59,7 +59,7 @@ export const useApiHealthStore = create<ApiHealthStore>((set, get) => ({
   },
 }));
 
-/** Błąd sieci w prawdziwym requeście — nowe okno wybudzania, nie 4xx/Abort. */
+/** Real network error in an actual request — new wake window, not a 4xx/Abort. */
 export function reportApiNetworkError(err: unknown): void {
   if (isNetworkError(err)) {
     useApiHealthStore.getState().startWakeWindow({ force: true });
@@ -67,8 +67,8 @@ export function reportApiNetworkError(err: unknown): void {
 }
 
 /**
- * Jeśli prawdziwy request wisi ≥ 2 s, otwiera okno wybudzania (cold start po bezczynności).
- * Wywołaj zwracany `finish(ok)` po zakończeniu fetcha — przy sukcesie gasi lampkę.
+ * If a real request hangs for ≥ 2s, opens the wake window (cold start after idle).
+ * Call the returned `finish(ok)` after the fetch completes — on success it clears the lamp.
  */
 export function watchSlowApiRequest(): (ok: boolean) => void {
   const timeoutId = window.setTimeout(() => {

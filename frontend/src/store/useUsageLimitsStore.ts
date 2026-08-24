@@ -10,9 +10,9 @@ interface UsageLimitsState {
 const NEAR_LIMIT_RATIO = 0.9;
 
 /**
- * Odświeżany po 429 (przez refetch `useUsage`) lub po pomyślnym `GET /api/v1/usage`
- * (docs/technical/frontend.md sekcja 2), zasila proaktywny badge "90% budżetu"
- * (sekcja 10 — budżet w USD, ADR-16, nie plan Free/Pro).
+ * Refreshed after a 429 (via `useUsage` refetch) or after a successful `GET /api/v1/usage`
+ * (docs/technical/frontend.md section 2), powers the proactive "90% of budget" badge
+ * (section 10 — budget in USD, ADR-16, not a Free/Pro plan).
  */
 export const useUsageLimitsStore = create<UsageLimitsState>((set) => ({
   limits: null,

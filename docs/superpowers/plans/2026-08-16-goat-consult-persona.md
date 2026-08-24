@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** W sesji `general` bez `/slug` user rozmawia wyłącznie z Goat; specjalistę Goat dopytuje toollem `consult_persona` (trener za kulisami, status „Goat konsultuje z {persona}…”).
+**Goal:** In `general` session without `/slug` the user talks only with Goat; the specialist is consulted by Goat with the `consult_persona` tool (trainer backstage, status "Goat is consulting with {persona}…").
 
-**Architecture:** Jedna tura `TeamLeadSpeaker` ze schematem tooli Goat + `consult_persona`. Zagnieżdżona tura trenera: `client_visible=False`, `emit_sse=False`, `persist_messages=False`; wynik wraca jako tool JSON do Goata. Slash / sesja `persona` bez zmian. Koniec `plan_consultation` jako wyboru mówcy i `format_goat_relay`.
+**Architecture:** One `TeamLeadSpeaker` turn with Goat's tool schema + `consult_persona`. Nested trainer turn: `client_visible=False`, `emit_sse=False`, `persist_messages=False`; result returns as tool JSON to Goat. Slash / `persona` session unchanged. End of `plan_consultation` as speaker selection and `format_goat_relay`.
 
 **Tech Stack:** FastAPI, OpenRouter function calling, pytest (`backend/`), Vitest (`frontend/`).
 
@@ -12,29 +12,29 @@
 
 ## Global Constraints
 
-- Copy statusu (verbatim): `Goat konsultuje z {etykieta}…` gdzie `{etykieta}` = `persona_display_label(persona)`.
-- Tool response błędu: JSON `{"error": "…"}`, nigdy 500.
-- Max **5** wywołań `consult_persona` na turę Goata (`MAX_CONSULTS_PER_TURN = 5`).
-- `consult_persona` tylko w `get_team_lead_plan_tools()`; trenerzy go nie mają.
-- Zagnieżdżony trener: zero `token` / `persona_turn_start` / `tool_result` na kolejkę usera; zero widocznej wiadomości `assistant` z `persona_id` trenera.
-- Slash (`parse_multi_slash_command`) i sesja `persona`: Goat nie startuje.
-- Testy: `cd backend && uv run pytest …`; frontend: `cd frontend && npm test -- <plik>`.
-- Commit kroków: **pomiń**, dopóki user nie poprosi o commit.
-- Bez sekretów; docs PL, konkretne.
+- Status copy (verbatim): `Goat is consulting with {label}…` where `{label}` = `persona_display_label(persona)`.
+- Tool response error: JSON `{"error": "…"}`, never 500.
+- Max **5** `consult_persona` calls per Goat turn (`MAX_CONSULTS_PER_TURN = 5`).
+- `consult_persona` only in `get_team_lead_plan_tools()`; trainers don't have it.
+- Nested trainer: zero `token` / `persona_turn_start` / `tool_result` on the user queue; zero visible `assistant` message with trainer's `persona_id`.
+- Slash (`parse_multi_slash_command`) and `persona` session: Goat does not start.
+- Tests: `cd backend && uv run pytest …`; frontend: `cd frontend && npm test -- <file>`.
+- Commit step-by-step: **skip**, until the user asks to commit.
+- No secrets; docs PL, concrete.
 
 ## File map
 
-| Plik | Rola |
+| File | Role |
 |------|------|
-| `backend/app/domain/chat/tools.py` | Schema `CONSULT_PERSONA_TOOL_SCHEMA`; rejestr Goat |
-| `backend/app/domain/chat/team_lead.py` | Prompt Goata, roster, hint motoryki, resolve slug, status string; usunąć relay/klasyfikator speakerów |
-| `backend/app/domain/chat/orchestrator.py` | Flagi `emit_sse`/`persist_messages`; wykonanie consult; `run_chat_turn` tylko Goat albo slash |
+| `backend/app/domain/chat/tools.py` | Schema `CONSULT_PERSONA_TOOL_SCHEMA`; Goat registry |
+| `backend/app/domain/chat/team_lead.py` | Goat prompt, roster, motor hint, resolve slug, status string; remove relay/speaker classifier |
+| `backend/app/domain/chat/orchestrator.py` | `emit_sse`/`persist_messages` flags; consult execution; `run_chat_turn` only Goat or slash |
 | `frontend/src/lib/chat-status.ts` | Label + chip `consult_persona` |
-| Docs: `team-lead.md`, `ai-pipeline.md` §1a, `adr/decisions.md` ADR-17, `architecture.md` §3a, `AGENTS.md` | Kanon po wdrożeniu |
+| Docs: `team-lead.md`, `ai-pipeline.md` §1a, `adr/decisions.md` ADR-17, `architecture.md` §3a, `AGENTS.md` | Canon after implementation |
 
 ---
 
-### Task 1: Schema `consult_persona` + rejestr tooli Goat
+### Task 1: Schema `consult_persona` + Goat's tool registry
 
 **Files:**
 - Modify: `backend/app/domain/chat/tools.py`
@@ -42,14 +42,14 @@
 
 **Interfaces:**
 - Produces: `CONSULT_PERSONA_TOOL_SCHEMA: dict[str, Any]`
-- Produces: `TEAM_LEAD_CHAT_TOOL_NAMES` zawiera `"consult_persona"`
+- Produces: `TEAM_LEAD_CHAT_TOOL_NAMES` contains `"consult_persona"`
 - Produces: `get_team_lead_plan_tools()` → `{get_plan, rebuild_plan, update_user_profile, consult_persona}`
-- Produces: `get_trainer_chat_tools()` **bez** `consult_persona`
-- Consumes: istniejące `get_chat_tools()` (trenerzy + pełny zestaw bez consult, albo consult tylko w Goat — **nie** dodawaj do `get_chat_tools()`)
+- Produces: `get_trainer_chat_tools()` **without** `consult_persona`
+- Consumes: existing `get_chat_tools()` (trainers + full set without consult, or consult only in Goat — **don't** add to `get_chat_tools()`)
 
 - [ ] **Step 1: Failing tests**
 
-W `backend/tests/test_chat_tools_schema.py` zamień asercje Goat i dopisz:
+In `backend/tests/test_chat_tools_schema.py` replace Goat assertions and add:
 
 ```python
 def test_get_team_lead_plan_tools_includes_consult_persona() -> None:
@@ -77,7 +77,7 @@ def test_consult_persona_schema_requires_slug_and_question() -> None:
     assert params["additionalProperties"] is False
 ```
 
-Zaktualizuj `test_get_team_lead_plan_tools_includes_profile` (albo usuń na rzecz powyższego) oraz `test_trainer_and_team_lead_tool_sets_disjoint_except_shared`: przecięcie nadal `{"get_plan", "update_user_profile"}`; `consult_persona` tylko w goat.
+Update `test_get_team_lead_plan_tools_includes_profile` (or delete in favor of the above) and `test_trainer_and_team_lead_tool_sets_disjoint_except_shared`: intersection still `{"get_plan", "update_user_profile"}`; `consult_persona` only in goat.
 
 - [ ] **Step 2: Run — FAIL**
 
@@ -85,11 +85,11 @@ Zaktualizuj `test_get_team_lead_plan_tools_includes_profile` (albo usuń na rzec
 cd backend && uv run pytest tests/test_chat_tools_schema.py -v
 ```
 
-Expected: FAIL — brak `consult_persona` / `CONSULT_PERSONA_TOOL_SCHEMA`.
+Expected: FAIL — no `consult_persona` / `CONSULT_PERSONA_TOOL_SCHEMA`.
 
-- [ ] **Step 3: Schema + rejestr**
+- [ ] **Step 3: Schema + registry**
 
-W `tools.py` dodaj (opis verbatim ze specu):
+In `tools.py` add (description verbatim from spec):
 
 ```python
 CONSULT_PERSONA_TOOL_SCHEMA: dict[str, Any] = {
@@ -97,22 +97,22 @@ CONSULT_PERSONA_TOOL_SCHEMA: dict[str, Any] = {
     "function": {
         "name": "consult_persona",
         "description": (
-            "Dopytaj jednego aktywnego trenera usera (za kulisami). Wołaj gdy potrzebujesz "
-            "szczegółu z JEGO zakresu. Motoryka/plyometria/bieganie/skok → slug trenera "
-            "motor_coach; dieta/makro → dietitian; siła/hipertrofia → personal_trainer. "
-            "Nie wołaj złej roli. Po wyniku odpowiedz userowi SAM jako Goat — nie cytuj "
-            "trenera w całości."
+            "Ask one of the user's active trainers (backstage). Call when you need a "
+            "detail from THEIR scope. Motor skills/plyometrics/running/jump → slug of motor_coach "
+            "trainer; diet/macros → dietitian; strength/hypertrophy → personal_trainer. "
+            "Don't call the wrong role. After the result, answer the user YOURSELF as Goat — don't quote "
+            "the trainer in full."
         ),
         "parameters": {
             "type": "object",
             "properties": {
                 "slug": {
                     "type": "string",
-                    "description": "Slug aktywnej persony z rosteru.",
+                    "description": "Slug of an active persona from the roster.",
                 },
                 "question": {
                     "type": "string",
-                    "description": "Konkretne pytanie / brief do trenera.",
+                    "description": "Specific question / brief to the trainer.",
                 },
             },
             "required": ["slug", "question"],
@@ -122,7 +122,7 @@ CONSULT_PERSONA_TOOL_SCHEMA: dict[str, Any] = {
 }
 ```
 
-Zmień:
+Change:
 
 ```python
 TEAM_LEAD_CHAT_TOOL_NAMES = frozenset(
@@ -130,7 +130,7 @@ TEAM_LEAD_CHAT_TOOL_NAMES = frozenset(
 )
 ```
 
-`get_team_lead_plan_tools`: filtruj `get_chat_tools() + [CONSULT_PERSONA_TOOL_SCHEMA]` **albo** złóż listę ze schematów Goat wprost (get_plan, rebuild_plan, update_user_profile, consult_persona). Nie wkładaj `consult_persona` do `get_chat_tools()`.
+`get_team_lead_plan_tools`: filter `get_chat_tools() + [CONSULT_PERSONA_TOOL_SCHEMA]` **or** compose the list from Goat's schemas directly (get_plan, rebuild_plan, update_user_profile, consult_persona). Don't put `consult_persona` in `get_chat_tools()`.
 
 - [ ] **Step 4: Run — PASS**
 
@@ -140,24 +140,24 @@ cd backend && uv run pytest tests/test_chat_tools_schema.py -v
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit** — pomiń (dopóki user nie poprosi).
+- [ ] **Step 5: Commit** — skip (until user asks).
 
 ---
 
-### Task 2: Pure helpers — slug, status, prompt, hint motoryki
+### Task 2: Pure helpers — slug, status, prompt, motor hint
 
 **Files:**
 - Modify: `backend/app/domain/chat/team_lead.py`
-- Test: `backend/tests/test_team_lead.py` (nowe testy; stare relay/klasyfikator speakerów jeszcze nie ruszaj)
+- Test: `backend/tests/test_team_lead.py` (new tests; don't touch old relay/speaker classifier yet)
 
 **Interfaces:**
 - Produces: `MAX_CONSULTS_PER_TURN: int = 5`
 - Produces: `resolve_persona_by_slug(slug: str, active_personas: list[PersonaLike]) -> PersonaLike | None` (match `p.slug == slug.strip().lstrip("/")`)
-- Produces: `goat_consult_status_message(persona: PersonaLike) -> str` → `f"Goat konsultuje z {persona_display_label(persona)}…"`
+- Produces: `goat_consult_status_message(persona: PersonaLike) -> str` → `f"Goat is consulting with {persona_display_label(persona)}…"`
 - Produces: `build_goat_turn_prompt(*, active_personas: list[PersonaLike], user_message: str) -> str`
 - Produces: `consult_scope_hint(*, message: str, active_personas: list[PersonaLike]) -> str | None`
 
-- [ ] **Step 1: Failing tests** w `test_team_lead.py`
+- [ ] **Step 1: Failing tests** in `test_team_lead.py`
 
 ```python
 from app.domain.chat.team_lead import (
@@ -177,24 +177,24 @@ def test_resolve_persona_by_slug_finds_motor_coach() -> None:
     diet = _FakePersona(id="a", type="dietitian", slug="dietetyk", name="Anna")
     motor = _FakePersona(id="b", type="motor_coach", slug="motoryka", name="Bartek")
     assert resolve_persona_by_slug("motoryka", [diet, motor]) is motor
-    assert resolve_persona_by_slug("nie-ma", [diet, motor]) is None
+    assert resolve_persona_by_slug("does-not-exist", [diet, motor]) is None
 
 
 def test_goat_consult_status_message_copy() -> None:
     p = _FakePersona(id="b", type="motor_coach", slug="motoryka", name="Bartek")
-    assert goat_consult_status_message(p) == "Goat konsultuje z Bartek · Trener motoryczny…"
+    assert goat_consult_status_message(p) == "Goat is consulting with Bartek · Motor Skills Trainer…"
 
 
 def test_consult_scope_hint_motor_not_dietitian() -> None:
     diet = _FakePersona(id="a", type="dietitian", slug="dietetyk", name="Anna")
     motor = _FakePersona(id="b", type="motor_coach", slug="motoryka", name="Bartek")
     hint = consult_scope_hint(
-        message="Jak poprawić plyometrię i skok?",
+        message="How to improve plyometrics and the jump?",
         active_personas=[diet, motor],
     )
     assert hint is not None
     assert "motoryka" in hint
-    assert "dietetyk" not in hint.lower() or "nie dietetyk" in hint.lower()
+    assert "dietetyk" not in hint.lower() or "not dietitian" in hint.lower()
 
 
 def test_build_goat_turn_prompt_includes_roster_and_consult_tool() -> None:
@@ -202,12 +202,12 @@ def test_build_goat_turn_prompt_includes_roster_and_consult_tool() -> None:
     motor = _FakePersona(id="b", type="motor_coach", slug="motoryka", name="Bartek")
     prompt = build_goat_turn_prompt(
         active_personas=[diet, motor],
-        user_message="Jak trenować motorykę?",
+        user_message="How to train motor skills?",
     )
     assert "consult_persona" in prompt
     assert "motoryka" in prompt
     assert "dietetyk" in prompt
-    assert "plyometria" in prompt.lower() or "motor_coach" in prompt
+    assert "plyometrics" in prompt.lower() or "motor_coach" in prompt
 ```
 
 - [ ] **Step 2: Run — FAIL**
@@ -216,23 +216,22 @@ def test_build_goat_turn_prompt_includes_roster_and_consult_tool() -> None:
 cd backend && uv run pytest tests/test_team_lead.py::test_resolve_persona_by_slug_finds_motor_coach tests/test_team_lead.py::test_goat_consult_status_message_copy tests/test_team_lead.py::test_consult_scope_hint_motor_not_dietitian tests/test_team_lead.py::test_build_goat_turn_prompt_includes_roster_and_consult_tool tests/test_team_lead.py::test_max_consults_is_five -v
 ```
 
-Expected: FAIL — import error / brak funkcji.
+Expected: FAIL — import error / missing functions.
 
-- [ ] **Step 3: Implement helpers** w `team_lead.py`
+- [ ] **Step 3: Implement helpers** in `team_lead.py`
 
 ```python
 MAX_CONSULTS_PER_TURN = 5
 
 _MOTOR_HINT_NEEDLES = (
-    "motoryk",
+    "motor",
     "plyometr",
-    "skok",
-    "bieg",
-    "szybkoś",
-    "szybkosc",
-    "dynamik",
-    "mobilno",
-    "wydoln",
+    "jump",
+    "run",
+    "speed",
+    "dynam",
+    "mobil",
+    "enduran",
 )
 
 
@@ -246,7 +245,7 @@ def resolve_persona_by_slug(
 
 
 def goat_consult_status_message(persona: PersonaLike) -> str:
-    return f"Goat konsultuje z {persona_display_label(persona)}…"
+    return f"Goat is consulting with {persona_display_label(persona)}…"
 
 
 def consult_scope_hint(*, message: str, active_personas: list[PersonaLike]) -> str | None:
@@ -254,61 +253,61 @@ def consult_scope_hint(*, message: str, active_personas: list[PersonaLike]) -> s
     motor = next((p for p in active_personas if p.type == "motor_coach"), None)
     if motor is not None and any(n in lower for n in _MOTOR_HINT_NEEDLES):
         return (
-            f"Wskazówka zakresu: pytanie dotyczy motoryki — jeśli wołasz consult_persona, "
-            f"użyj slug `{motor.slug}` (nie dietetyka)."
+            f"Scope hint: the question is about motor skills — if you call consult_persona, "
+            f"use the slug `{motor.slug}` (not the dietitian)."
         )
     diet = next((p for p in active_personas if p.type == "dietitian"), None)
     if diet is not None and any(
-        n in lower for n in ("jeść", "jem", "makro", "kalor", "posił", "diet")
+        n in lower for n in ("eat", "food", "macro", "calor", "meal", "diet")
     ):
         return (
-            f"Wskazówka zakresu: pytanie dotyczy żywienia — jeśli wołasz consult_persona, "
-            f"użyj slug `{diet.slug}`."
+            f"Scope hint: the question is about nutrition — if you call consult_persona, "
+            f"use the slug `{diet.slug}`."
         )
     return None
 ```
 
-Zastąp `TEAM_LEAD_SYSTEM` / `TEAM_LEAD_PLAN_BEHAVIOR` jednym promptem tury (użyj w `build_goat_turn_prompt` i jako `TeamLeadSpeaker.system_prompt` default):
+Replace `TEAM_LEAD_SYSTEM` / `TEAM_LEAD_PLAN_BEHAVIOR` with one turn prompt (used in `build_goat_turn_prompt` and as `TeamLeadSpeaker.system_prompt` default):
 
 ```python
-TEAM_LEAD_TURN_BEHAVIOR = """Jesteś Goat — Kierownikiem Zespołu Trenerów. User rozmawia WYŁĄCZNIE z Tobą.
-Trenerzy pracują za kulisami przez narzędzie consult_persona. Nie udawaj dietetyka ani trenera motorycznego —
-gdy potrzebujesz szczegółu z ich zakresu, wołaj consult_persona z właściwym slugiem z rosteru.
+TEAM_LEAD_TURN_BEHAVIOR = """You are Goat — the Team Lead of Trainers. The user talks ONLY with you.
+Trainers work backstage through the consult_persona tool. Don't pretend to be a dietitian or motor skills trainer —
+when you need a detail from their scope, call consult_persona with the right slug from the roster.
 
-Zasady consult_persona:
-- Motoryka, plyometria, skok, bieganie, szybkość, dynamika, mobilność, wydolność → slug motor_coach.
-- Dieta, makro, posiłki, kalorie → slug dietitian.
-- Siła, hipertrofia, obciążenia → slug personal_trainer.
-- Nie wołaj złej roli. Po tool response odpowiedz SAM — zwięźle, możesz wspomnieć z kim uzgodniłeś,
-  ale nie wklejaj odpowiedzi trenera w całości.
-- User prosi „niech każdy” / o skład zespołu → consult_persona dla KAŻDEGO slug z rosteru, potem jedna odpowiedź.
-- Plan tygodnia/miesiąca / przebudowa → rebuild_plan (zakładka Plany). Szczegół merytoryczny w tej samej
-  wiadomości → dodatkowo consult_persona.
-- update_user_profile tylko gdy user jawnie podaje dane. Nie wołaj log_result ani upsert_plan_items.
-Bezpośrednia rozmowa usera z trenerem: tylko /slug."""
+Consult_persona rules:
+- Motor skills, plyometrics, jumping, running, speed, dynamics, mobility, endurance → motor_coach slug.
+- Diet, macros, meals, calories → dietitian slug.
+- Strength, hypertrophy, loads → personal_trainer slug.
+- Don't call the wrong role. After the tool response answer YOURSELF — concisely, you can mention who you consulted with,
+  but don't paste the trainer's answer in full.
+- User asks "let everyone" / for team composition → consult_persona for EACH slug from the roster, then one answer.
+- Weekly/monthly plan / rebuild → rebuild_plan (Plans tab). Merit detail in the same
+  message → additionally consult_persona.
+- update_user_profile only when the user explicitly gives data. Don't call log_result or upsert_plan_items.
+Direct trainer conversation: only /slug."""
 
 
 def build_goat_turn_prompt(*, active_personas: list[PersonaLike], user_message: str) -> str:
     from app.domain.chat.persona_scope import PERSONA_TYPE_SCOPE
 
-    lines = [TEAM_LEAD_TURN_BEHAVIOR, "", "Roster aktywnych trenerów (slug → consult_persona):"]
+    lines = [TEAM_LEAD_TURN_BEHAVIOR, "", "Active trainer roster (slug → consult_persona):"]
     for p in active_personas:
         scope = PERSONA_TYPE_SCOPE.get(p.type, "")
-        lines.append(f"- slug=`{p.slug}` | {persona_display_label(p)} | zakres: {scope}")
+        lines.append(f"- slug=`{p.slug}` | {persona_display_label(p)} | scope: {scope}")
     hint = consult_scope_hint(message=user_message, active_personas=active_personas)
     if hint:
         lines.extend(["", hint])
     if user_requests_all_trainers(user_message):
         slugs = ", ".join(f"`{p.slug}`" for p in active_personas)
-        lines.extend(["", f"User prosi o cały zespół — skonsultuj wszystkich: {slugs}."])
+        lines.extend(["", f"User asks for the whole team — consult them all: {slugs}."])
     if user_requests_plan_rebuild(user_message):
-        lines.extend(["", "User prosi o plan — wołaj rebuild_plan."])
+        lines.extend(["", "User asks for a plan — call rebuild_plan."])
     return "\n".join(lines)
 ```
 
-`TeamLeadSpeaker.system_prompt` default = `TEAM_LEAD_TURN_BEHAVIOR` (stary `TEAM_LEAD_PLAN_BEHAVIOR` usuń albo aliasuj).
+`TeamLeadSpeaker.system_prompt` default = `TEAM_LEAD_TURN_BEHAVIOR` (delete the old `TEAM_LEAD_PLAN_BEHAVIOR` or alias it).
 
-`_FakePersona` w testach już ma `name` i `slug`.
+`_FakePersona` in tests already has `name` and `slug`.
 
 - [ ] **Step 4: Run — PASS**
 
@@ -318,23 +317,23 @@ cd backend && uv run pytest tests/test_team_lead.py::test_max_consults_is_five t
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit** — pomiń.
+- [ ] **Step 5: Commit** — skip.
 
 ---
 
-### Task 3: Orchestrator — `emit_sse` / `persist_messages` + wykonanie `consult_persona`
+### Task 3: Orchestrator — `emit_sse` / `persist_messages` + `consult_persona` execution
 
 **Files:**
 - Modify: `backend/app/domain/chat/orchestrator.py` (`handle_message`, `_handle_message_inner`, `_execute_tool_calls`, `_run_single_tool`, `_tool_result_event_payload`)
-- Test: `backend/tests/test_consult_persona.py` (nowy)
+- Test: `backend/tests/test_consult_persona.py` (new)
 
 **Interfaces:**
 - Consumes: `resolve_persona_by_slug`, `goat_consult_status_message`, `MAX_CONSULTS_PER_TURN` (Task 2); `TEAM_LEAD_CHAT_TOOL_NAMES` (Task 1)
 - Produces: `handle_message(..., emit_sse: bool = True, persist_messages: bool = True, consult_roster: list | None = None)`
 - Produces: tool JSON ok: `{"status": "ok", "slug": str, "persona_label": str, "answer": str}`
-- Produces: `_tool_result_event_payload("consult_persona", ...)` → `summary` `Skonsultowano: {persona_label}`, `success` True; przy error `success` False
+- Produces: `_tool_result_event_payload("consult_persona", ...)` → `summary` `Consulted: {persona_label}`, `success` True; on error `success` False
 
-**Zachowanie zagnieżdżonej tury:** `emit_sse=False` → żadnych `_emit` / `_emit_persona_status`. `persist_messages=False` → żadnych `insert_assistant_message` / `insert_tool_message` (toole trenera **wykonują się** — `log_result` zapisuje wynik).
+**Nested turn behavior:** `emit_sse=False` → no `_emit` / `_emit_persona_status`. `persist_messages=False` → no `insert_assistant_message` / `insert_tool_message` (trainer tools **do execute** — `log_result` saves the result).
 
 - [ ] **Step 1: Failing tests** — `backend/tests/test_consult_persona.py`
 
@@ -355,7 +354,7 @@ class _P:
     type: str
     slug: str
     name: str = "X"
-    system_prompt: str = "trener"
+    system_prompt: str = "trainer"
     base_template_id: None = None
     persona_constraints: None = None
 
@@ -367,7 +366,7 @@ async def test_consult_unknown_slug_json_error() -> None:
     orch._consult_count = 0
     raw = await orch._run_single_tool(
         name="consult_persona",
-        raw_arguments='{"slug": "motoryka", "question": "plyometria?"}',
+        raw_arguments='{"slug": "motoryka", "question": "plyometrics?"}',
         user_id="u",
         persona=TeamLeadSpeaker(),
         results_service=MagicMock(),
@@ -385,7 +384,7 @@ async def test_consult_cap_five() -> None:
     orch._consult_count = 5
     raw = await orch._run_single_tool(
         name="consult_persona",
-        raw_arguments='{"slug": "dietetyk", "question": "makro?"}',
+        raw_arguments='{"slug": "dietetyk", "question": "macro?"}',
         user_id="u",
         persona=TeamLeadSpeaker(),
         results_service=MagicMock(),
@@ -419,24 +418,24 @@ def test_tool_result_payload_consult_ok() -> None:
         {
             "status": "ok",
             "slug": "motoryka",
-            "persona_label": "Bartek · Trener motoryczny",
-            "answer": "Plyometria 2x tydzień.",
+            "persona_label": "Bartek · Motor Skills Trainer",
+            "answer": "Plyometrics 2x a week.",
         },
         ensure_ascii=False,
     )
     payload = _tool_result_event_payload("consult_persona", body)
     assert payload["success"] is True
-    assert payload["summary"] == "Skonsultowano: Bartek · Trener motoryczny"
+    assert payload["summary"] == "Consulted: Bartek · Motor Skills Trainer"
 
 
 def test_goat_consult_status_copy_for_sse() -> None:
     p = _P(id="b", type="motor_coach", slug="motoryka", name="Bartek")
-    assert goat_consult_status_message(p) == "Goat konsultuje z Bartek · Trener motoryczny…"
+    assert goat_consult_status_message(p) == "Goat is consulting with Bartek · Motor Skills Trainer…"
 ```
 
-Dla `test_trainer_blocked_from_consult_persona` użyj `@pytest.mark.asyncio` + `await` (nie `run_until_complete`).
+For `test_trainer_blocked_from_consult_persona` use `@pytest.mark.asyncio` + `await` (not `run_until_complete`).
 
-Istniejący guard `team_lead and name not in TEAM_LEAD_CHAT_TOOL_NAMES` **nie** blokuje trenera — dodaj odwrotny: jeśli `persona.type != "team_lead"` i `name == "consult_persona"` → error JSON.
+Existing guard `team_lead and name not in TEAM_LEAD_CHAT_TOOL_NAMES` **doesn't** block the trainer — add the inverse: if `persona.type != "team_lead"` and `name == "consult_persona"` → JSON error.
 
 - [ ] **Step 2: Run — FAIL**
 
@@ -444,11 +443,11 @@ Istniejący guard `team_lead and name not in TEAM_LEAD_CHAT_TOOL_NAMES` **nie** 
 cd backend && uv run pytest tests/test_consult_persona.py -v
 ```
 
-Expected: FAIL — brak `_consult_roster` / gałęzi `consult_persona`.
+Expected: FAIL — no `_consult_roster` / `consult_persona` branch.
 
 - [ ] **Step 3: Implement**
 
-Na `ChatOrchestrator.__init__`:
+On `ChatOrchestrator.__init__`:
 
 ```python
 self._consult_roster: list[Any] | None = None
@@ -457,7 +456,7 @@ self._consult_session_id: str | None = None
 self._consult_user_queue: asyncio.Queue[dict[str, Any]] | None = None
 ```
 
-Rozszerz `handle_message` / `_handle_message_inner` o:
+Extend `handle_message` / `_handle_message_inner` with:
 
 ```python
 emit_sse: bool = True,
@@ -465,44 +464,44 @@ persist_messages: bool = True,
 consult_roster: list[Any] | None = None,
 ```
 
-Na starcie inner, jeśli `consult_roster is not None`: ustaw `self._consult_roster`, `self._consult_session_id = session_id`, `self._consult_user_queue = queue`. Nested wywołanie **bez** `consult_roster` nie zeruje rosteru rodzica — przekaż `consult_roster` tylko w turze Goata. Nested: `consult_roster=None` i **nie** nadpisuj `self._consult_roster` gdy argument jest `None` i tura nie jest Goat. Prościej: nested `handle_message` z `persona.type != team_lead` nigdy nie woła consult (brak w tools + guard). Roster zostaje na instancji — OK, bo nested nie ma toola.
+At the start of inner, if `consult_roster is not None`: set `self._consult_roster`, `self._consult_session_id = session_id`, `self._consult_user_queue = queue`. Nested call **without** `consult_roster` doesn't reset the parent's roster — pass `consult_roster` only in Goat's turn. Nested: `consult_roster=None` and **don't** overwrite `self._consult_roster` when argument is `None` and turn is not Goat. Simpler: nested `handle_message` with `persona.type != team_lead` never calls consult (no tool + guard). Roster stays on the instance — OK, because nested has no tool.
 
-Owiń każde `_emit` / `_emit_persona_status` w inner: `if emit_sse:`.
+Wrap each `_emit` / `_emit_persona_status` in inner: `if emit_sse:`.
 
-W `_execute_tool_calls`: parametr `persist_messages: bool = True`; `insert_assistant_message` / `insert_tool_message` tylko gdy True. `_emit(..., "tool_result")` tylko gdy `emit_sse` (przekaż `emit_sse` też).
+In `_execute_tool_calls`: parameter `persist_messages: bool = True`; `insert_assistant_message` / `insert_tool_message` only when True. `_emit(..., "tool_result")` only when `emit_sse` (also pass `emit_sse`).
 
-W `_handle_message_inner` końcowy insert assistant: już pod `if client_visible` — zmień na `if persist_messages and client_visible` (consult: oba False).
+In `_handle_message_inner` final assistant insert: already under `if client_visible` — change to `if persist_messages and client_visible` (consult: both False).
 
-Gałąź w `_run_single_tool` **przed** `persona_id = persona.id`:
+Branch in `_run_single_tool` **before** `persona_id = persona.id`:
 
 ```python
 if name == "consult_persona":
     if getattr(persona, "type", None) != "team_lead":
-        return json.dumps({"error": "consult_persona dostępne tylko dla Goata."}, ensure_ascii=False)
+        return json.dumps({"error": "consult_persona available only for Goat."}, ensure_ascii=False)
     return await self._consult_persona(raw_arguments=raw_arguments, user_id=user_id)
 ```
 
-Nowa metoda `_consult_persona`:
+New method `_consult_persona`:
 
 ```python
 async def _consult_persona(self, *, raw_arguments: str, user_id: str) -> str:
     roster = self._consult_roster or []
     if self._consult_count >= MAX_CONSULTS_PER_TURN:
         return json.dumps(
-            {"error": f"Limit {MAX_CONSULTS_PER_TURN} konsultacji w tej turze."},
+            {"error": f"Limit of {MAX_CONSULTS_PER_TURN} consults in this turn."},
             ensure_ascii=False,
         )
     try:
         arguments = json.loads(raw_arguments) if raw_arguments else {}
     except json.JSONDecodeError as exc:
-        return json.dumps({"error": f"Nieprawidłowy JSON argumentów: {exc}"})
+        return json.dumps({"error": f"Invalid argument JSON: {exc}"})
     slug = str(arguments.get("slug") or "").strip()
     question = str(arguments.get("question") or "").strip()
     if not slug or not question:
-        return json.dumps({"error": "Wymagane slug i question."}, ensure_ascii=False)
+        return json.dumps({"error": "slug and question required."}, ensure_ascii=False)
     target = resolve_persona_by_slug(slug, roster)
     if target is None:
-        return json.dumps({"error": f"Brak aktywnej persony o slugu {slug!r}."}, ensure_ascii=False)
+        return json.dumps({"error": f"No active persona with slug {slug!r}."}, ensure_ascii=False)
     self._consult_count += 1
     status = goat_consult_status_message(target)
     user_queue = self._consult_user_queue
@@ -530,7 +529,7 @@ async def _consult_persona(self, *, raw_arguments: str, user_id: str) -> str:
     )
     if not ok or not (answer or "").strip():
         return json.dumps(
-            {"error": "Nie udało się skonsultować trenera.", "slug": slug},
+            {"error": "Failed to consult the trainer.", "slug": slug},
             ensure_ascii=False,
         )
     label = persona_display_label(target)
@@ -540,7 +539,7 @@ async def _consult_persona(self, *, raw_arguments: str, user_id: str) -> str:
     )
 ```
 
-`_tool_result_event_payload` — gałąź `consult_persona`:
+`_tool_result_event_payload` — `consult_persona` branch:
 
 ```python
 elif name == "consult_persona":
@@ -549,13 +548,13 @@ elif name == "consult_persona":
         success = False
     else:
         label = str(parsed.get("persona_label") or parsed.get("slug") or "")
-        summary = f"Skonsultowano: {label}" if label else "Skonsultowano trenera"
+        summary = f"Consulted: {label}" if label else "Consulted trainer"
         success = parsed.get("status") == "ok"
 ```
 
-Ustaw `_consult_session_id` i `_consult_user_queue` na początku tury Goata (Task 4); w testach Task 3 unknown slug / cap **nie** wołają `handle_message`.
+Set `_consult_session_id` and `_consult_user_queue` at the start of Goat's turn (Task 4); in Task 3 tests unknown slug / cap **don't** call `handle_message`.
 
-Happy-path z mockiem `handle_message` (opcjonalnie w tym samym pliku):
+Happy-path with a `handle_message` mock (optionally in the same file):
 
 ```python
 @pytest.mark.asyncio
@@ -570,15 +569,15 @@ async def test_consult_happy_path_returns_answer(monkeypatch: pytest.MonkeyPatch
         assert kwargs["persona"].slug == "motoryka"
         assert kwargs["client_visible"] is False
         assert kwargs["persist_messages"] is False
-        return True, "Plyometria 2x."
+        return True, "Plyometrics 2x."
     monkeypatch.setattr(orch, "handle_message", _fake_handle)
     raw = await orch._consult_persona(
-        raw_arguments='{"slug": "motoryka", "question": "jak skakać?"}',
+        raw_arguments='{"slug": "motoryka", "question": "how to jump?"}',
         user_id="u",
     )
     data = json.loads(raw)
     assert data["status"] == "ok"
-    assert data["answer"] == "Plyometria 2x."
+    assert data["answer"] == "Plyometrics 2x."
     assert orch._consult_count == 1
 ```
 
@@ -590,33 +589,33 @@ cd backend && uv run pytest tests/test_consult_persona.py tests/test_chat_tools_
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit** — pomiń.
+- [ ] **Step 5: Commit** — skip.
 
 ---
 
-### Task 4: `run_chat_turn` — general bez slash = tylko Goat
+### Task 4: `run_chat_turn` — general without slash = only Goat
 
 **Files:**
 - Modify: `backend/app/domain/chat/orchestrator.py` (`_run_chat_turn_body`)
-- Test: `backend/tests/test_run_chat_turn_goat.py` (nowy) — testuj **wycinek** logiki routingu, nie cały DB stream
+- Test: `backend/tests/test_run_chat_turn_goat.py` (new) — test a **slice** of routing logic, not the full DB stream
 
-Wyciągnij czystą funkcję (łatwy test GWT-1/GWT-5):
+Pull out a pure function (easy GWT-1/GWT-5 test):
 
 ```python
 def general_turn_mode(user_message: str, active_personas: list) -> tuple[str, list]:
-    """Zwraca ('goat', []) albo ('slash', [personas...])."""
+    """Returns ('goat', []) or ('slash', [personas...])."""
 ```
 
-Albo testuj istniejące `parse_multi_slash_command` + nowy helper `should_run_goat_turn(message, personas) -> bool`.
+Or test the existing `parse_multi_slash_command` + new helper `should_run_goat_turn(message, personas) -> bool`.
 
 **Interfaces:**
 - Produces: `should_run_goat_turn(message: str, active_personas: list[PersonaLike]) -> bool` = `parse_multi_slash_command(...) is None`
 - Modify `_run_chat_turn_body`:
-  - `general` + Goat: insert user (`invoked_via=None`), `persona_turn_start` Goat, `handle_message` z `TeamLeadSpeaker(system_prompt=build_goat_turn_prompt(...))`, `consult_roster=active_personas`, `client_visible=True`, `emit_sse=True`, `persist_messages=True`; `persona_turn_end` Goat; `turn_complete` + `done`. **Bez** pętli trenerów, **bez** `plan_consultation`, **bez** `_relay_trainer_response_via_goat`, **bez** `build_plan_only_consultation`.
-  - `general` + slash: jak dziś pętla person `client_visible=True` (bez Goat, bez relay).
-  - `persona`: bez zmian.
+  - `general` + Goat: insert user (`invoked_via=None`), `persona_turn_start` Goat, `handle_message` with `TeamLeadSpeaker(system_prompt=build_goat_turn_prompt(...))`, `consult_roster=active_personas`, `client_visible=True`, `emit_sse=True`, `persist_messages=True`; `persona_turn_end` Goat; `turn_complete` + `done`. **Without** trainer loop, **without** `plan_consultation`, **without** `_relay_trainer_response_via_goat`, **without** `build_plan_only_consultation`.
+  - `general` + slash: as today persona loop `client_visible=True` (without Goat, without relay).
+  - `persona`: unchanged.
 
-Ustaw przed `handle_message` Goata:
+Set before Goat's `handle_message`:
 
 ```python
 orchestrator._consult_roster = list(active_personas)
@@ -625,7 +624,7 @@ orchestrator._consult_session_id = session_id
 orchestrator._consult_user_queue = queue
 ```
 
-Start SSE: `team_phase` / `team_status` = `"Goat uzgadnia z zespołem…"` albo od razu `persona_turn_start` Goat (nie `{slug} analizuje`).
+SSE start: `team_phase` / `team_status` = `"Goat is coordinating with the team…"` or directly `persona_turn_start` Goat (not `{slug} is analyzing`).
 
 - [ ] **Step 1: Failing test**
 
@@ -635,11 +634,11 @@ from app.domain.chat.team_lead import build_goat_turn_prompt
 
 def test_should_run_goat_turn_without_slash() -> None:
     personas = [_FakePersona(id="a", type="dietitian", slug="dietetyk")]
-    assert should_run_goat_turn("Jak poprawić plyometrię?", personas) is True
-    assert should_run_goat_turn("/dietetyk co jeść", personas) is False
+    assert should_run_goat_turn("How to improve plyometrics?", personas) is True
+    assert should_run_goat_turn("/dietetyk what to eat", personas) is False
 ```
 
-Umieść `_FakePersona` w teście albo import z `test_team_lead` — lepiej zduplikuj 5-linijkowy dataclass w `test_run_chat_turn_goat.py`.
+Place `_FakePersona` in the test or import from `test_team_lead` — better to duplicate the 5-line dataclass in `test_run_chat_turn_goat.py`.
 
 - [ ] **Step 2: Run — FAIL**
 
@@ -647,9 +646,9 @@ Umieść `_FakePersona` w teście albo import z `test_team_lead` — lepiej zdup
 cd backend && uv run pytest tests/test_run_chat_turn_goat.py -v
 ```
 
-- [ ] **Step 3: Helper + przepisz `_run_chat_turn_body`**
+- [ ] **Step 3: Helper + rewrite `_run_chat_turn_body`**
 
-Szkielet gałęzi `general` (po załadowaniu `active_personas`):
+Skeleton of `general` branch (after loading `active_personas`):
 
 ```python
 from app.domain.chat.routing import parse_multi_slash_command
@@ -698,10 +697,10 @@ if slash_match is None:
         await _emit(queue, "turn_complete", {})
         await queue.put({"event": "done", "data": "{}"})
     return
-# else: slash path — istniejąca pętla, client_visible=True, bez relay
+# else: slash path — existing loop, client_visible=True, without relay
 ```
 
-Usuń importy: `build_plan_only_consultation`, `format_goat_relay`, `TeamLeadService`, `user_requests_plan_rebuild` z orchestratora (heurystyki zostają w `build_goat_turn_prompt`). Usuń funkcję `_relay_trainer_response_via_goat`.
+Remove imports: `build_plan_only_consultation`, `format_goat_relay`, `TeamLeadService`, `user_requests_plan_rebuild` from orchestrator (heuristics stay in `build_goat_turn_prompt`). Remove `_relay_trainer_response_via_goat`.
 
 `should_run_goat_turn`:
 
@@ -716,32 +715,32 @@ def should_run_goat_turn(message: str, active_personas: list[Any]) -> bool:
 cd backend && uv run pytest tests/test_run_chat_turn_goat.py tests/test_consult_persona.py tests/test_orchestrator_team_lead.py tests/test_team_lead.py -v
 ```
 
-Expected: `test_run_chat_turn_goat` PASS; `test_team_lead` stare testy `plan_consultation` / `format_goat_relay` jeszcze mogą PASS (kod jeszcze nie usunięty) albo FAIL jeśli usuniesz relay w tym tasku — jeśli usuniesz `_relay` tutaj, zostaw `format_goat_relay` do Task 6.
+Expected: `test_run_chat_turn_goat` PASS; `test_team_lead` old `plan_consultation` / `format_goat_relay` tests may still PASS (code not yet removed) or FAIL if you remove relay in this task — if you remove `_relay` here, leave `format_goat_relay` for Task 6.
 
-- [ ] **Step 5: Commit** — pomiń.
+- [ ] **Step 5: Commit** — skip.
 
 ---
 
-### Task 5: Frontend — status i chip konsultacji
+### Task 5: Frontend — consultation status and chip
 
 **Files:**
 - Modify: `frontend/src/lib/chat-status.ts`
 - Test: `frontend/src/lib/chat-status.test.ts`
 
 **Interfaces:**
-- Produces: `TOOL_ACTION_LABELS.consult_persona = "konsultuje"`
-- Produces: `toolChipLabel("consult_persona") === "Konsultacja"`
-- Produces: `personaToolStatus("Goat · Kierownik Zespołu", "consult_persona") === "Goat · Kierownik Zespołu konsultuje…"`
-- BE nadpisze status pełnym `Goat konsultuje z {etykieta}…` przez `persona_status.message` (już obsługiwane w `useChatTurnRunner`).
+- Produces: `TOOL_ACTION_LABELS.consult_persona = "is consulting"`
+- Produces: `toolChipLabel("consult_persona") === "Consultation"`
+- Produces: `personaToolStatus("Goat · Team Lead", "consult_persona") === "Goat · Team Lead is consulting…"`
+- BE overrides status with the full `Goat is consulting with {label}…` via `persona_status.message` (already handled in `useChatTurnRunner`).
 
-- [ ] **Step 1: Failing tests** w `chat-status.test.ts`
+- [ ] **Step 1: Failing tests** in `chat-status.test.ts`
 
 ```typescript
-it("consult_persona: akcja i chip", () => {
-  expect(personaToolStatus("Goat · Kierownik Zespołu", "consult_persona")).toBe(
-    "Goat · Kierownik Zespołu konsultuje…"
+it("consult_persona: action and chip", () => {
+  expect(personaToolStatus("Goat · Team Lead", "consult_persona")).toBe(
+    "Goat · Team Lead is consulting…"
   );
-  expect(toolChipLabel("consult_persona")).toBe("Konsultacja");
+  expect(toolChipLabel("consult_persona")).toBe("Consultation");
 });
 ```
 
@@ -753,16 +752,16 @@ Import `toolChipLabel`.
 cd frontend && npm test -- src/lib/chat-status.test.ts
 ```
 
-- [ ] **Step 3: Dopisz mapowania** w `chat-status.ts`:
+- [ ] **Step 3: Add mappings** in `chat-status.ts`:
 
 ```typescript
-consult_persona: "konsultuje",
+consult_persona: "is consulting",
 ```
 
-w `TOOL_ACTION_LABELS` oraz w `toolChipLabel`:
+In `TOOL_ACTION_LABELS` and in `toolChipLabel`:
 
 ```typescript
-consult_persona: "Konsultacja",
+consult_persona: "Consultation",
 ```
 
 - [ ] **Step 4: Run — PASS**
@@ -773,22 +772,22 @@ cd frontend && npm test -- src/lib/chat-status.test.ts src/lib/team-lead.test.ts
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit** — pomiń.
+- [ ] **Step 5: Commit** — skip.
 
 ---
 
-### Task 6: Usunąć martwy routing speakerów + sprzątnąć testy
+### Task 6: Remove dead speaker routing + clean up tests
 
 **Files:**
-- Modify: `backend/app/domain/chat/team_lead.py` — usuń `format_goat_relay`, `build_plan_only_consultation`, `TeamLeadService.plan_consultation` / `_classify_with_briefs` jeśli nic nie importuje; zostaw `user_requests_plan_rebuild`, `user_requests_all_trainers`, `is_plan_coordination_only` (hint w promptcie), `parse` re-export niepotrzebny
-- Modify: `backend/tests/test_team_lead.py` — usuń testy relay, `build_plan_only_consultation`, `plan_consultation` speakerów; zostaw heurystyki, `persona_display_label`, nowe helpery Task 2
-- Modify: `backend/app/domain/chat/routing.py` — docstring: produkcja to tura Goata + slash, nie `plan_consultation`
+- Modify: `backend/app/domain/chat/team_lead.py` — remove `format_goat_relay`, `build_plan_only_consultation`, `TeamLeadService.plan_consultation` / `_classify_with_briefs` if nothing imports them; keep `user_requests_plan_rebuild`, `user_requests_all_trainers`, `is_plan_coordination_only` (hint in prompt), `parse` re-export not needed
+- Modify: `backend/tests/test_team_lead.py` — remove relay, `build_plan_only_consultation`, `plan_consultation` speaker tests; keep heuristics, `persona_display_label`, new Task 2 helpers
+- Modify: `backend/app/domain/chat/routing.py` — docstring: production is Goat's turn + slash, not `plan_consultation`
 
-**Nie ruszaj** `parse_multi_slash_command`.
+**Don't touch** `parse_multi_slash_command`.
 
-- [ ] **Step 1: Failing / broken imports** — po usunięciu funkcji odpal pełny pytest, napraw importy.
+- [ ] **Step 1: Failing / broken imports** — after removing functions run full pytest, fix imports.
 
-- [ ] **Step 2: Usuń martwy kod** (grep `format_goat_relay`, `plan_consultation`, `build_plan_only_consultation`, `_relay_trainer`).
+- [ ] **Step 2: Remove dead code** (grep `format_goat_relay`, `plan_consultation`, `build_plan_only_consultation`, `_relay_trainer`).
 
 - [ ] **Step 3: Run**
 
@@ -804,53 +803,53 @@ cd frontend && npm test
 
 Expected: PASS.
 
-- [ ] **Step 4: Commit** — pomiń.
+- [ ] **Step 4: Commit** — skip.
 
 ---
 
-### Task 7: Dokumentacja (kanon = kod)
+### Task 7: Documentation (canon = code)
 
 **Files:**
-- Modify: `docs/technical/team-lead.md` — nowy diagram (Goat + `consult_persona`); tabela tooli + `consult_persona`; usuń relay
-- Modify: `docs/technical/ai-pipeline.md` §1a — zamiast klasyfikatora JSON: tura Goata + tool
-- Modify: `docs/adr/decisions.md` ADR-17 — dopisz nowelizację 2026-08-16 (tekst ze specu, sekcja ADR)
-- Modify: `docs/technical/architecture.md` §3a — delta: bez slashy nie ma pętli speakerów
-- Modify: `AGENTS.md` — bullet czatu i Goat: `consult_persona`, nie `format_goat_relay`; roundtable = N consultów + **jeden** bubble Goata
-- Modify: `.cursor/plans/2026-08-16-goat-consult-persona.md` — status: wdrożone po testach
-- Modify: `docs/superpowers/specs/2026-08-16-goat-consult-persona-design.md` — Status: wdrożone
+- Modify: `docs/technical/team-lead.md` — new diagram (Goat + `consult_persona`); tool table + `consult_persona`; remove relay
+- Modify: `docs/technical/ai-pipeline.md` §1a — instead of JSON classifier: Goat's turn + tool
+- Modify: `docs/adr/decisions.md` ADR-17 — add amendment 2026-08-16 (text from spec, ADR section)
+- Modify: `docs/technical/architecture.md` §3a — delta: without slash no speaker loop
+- Modify: `AGENTS.md` — chat bullet and Goat: `consult_persona`, not `format_goat_relay`; roundtable = N consults + **one** Goat bubble
+- Modify: `.cursor/plans/2026-08-16-goat-consult-persona.md` — status: implemented after tests
+- Modify: `docs/superpowers/specs/2026-08-16-goat-consult-persona-design.md` — Status: implemented
 
-- [ ] **Step 1: Zaktualizuj ADR-17** — w `Decyzja` zastąp akapit o `plan_consultation` / `format_goat_relay`:
+- [ ] **Step 1: Update ADR-17** — in `Decision` replace the paragraph about `plan_consultation` / `format_goat_relay`:
 
 ```
-- **Widoczność (2026-08-16):** W `general` bez slashy jedna tura TeamLeadSpeaker.
-  Specjalista: tool consult_persona (backstage). User widzi persona_id=null.
-  Wyjątek: /slug i sesja persona. rebuild_plan w turze Goata.
+- **Visibility (2026-08-16):** In `general` without slash a single TeamLeadSpeaker turn.
+  Specialist: consult_persona tool (backstage). User sees persona_id=null.
+  Exception: /slash and persona session. rebuild_plan in Goat's turn.
 ```
 
-Konsekwencje: zamiast „+1 wywołanie JSON klasyfikatora” → „0..N consultów tylko gdy Goat woła tool”.
+Consequences: instead of "+1 JSON classifier call" → "0..N consults only when Goat calls the tool".
 
-- [ ] **Step 2: `team-lead.md`** — zamień sequenceDiagram na ten ze specu; tabela tooli Goat + `consult_persona`.
+- [ ] **Step 2: `team-lead.md`** — replace sequenceDiagram with the one from spec; Goat tool table + `consult_persona`.
 
-- [ ] **Step 3: `AGENTS.md`** Learned Preferences linia czatu: roundtable → jeden bubble; Workspace Facts: consult tool, nie relay.
+- [ ] **Step 3: `AGENTS.md`** Learned Preferences chat line: roundtable → one bubble; Workspace Facts: consult tool, not relay.
 
-- [ ] **Step 4: Commit** — pomiń.
+- [ ] **Step 4: Commit** — skip.
 
 ---
 
 ## Spec coverage (self-review)
 
-| GWT / wymóg | Task |
-|-------------|------|
-| GWT-1 tylko Goat | 4 |
-| GWT-2 motoryka ≠ dietetyk (hint + brak speaker dietetyka) | 2, 4 |
-| GWT-3 tool consult backstage | 3 |
-| GWT-4 zły slug | 3 |
+| GWT / requirement | Task |
+|-------------------|------|
+| GWT-1 only Goat | 4 |
+| GWT-2 motor ≠ dietitian (hint + no dietitian speaker) | 2, 4 |
+| GWT-3 backstage consult tool | 3 |
+| GWT-4 bad slug | 3 |
 | GWT-5 slash | 4 |
 | GWT-6 roundtable prompt + cap 5 | 2, 3 |
-| GWT-7 plan = rebuild_plan w turze Goata | 2, 4 |
-| GWT-8 trener bez consult | 1, 3 |
-| SSE copy „Goat konsultuje z …” | 2, 3, 5 |
-| Usunięcie relay / klasyfikatora | 4, 6 |
+| GWT-7 plan = rebuild_plan in Goat's turn | 2, 4 |
+| GWT-8 trainer without consult | 1, 3 |
+| SSE copy "Goat is consulting with …" | 2, 3, 5 |
+| Remove relay / classifier | 4, 6 |
 | Docs / ADR | 7 |
 
-Poza zakresem specu (nie planować): równoległe consulty, persystencja historii trenera, `log_result` u Goata.
+Out of spec scope (don't plan): parallel consults, trainer history persistence, `log_result` for Goat.

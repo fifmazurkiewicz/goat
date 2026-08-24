@@ -1,7 +1,7 @@
-"""Punkt wejścia aplikacji FastAPI — Multi-Persona Coaching App backend.
+"""FastAPI application entry point — Multi-Persona Coaching App backend.
 
-Struktura zgodna z docs/technical/architecture.md sekcja 1: routery pod `/api/v1`
-(health poza tym prefiksem, patrz devops.md — Render Health Check = `/api/health`).
+Structure follows docs/technical/architecture.md section 1: routers under `/api/v1`
+(health outside this prefix, see devops.md — Render Health Check = `/api/health`).
 """
 
 from __future__ import annotations
@@ -45,10 +45,10 @@ logger = structlog.get_logger(__name__)
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("starting_up", environment=settings.environment)
 
-    # Reaper zawieszonych `plan_generation_jobs` (ADR-1, architecture.md §4) — chroni
-    # przed jobami zawieszonymi w statusie 'pending'/'running' po restarcie Render (brak
-    # persistent workera, więc nic inaczej by ich nie odblokowało). `service_role`, bo
-    # operuje na WSZYSTKICH userach, nie jednym w kontekście RLS.
+    # Reaper for suspended `plan_generation_jobs` (ADR-1, architecture.md §4) — protects
+    # against jobs stuck in 'pending'/'running' after a Render restart (no persistent
+    # worker, so nothing else would unblock them). `service_role` because it operates
+    # on ALL users, not one in an RLS context.
     async with service_role_connection() as conn:
         reaped = await PlansRepo(conn).reap_stale_jobs(
             older_than_minutes=settings.plan_reaper_stale_minutes
@@ -56,8 +56,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         if reaped:
             logger.warning("plan_jobs_reaped", job_ids=reaped, count=len(reaped))
 
-        # `allowed_metrics` — cache in-memory, hot-path przy `log_result` w trakcie
-        # streamu SSE (nie chcemy zapytania SQL per tool call).
+        # `allowed_metrics` — in-memory cache, hot path during `log_result` on the SSE
+        # stream (we don't want an SQL query per tool call).
         await allowed_metrics_cache.load(AllowedMetricsRepo(conn))
 
     await resume_orphaned_plan_jobs_on_startup()
@@ -73,8 +73,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Allowlist jawny (docs/technical/security.md sekcja 5) + regex dla custom domain
-# i Vercel preview — NIGDY wildcard "*", zwłaszcza przy nagłówku Authorization.
+# Explicit allowlist (docs/technical/security.md section 5) + regex for custom domain
+# and Vercel preview — NEVER wildcard "*", especially with the Authorization header.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
@@ -86,15 +86,15 @@ app.add_middleware(
 
 app.add_middleware(RequestIDMiddleware)
 
-# Ostatni dodany = najbardziej zewnętrzny — kompresuje wszystkie odpowiedzi (katalog
-# ćwiczeń ~0,7 MB JSON po imporcie free-exercise-db). Smoke test streamu SSE po deployu:
-# gzip owija też czat; gdyby buforował eventy, wykluczyć ścieżkę streamu.
+# Last added = outermost — compresses all responses (exercise catalog ~0.7 MB JSON
+# after free-exercise-db import). Smoke test of the SSE stream after deploy: gzip also
+# wraps the chat; if it buffered events, exclude the stream path.
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 register_exception_handlers(app)
 
-# Health SPECJALNIE bez prefiksu /api/v1 — router definiuje pełną ścieżkę /api/health
-# (Render Health Check, devops.md sekcja 1).
+# Health SPECIFICALLY without the /api/v1 prefix — the router defines the full
+# /api/health path (Render Health Check, devops.md section 1).
 app.include_router(health.router)
 
 app.include_router(auth.router, prefix="/api/v1")

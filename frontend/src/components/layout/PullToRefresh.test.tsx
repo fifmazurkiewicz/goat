@@ -4,8 +4,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { PULL_THRESHOLD_PX, usePullToRefresh } from "@/hooks/usePullToRefresh";
 import { useChatTurnStore } from "@/store/useChatTurnStore";
 
-// jsdom nie ma PointerEvent — hook używa React.PointerEvent, więc syntetyzujemy
-// zdarzenia przez Object.assign na Event (wystarcza dla handlerów pointer*).
+// jsdom has no PointerEvent — the hook uses React.PointerEvent, so we synthesize
+  // events via Object.assign on Event (good enough for the pointer* handlers).
 function touchPointer(type: string, x: number, y: number): Event {
   const event = new Event(type, { bubbles: true, cancelable: true });
   Object.assign(event, { pointerType: "touch", clientX: x, clientY: y, pointerId: 1 });
@@ -46,7 +46,7 @@ describe("usePullToRefresh / PullToRefresh hook", () => {
     useChatTurnStore.setState({ isStreaming: false });
   });
 
-  it("przekroczenie progu odpala refresh (GWT-1)", async () => {
+  it("crossing the threshold triggers refresh (GWT-1)", async () => {
     const onRefresh = vi.fn().mockResolvedValue(undefined);
     render(<Harness onRefresh={onRefresh} />);
     drag(screen.getByTestId("scroller").parentElement as Element, 50, 50 + PULL_THRESHOLD_PX + 20);
@@ -55,7 +55,7 @@ describe("usePullToRefresh / PullToRefresh hook", () => {
     expect(screen.getByTestId("pull").textContent).toBe("0");
   });
 
-  it("poniżej progu — bez odświeżenia, dystans wraca do 0 (GWT-2)", async () => {
+  it("below threshold — no refresh, distance snaps back to 0 (GWT-2)", async () => {
     const onRefresh = vi.fn().mockResolvedValue(undefined);
     render(<Harness onRefresh={onRefresh} />);
     drag(screen.getByTestId("scroller").parentElement as Element, 50, 40);
@@ -63,7 +63,7 @@ describe("usePullToRefresh / PullToRefresh hook", () => {
     expect(onRefresh).not.toHaveBeenCalled();
   });
 
-  it("mysz (pointerType=mouse) nie triggeruje (GWT-4)", () => {
+  it("mouse (pointerType=mouse) does not trigger (GWT-4)", () => {
     const onRefresh = vi.fn().mockResolvedValue(undefined);
     render(<Harness onRefresh={onRefresh} />);
     const target = screen.getByTestId("scroller").parentElement as Element;
@@ -74,7 +74,7 @@ describe("usePullToRefresh / PullToRefresh hook", () => {
     expect(screen.getByTestId("pull").textContent).toBe("0");
   });
 
-  it("poziomy swipe nie triggeruje (GWT-6)", () => {
+  it("horizontal swipe does not trigger (GWT-6)", () => {
     const onRefresh = vi.fn().mockResolvedValue(undefined);
     render(<Harness onRefresh={onRefresh} />);
     const target = screen.getByTestId("scroller").parentElement as Element;
@@ -85,7 +85,7 @@ describe("usePullToRefresh / PullToRefresh hook", () => {
     expect(screen.getByTestId("pull").textContent).toBe("0");
   });
 
-  it("isLocked (stream w toku) blokuje gest (guard SSE)", () => {
+  it("isLocked (stream in flight) blocks the gesture (SSE guard)", () => {
     const onRefresh = vi.fn().mockResolvedValue(undefined);
     render(<Harness onRefresh={onRefresh} isLocked />);
     drag(screen.getByTestId("scroller").parentElement as Element, 50, 50 + PULL_THRESHOLD_PX + 40);
@@ -93,7 +93,7 @@ describe("usePullToRefresh / PullToRefresh hook", () => {
     expect(screen.getByTestId("pull").textContent).toBe("0");
   });
 
-  it("w trakcie refreshu kolejny gest ignorowany (GWT-5)", async () => {
+  it("during a refresh, the next gesture is ignored (GWT-5)", async () => {
     let resolveRefresh: () => void = () => {};
     const onRefresh = vi.fn().mockImplementation(() => new Promise<void>((r) => (resolveRefresh = r)));
     render(<Harness onRefresh={onRefresh} />);
@@ -101,7 +101,7 @@ describe("usePullToRefresh / PullToRefresh hook", () => {
     drag(target, 50, 50 + PULL_THRESHOLD_PX + 20);
     await waitFor(() => expect(onRefresh).toHaveBeenCalledTimes(1));
 
-    // Drugi pełny gest w trakcie oczekującego refreshu.
+    // Second full gesture while a refresh is still pending.
     drag(target, 50, 50 + PULL_THRESHOLD_PX + 40);
     expect(onRefresh).toHaveBeenCalledTimes(1);
 

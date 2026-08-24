@@ -26,7 +26,7 @@ const CONSULT_CALLS = {
 };
 
 describe("visibleChatMessages", () => {
-  it("ukrywa role=tool i puste assistant bez konsultacji", () => {
+  it("hides role=tool and empty assistant messages without consults", () => {
     const messages = [
       msg({ id: "1", role: "user", content: "cześć" }),
       msg({ id: "2", role: "assistant", content: null as unknown as string }),
@@ -36,7 +36,7 @@ describe("visibleChatMessages", () => {
     expect(visibleChatMessages(messages).map((m) => m.id)).toEqual(["1", "4"]);
   });
 
-  it("deduplikuje po id", () => {
+  it("deduplicates by id", () => {
     const messages = [
       msg({ id: "1", role: "user", content: "a" }),
       msg({ id: "1", role: "user", content: "a" }),
@@ -44,7 +44,7 @@ describe("visibleChatMessages", () => {
     expect(visibleChatMessages(messages)).toHaveLength(1);
   });
 
-  it("doczepia konsultację do wiadomości Goata (GWT-4 historia)", () => {
+  it("attaches a consult to the Goat message (GWT-4 history)", () => {
     const messages = [
       msg({ id: "1", role: "user", content: "co z techniką?" }),
       msg({
@@ -79,7 +79,7 @@ describe("visibleChatMessages", () => {
     ]);
   });
 
-  it("roundtable — dwie konsultacje w kolejności wywołań (GWT-2)", () => {
+  it("roundtable — two consults in call order (GWT-2)", () => {
     const twoCalls = {
       calls: [
         CONSULT_CALLS.calls[0],
@@ -110,7 +110,7 @@ describe("visibleChatMessages", () => {
     expect(visible[0].consultDetails?.map((d) => d.answer)).toEqual(["pierwsza", "druga"]);
   });
 
-  it("błąd konsultacji i złamany JSON nie tworzą załącznika (GWT-3)", () => {
+  it("consult error and broken JSON don't create an attachment (GWT-3)", () => {
     const messages = [
       msg({ id: "1", role: "assistant", content: "", tool_calls: CONSULT_CALLS }),
       msg({
@@ -125,7 +125,7 @@ describe("visibleChatMessages", () => {
     expect(visible[0].consultDetails).toBeUndefined();
   });
 
-  it("malformed JSON w role=tool nie wywala renderowania historii", () => {
+  it("malformed JSON in role=tool does not break history rendering", () => {
     const messages = [
       msg({ id: "1", role: "assistant", content: "", tool_calls: CONSULT_CALLS }),
       msg({ id: "t1", role: "tool", content: "{{{nie-jest-json", tool_calls: { tool_call_id: "call-1" } }),
@@ -136,7 +136,7 @@ describe("visibleChatMessages", () => {
     expect(visible[0].consultDetails).toBeUndefined();
   });
 
-  it("tool message z cudzego tool_call_id jest ignorowany (log_result itd.)", () => {
+  it("tool message with a foreign tool_call_id is ignored (log_result etc.)", () => {
     const messages = [
       msg({ id: "1", role: "assistant", content: "", tool_calls: CONSULT_CALLS }),
       msg({
@@ -150,7 +150,7 @@ describe("visibleChatMessages", () => {
     expect(visible[0].consultDetails).toBeUndefined();
   });
 
-  it("stary wpis bez question w response — fallback z arguments tool call", () => {
+  it("old entry without question in response — fallback from tool call arguments", () => {
     const messages = [
       msg({ id: "1", role: "assistant", content: "", tool_calls: CONSULT_CALLS }),
       msg({
@@ -169,7 +169,7 @@ describe("visibleChatMessages", () => {
     expect(visible[0].consultDetails?.[0]?.question).toBe("q");
   });
 
-  it("duplikat tool message (retry) nie dubluje konsultacji", () => {
+  it("duplicate tool message (retry) does not duplicate the consult", () => {
     const toolMsg = () =>
       msg({
         id: "t1",
@@ -187,7 +187,7 @@ describe("visibleChatMessages", () => {
 });
 
 describe("streamErrorMessage", () => {
-  it("wyciąga message z JSON i dekoduje \\u escape", () => {
+  it("extracts message from JSON and decodes \\u escapes", () => {
     expect(
       streamErrorMessage({
         message:
@@ -196,7 +196,7 @@ describe("streamErrorMessage", () => {
     ).toBe("Wystąpił błąd.");
   });
 
-  it("zwraca zwykły tekst bez zmian", () => {
+  it("returns plain text unchanged", () => {
     expect(streamErrorMessage({ message: "Limit budżetu." })).toBe("Limit budżetu.");
   });
 });

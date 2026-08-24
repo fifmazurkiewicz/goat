@@ -1,4 +1,4 @@
-"""Router `/auth` — lokalny login email/hasło (tylko `ENVIRONMENT=local`)."""
+"""`/auth` router — local email/password login (only `ENVIRONMENT=local`)."""
 
 from __future__ import annotations
 

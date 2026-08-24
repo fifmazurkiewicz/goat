@@ -1,7 +1,7 @@
-"""Lokalny login email/hasło — wyłącznie `ENVIRONMENT=local`.
+"""Local email/password login — ONLY `ENVIRONMENT=local`.
 
-Produkcja (Render) używa Supabase OAuth + JWKS. Ten moduł nie jest ładowany
-w ścieżce produkcyjnej poza guardem w routerze auth.
+Production (Render) uses Supabase OAuth + JWKS. This module isn't loaded on the
+production path outside the guard in the auth router.
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ def verify_dev_credentials(email: str, password: str) -> bool:
 
 
 async def bootstrap_dev_user(conn: AsyncConnection, user_id: str, email: str) -> None:
-    """Upewnia się, że lokalny stub `auth.users` i `profiles` istnieją."""
+    """Ensures the local `auth.users` and `profiles` stubs exist."""
     await conn.execute(
         text(
             """

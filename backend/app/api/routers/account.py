@@ -1,8 +1,8 @@
-"""Router `/account` — ustawienia konta (nick, ADR-15), OSOBNE od `/profile` (biometria).
+"""`/account` router — account settings (nick, ADR-15), SEPARATE from `/profile` (biometrics).
 
-Cienki: odczyt/zapis nicka w kontekście RLS własnego usera. Brakujący wiersz `profiles`
-(np. po wipe public bez ponownego seeda) jest uzupełniany przez `service_role` —
-authenticated nie ma policy INSERT na `profiles`.
+Thin: read/write of the nick in the user's own RLS context. A missing `profiles`
+row (e.g. after a public wipe without re-seeding) is backfilled via `service_role` —
+authenticated doesn't have an INSERT policy on `profiles`.
 """
 
 from __future__ import annotations
@@ -33,8 +33,8 @@ async def get_account(auth: AuthContext = Depends(get_current_user)) -> AccountO
 async def update_account(
     payload: AccountUpdate, auth: AuthContext = Depends(get_current_user)
 ) -> AccountOut:
-    # ensure przez service_role (brak INSERT policy dla authenticated), potem UPDATE
-    # własnego nicka — `auth.user_id` z JWT, nigdy z body.
+    # ensure via service_role (no INSERT policy for authenticated), then UPDATE of
+    # the user's own nick — `auth.user_id` from the JWT, never from the body.
     async with service_role_connection() as conn:
         repo = ProfilesRepo(conn)
         await repo.ensure(auth.user_id)
