@@ -16,7 +16,7 @@ from uuid import UUID
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.api.routers.exercises import public_photo_url
+from app.api.routers.exercises import bucket_object_path, public_photo_url
 from app.main import app
 
 
@@ -70,6 +70,10 @@ def _patched(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr("app.api.routers.exercises.rls_connection", fake_rls)
     monkeypatch.setattr("app.api.routers.exercises.ExercisesRepo", FakeExercisesRepo)
+    monkeypatch.setattr(
+        "app.api.routers.exercises.settings.supabase_url",
+        "https://example.supabase.co",
+    )
 
     async def fake_auth() -> object:
         ctx = MagicMock()
@@ -93,7 +97,9 @@ async def test_exercises_endpoint_serializes_null_common_mistakes(_patched) -> N
     assert imported["common_mistakes"] is None
     assert imported["name"] == "Przysiad ze sztangą"
     assert imported["name_en"] == "Barbell Squat"
-    assert str(imported["photo_path"]).endswith("free-exercise-db/Barbell_Squat/0.jpg")
+    assert str(imported["photo_path"]).endswith(
+        "exercise-photos/free-exercise-db/Barbell_Squat/0.jpg"
+    )
     # UUID from DB must be serialized as a string in JSON, not thrown at the client.
     assert imported["id"] == "f9c6dcdc-f3f6-4134-8aae-f6908ffb49ac"
     assert isinstance(imported["id"], str)
@@ -102,9 +108,26 @@ async def test_exercises_endpoint_serializes_null_common_mistakes(_patched) -> N
     assert manual["id"] == "id-custom-1"
 
 
-def test_public_photo_url_keeps_absolute_and_prefixes_relative() -> None:
+def test_bucket_object_path_adds_inner_folder() -> None:
+    assert (
+        bucket_object_path("free-exercise-db/Barbell_Squat/0.jpg")
+        == "exercise-photos/free-exercise-db/Barbell_Squat/0.jpg"
+    )
+    assert (
+        bucket_object_path("exercise-photos/free-exercise-db/Barbell_Squat/0.jpg")
+        == "exercise-photos/free-exercise-db/Barbell_Squat/0.jpg"
+    )
+
+
+def test_public_photo_url_keeps_absolute_and_prefixes_relative(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "app.api.routers.exercises.settings.supabase_url",
+        "https://example.supabase.co",
+    )
     assert public_photo_url(None) is None
     assert public_photo_url("https://cdn.example/a.jpg") == "https://cdn.example/a.jpg"
     relative = public_photo_url("free-exercise-db/Barbell_Squat/0.jpg")
     assert relative is not None
-    assert relative.endswith("free-exercise-db/Barbell_Squat/0.jpg")
+    assert relative.endswith("exercise-photos/free-exercise-db/Barbell_Squat/0.jpg")

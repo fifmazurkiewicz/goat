@@ -47,7 +47,8 @@ SOURCE_REPO = "yuhonas/free-exercise-db"
 SOURCE_COMMIT_SHA = "b0eed061e1c832b3ed815fbaa4b45b3cdc14df49"
 
 BUCKET = "exercise-photos"
-STORAGE_PREFIX = "free-exercise-db"  # <prefix>/<Id>/0.jpg in the bucket
+PHOTO_STORAGE_ROOT = "exercise-photos"  # inner folder inside the bucket
+STORAGE_PREFIX = "free-exercise-db"  # DB photo_path: <prefix>/<Id>/0.jpg
 LOCAL_PHOTO_DIRS = (
     CACHE_DIR / "exercise-photos-upload2" / STORAGE_PREFIX,
     CACHE_DIR / "exercise-photos-upload" / STORAGE_PREFIX,
@@ -176,7 +177,8 @@ def transform(raw: list[dict[str, object]]) -> tuple[list[dict[str, object]], li
                 "detail_full": (
                     str(translation["detail_pl"]) if translation else numbered
                 ),
-                "storage_path": f"{STORAGE_PREFIX}/{source_id}/0.jpg",
+                "storage_path": f"{PHOTO_STORAGE_ROOT}/{STORAGE_PREFIX}/{source_id}/0.jpg",
+                "photo_path": f"{STORAGE_PREFIX}/{source_id}/0.jpg",
             }
         )
     rows.sort(key=lambda r: str(r["slug"]))
@@ -252,7 +254,7 @@ def upload_photos(rows: list[dict[str, object]], client: httpx.Client) -> None:
             skipped += 1
             continue
 
-        source_id_dir = path.split("/")[1]
+        source_id_dir = path.split("/")[-2]
         content = local_photo_bytes(source_id_dir)
         if content is None:
             image_url = (
@@ -300,7 +302,7 @@ values
         chunk = rows[start : start + CHUNK_SIZE]
         values = []
         for row in chunk:
-            photo_path = str(row["storage_path"])
+            photo_path = str(row["photo_path"])
             values.append(
                 "  ({}, {}, {}, 'motor_coach', {}, {}, {}, {}, NULL, {}, 'free_exercise_db')".format(
                     sql_literal(str(row["slug"])),
