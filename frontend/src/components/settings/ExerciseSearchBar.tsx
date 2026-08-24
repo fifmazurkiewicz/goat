@@ -1,5 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
+import type { FormEvent } from "react";
 
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -14,6 +16,7 @@ import {
 interface ExerciseSearchBarProps {
   query: string;
   onQueryChange: (query: string) => void;
+  onQuerySubmit: () => void;
   categories: string[];
   activeCategory: string;
   onCategoryChange: (category: string) => void;
@@ -38,6 +41,7 @@ const TRAINING_TYPES = new Set([
 export function ExerciseSearchBar({
   query,
   onQueryChange,
+  onQuerySubmit,
   categories,
   activeCategory,
   onCategoryChange,
@@ -50,18 +54,32 @@ export function ExerciseSearchBar({
     };
   }, [categories]);
 
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    inputRef.current?.blur();
+    onQuerySubmit();
+  }
+
   return (
-    <div className="space-y-3">
+    <form className="space-y-3" onSubmit={handleSubmit}>
       <div className="max-w-sm space-y-1.5">
         <label htmlFor="exercise-search" className="text-sm font-medium">
           Szukaj ćwiczenia
         </label>
-        <Input
-          id="exercise-search"
-          placeholder="np. przysiad, klatka, squat"
-          value={query}
-          onChange={(e) => onQueryChange(e.target.value)}
-        />
+        <div className="flex gap-2">
+          <Input
+            ref={inputRef}
+            id="exercise-search"
+            placeholder="np. przysiad, klatka, squat"
+            value={query}
+            onChange={(e) => onQueryChange(e.target.value)}
+          />
+          <Button type="submit" className="shrink-0">
+            Szukaj
+          </Button>
+        </div>
       </div>
       <div className="max-w-xs">
         <Select value={activeCategory} onValueChange={onCategoryChange}>
@@ -93,6 +111,6 @@ export function ExerciseSearchBar({
           </SelectContent>
         </Select>
       </div>
-    </div>
+    </form>
   );
 }

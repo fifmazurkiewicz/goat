@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { ExerciseGrid } from "@/components/settings/ExerciseGrid";
 import { ExerciseSearchBar } from "@/components/settings/ExerciseSearchBar";
@@ -19,10 +19,10 @@ import type { Exercise } from "@/types/api";
 export function ExerciseCatalog() {
   const { data: exercises, isLoading } = useExercises();
   const [query, setQuery] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [category, setCategory] = useState("all");
   const [sample, setSample] = useState<Exercise[]>([]);
-  const deferredQuery = useDeferredValue(query);
-  const isSearching = deferredQuery.trim().length > 0;
+  const isSearching = searchTerm.trim().length > 0;
 
   const categories = useMemo(() => {
     const set = new Set<string>();
@@ -45,24 +45,29 @@ export function ExerciseCatalog() {
       visibleExercises({
         all: exercises ?? [],
         sample,
-        query: deferredQuery,
+        query: searchTerm,
         category,
       }),
-    [exercises, sample, deferredQuery, category],
+    [exercises, sample, searchTerm, category],
   );
+
+  function handleSubmit() {
+    setSearchTerm(query.trim());
+  }
 
   return (
     <section>
       <h2 className="text-xl font-semibold">Katalog ćwiczeń</h2>
       <p className="mt-1 max-w-[70ch] text-sm text-muted-foreground">
         Szukaj po nazwie (PL lub EN). Na starcie trzy losowe ćwiczenia — reszta katalogu
-        pojawia się po wpisaniu frazy.
+        pojawia się po klikku „Szukaj”.
       </p>
 
       <div className="mt-4">
         <ExerciseSearchBar
           query={query}
           onQueryChange={setQuery}
+          onQuerySubmit={handleSubmit}
           categories={categories}
           activeCategory={category}
           onCategoryChange={setCategory}
