@@ -1,9 +1,13 @@
 const BUCKET = "exercise-photos";
-/** Inner folder inside the bucket (manual upload layout in Supabase Storage). */
-const PHOTO_STORAGE_ROOT = "exercise-photos";
+/** Inner folder: bucket/exercise/free-exercise-db/<Id>/… */
+const PHOTO_STORAGE_ROOT = "exercise";
 
 function bucketObjectPath(photoPath: string): string {
-  const path = photoPath.replace(/^\/+/, "");
+  let path = photoPath.replace(/^\/+/, "");
+  // Legacy manual upload used an inner folder also named `exercise-photos/`.
+  if (path.startsWith("exercise-photos/")) {
+    path = path.slice("exercise-photos/".length);
+  }
   if (path.startsWith(`${PHOTO_STORAGE_ROOT}/`)) return path;
   return `${PHOTO_STORAGE_ROOT}/${path}`;
 }

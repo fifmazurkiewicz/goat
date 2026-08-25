@@ -8,12 +8,13 @@ Steps:
   1. Download `dist/exercises.json` from the pinned dataset commit SHA (cache in `.tmp/`).
   2. Offline transform: skip records without `instructions`, map fields (plan §2),
      categories/muscles EN→PL via the dictionaries below, deterministic sort by slug.
-  3. (`--upload-photos`) Upload the first photo of each exercise to the Supabase Storage
-     bucket `exercise-photos` — httpx + Storage REST, keys only from env:
+  3. (`--upload-photos`) Upload both photos (`0.jpg` + `1.jpg`) per exercise to the
+     Supabase Storage bucket `exercise-photos` — httpx + Storage REST, keys only from env:
        SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
-     No supabase-py (per backend rule). Without this flag the script needs no secrets.
-  4. SQL generation: chunked multi-row INSERTs; `photo_path` = bucket path
-     (`free-exercise-db/<Id>/0.jpg`), not the project's full URL.
+     Prefer local cache from `scripts/download_free_exercise_db_photos.py`
+     (`.tmp/exercise-photos-upload/…`). No supabase-py (per backend rule).
+  4. SQL generation: chunked multi-row INSERTs; `photo_path` / `photo_path_2` =
+     bucket-relative paths (`free-exercise-db/<Id>/0.jpg` and `…/1.jpg`).
 
 Re-import (refresh content from a newer dataset version):
     DELETE FROM exercises WHERE source = 'free_exercise_db';
@@ -47,7 +48,7 @@ SOURCE_REPO = "yuhonas/free-exercise-db"
 SOURCE_COMMIT_SHA = "b0eed061e1c832b3ed815fbaa4b45b3cdc14df49"
 
 BUCKET = "exercise-photos"
-PHOTO_STORAGE_ROOT = "exercise-photos"  # inner folder inside the bucket
+PHOTO_STORAGE_ROOT = "exercise"  # bucket key: exercise/free-exercise-db/<Id>/…
 STORAGE_PREFIX = "free-exercise-db"  # DB photo_path: <prefix>/<Id>/0.jpg
 LOCAL_PHOTO_DIRS = (
     CACHE_DIR / "exercise-photos-upload2" / STORAGE_PREFIX,
@@ -177,8 +178,12 @@ def transform(raw: list[dict[str, object]]) -> tuple[list[dict[str, object]], li
                 "detail_full": (
                     str(translation["detail_pl"]) if translation else numbered
                 ),
-                "storage_path": f"{PHOTO_STORAGE_ROOT}/{STORAGE_PREFIX}/{source_id}/0.jpg",
                 "photo_path": f"{STORAGE_PREFIX}/{source_id}/0.jpg",
+                "photo_path_2": f"{STORAGE_PREFIX}/{source_id}/1.jpg",
+                "storage_paths": [
+                    f"{PHOTO_STORAGE_ROOT}/{STORAGE_PREFIX}/{source_id}/0.jpg",
+                    f"{PHOTO_STORAGE_ROOT}/{STORAGE_PREFIX}/{source_id}/1.jpg",
+                ],
             }
         )
     rows.sort(key=lambda r: str(r["slug"]))
@@ -201,9 +206,9 @@ def load_backend_env() -> None:
             os.environ[key] = value
 
 
-def local_photo_bytes(source_id: str) -> bytes | None:
+def local_photo_bytes(source_id: str, filename: str) -> bytes | None:
     for root in LOCAL_PHOTO_DIRS:
-        candidate = root / source_id / "0.jpg"
+        candidate = root / source_id / filename
         if candidate.is_file() and candidate.stat().st_size > 0:
             return candidate.read_bytes()
     return None
@@ -243,45 +248,56 @@ def upload_photos(rows: list[dict[str, object]], client: httpx.Client) -> None:
     ensure_public_bucket(client, supabase_url, auth_headers)
 
     uploaded = skipped = 0
+    total_objects = len(rows) * 2
+    done = 0
     for row in rows:
-        path = str(row["storage_path"])
-        head = client.get(
-            f"{supabase_url}/storage/v1/object/public/{BUCKET}/{path}",
-            headers={"Range": "bytes=0-0"},
-            timeout=30,
-        )
-        if head.status_code in (200, 206):
-            skipped += 1
-            continue
-
-        source_id_dir = path.split("/")[-2]
-        content = local_photo_bytes(source_id_dir)
-        if content is None:
-            image_url = (
-                f"https://raw.githubusercontent.com/{SOURCE_REPO}/{SOURCE_COMMIT_SHA}"
-                f"/exercises/{source_id_dir}/0.jpg"
+        for path in list(row["storage_paths"]):  # type: ignore[arg-type]
+            path_s = str(path)
+            head = client.get(
+                f"{supabase_url}/storage/v1/object/public/{BUCKET}/{path_s}",
+                headers={"Range": "bytes=0-0"},
+                timeout=30,
             )
-            image = client.get(image_url, timeout=60)
-            image.raise_for_status()
-            content = image.content
+            if head.status_code in (200, 206):
+                skipped += 1
+                done += 1
+                if done % 50 == 0:
+                    print(f"  ...{done}/{total_objects} (new {uploaded})")
+                continue
 
-        upload = client.post(
-            f"{supabase_url}/storage/v1/object/{BUCKET}/{path}",
-            headers={
-                **auth_headers,
-                "Content-Type": "image/jpeg",
-                "x-upsert": "true",
-            },
-            content=content,
-            timeout=120,
-        )
-        if upload.status_code not in (200, 201):
-            sys.exit(f"Upload failed ({upload.status_code}) for {path}: {upload.text}")
-        uploaded += 1
-        if (uploaded + skipped) % 50 == 0:
-            print(f"  ...{uploaded + skipped}/{len(rows)} (new {uploaded})")
+            source_id_dir = path_s.split("/")[-2]
+            filename = path_s.rsplit("/", 1)[-1]
+            content = local_photo_bytes(source_id_dir, filename)
+            if content is None:
+                image_url = (
+                    f"https://raw.githubusercontent.com/{SOURCE_REPO}/{SOURCE_COMMIT_SHA}"
+                    f"/exercises/{source_id_dir}/{filename}"
+                )
+                image = client.get(image_url, timeout=60)
+                image.raise_for_status()
+                content = image.content
 
-    print(f"[photos] done: {uploaded} uploaded, {skipped} already present, {len(rows)} total")
+            upload = client.post(
+                f"{supabase_url}/storage/v1/object/{BUCKET}/{path_s}",
+                headers={
+                    **auth_headers,
+                    "Content-Type": "image/jpeg",
+                    "x-upsert": "true",
+                },
+                content=content,
+                timeout=120,
+            )
+            if upload.status_code not in (200, 201):
+                sys.exit(f"Upload failed ({upload.status_code}) for {path_s}: {upload.text}")
+            uploaded += 1
+            done += 1
+            if done % 50 == 0:
+                print(f"  ...{done}/{total_objects} (new {uploaded})")
+
+    print(
+        f"[photos] done: {uploaded} uploaded, {skipped} already present, "
+        f"{total_objects} objects ({len(rows)} exercises × 2)"
+    )
 
 
 def generate_sql(rows: list[dict[str, object]]) -> str:
@@ -290,10 +306,11 @@ def generate_sql(rows: list[dict[str, object]]) -> str:
 -- DO NOT EDIT BY HAND — content is regeneratable (re-import: DELETE WHERE source='free_exercise_db', then rerun).
 -- Run after 0012_exercise_catalog_source_nullable.sql. Idempotent (ON CONFLICT DO NOTHING);
 -- manually curated entries (source='manual') remain untouched.
--- photo_path = path inside the exercise-photos bucket (not a full URL — API/FE compose the public address).
+-- photo_path / photo_path_2 = paths inside the exercise-photos bucket (not full URLs).
+-- Requires migration 0014_exercise_photo_path_2.sql (column photo_path_2).
 
 insert into public.exercises
-  (slug, name, name_en, persona_type, level, categories, short_description, detail_full, common_mistakes, photo_path, source)
+  (slug, name, name_en, persona_type, level, categories, short_description, detail_full, common_mistakes, photo_path, photo_path_2, source)
 values
 """
 
@@ -302,9 +319,8 @@ values
         chunk = rows[start : start + CHUNK_SIZE]
         values = []
         for row in chunk:
-            photo_path = str(row["photo_path"])
             values.append(
-                "  ({}, {}, {}, 'motor_coach', {}, {}, {}, {}, NULL, {}, 'free_exercise_db')".format(
+                "  ({}, {}, {}, 'motor_coach', {}, {}, {}, {}, NULL, {}, {}, 'free_exercise_db')".format(
                     sql_literal(str(row["slug"])),
                     sql_literal(str(row["name"])),
                     sql_literal(row.get("name_en")),  # type: ignore[arg-type]
@@ -312,7 +328,8 @@ values
                     sql_text_array(list(row["categories"])),  # type: ignore[arg-type]
                     sql_literal(str(row["short_description"])),
                     sql_literal(str(row["detail_full"])),
-                    sql_literal(photo_path),
+                    sql_literal(str(row["photo_path"])),
+                    sql_literal(str(row["photo_path_2"])),
                 )
             )
         chunks.append(header + ",\n".join(values) + f"\non conflict (slug) do nothing;\n")

@@ -233,6 +233,7 @@ exercises (
   detail_full text,            -- "Execution" (numbered steps for import)
   common_mistakes text,        -- "Common mistakes"; NULL for import from free-exercise-db
   photo_path text,             -- path in 'exercise-photos' bucket (e.g. free-exercise-db/<Id>/0.jpg); API composes public URL
+  photo_path_2 text,           -- second frame (free-exercise-db …/1.jpg); NULL for manual entries; migration 0014
   source text default 'manual',-- 'manual' | 'free_exercise_db' (0012)
   created_at timestamptz default now()
 )

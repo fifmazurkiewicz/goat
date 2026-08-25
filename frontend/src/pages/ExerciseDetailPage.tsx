@@ -54,6 +54,7 @@ export default function ExerciseDetailPage() {
   }
 
   const photoSrc = exercisePhotoSrc(exercise.photo_path);
+  const photoSrc2 = exercisePhotoSrc(exercise.photo_path_2);
 
   return (
     <div className={`${PAGE_SHELL_CLASS} max-w-3xl`}>
@@ -74,21 +75,40 @@ export default function ExerciseDetailPage() {
         ))}
       </div>
 
-      <AspectRatio ratio={3 / 2} className="mt-5 overflow-hidden rounded-md bg-muted">
-        {photoSrc ? (
-          <img
-            src={photoSrc}
-            alt={exercise.name}
-            loading="lazy"
-            decoding="async"
-            className="h-full w-full object-cover"
-          />
-        ) : (
+      {photoSrc || photoSrc2 ? (
+        <div
+          className={`mt-5 grid gap-3 ${photoSrc && photoSrc2 ? "sm:grid-cols-2" : "grid-cols-1"}`}
+        >
+          {photoSrc ? (
+            <AspectRatio ratio={3 / 2} className="overflow-hidden rounded-md bg-muted">
+              <img
+                src={photoSrc}
+                alt={`${exercise.name} — pozycja startowa`}
+                loading="lazy"
+                decoding="async"
+                className="h-full w-full object-cover"
+              />
+            </AspectRatio>
+          ) : null}
+          {photoSrc2 ? (
+            <AspectRatio ratio={3 / 2} className="overflow-hidden rounded-md bg-muted">
+              <img
+                src={photoSrc2}
+                alt={`${exercise.name} — pozycja końcowa`}
+                loading="lazy"
+                decoding="async"
+                className="h-full w-full object-cover"
+              />
+            </AspectRatio>
+          ) : null}
+        </div>
+      ) : (
+        <AspectRatio ratio={3 / 2} className="mt-5 overflow-hidden rounded-md bg-muted">
           <div className="flex h-full w-full items-center justify-center text-muted-foreground">
             <Dumbbell className="h-10 w-10" />
           </div>
-        )}
-      </AspectRatio>
+        </AspectRatio>
+      )}
 
       <p className="mt-5 text-sm text-muted-foreground">{exercise.short_description}</p>
 

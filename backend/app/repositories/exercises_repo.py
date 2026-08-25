@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 _COLUMNS = (
     "id, slug, name, name_en, persona_type, level, categories, short_description, "
-    "detail_full, common_mistakes, photo_path"
+    "detail_full, common_mistakes, photo_path, photo_path_2"
 )
 
 
@@ -32,6 +32,7 @@ class ExerciseRow:
     detail_full: str
     common_mistakes: str | None
     photo_path: str | None
+    photo_path_2: str | None = None
 
 
 class ExercisesRepo:

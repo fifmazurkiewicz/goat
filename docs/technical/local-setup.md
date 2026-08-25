@@ -47,7 +47,7 @@ If you're starting from scratch locally only (no deploy):
 2. Supabase → **SQL** → **New query**.
 3. Paste the **entire** content of `0001_init.sql` → **Run** (must succeed without errors).
 4. New query → paste the **entire** content of `0002_exercise_catalog.sql` → **Run**.
-5. Next migrations (if not already on the project): `0007_running_metrics_strength.sql`, `0008_background_jobs.sql`, `0009_persona_role_boundaries.sql`, `0010_drop_personas_chat_model.sql`, `0011_invoked_via_multi_slash.sql`, `0012_exercise_catalog_source_nullable.sql`, `0013_exercise_catalog_seed_free_exercise_db.sql` — each in a separate query, **Run**. `0013` is large (~0.9 MB) and generated (`photo_path` = path in the bucket) — see "Exercise catalog import" below.
+5. Next migrations (if not already on the project): `0007_running_metrics_strength.sql`, `0008_background_jobs.sql`, `0009_persona_role_boundaries.sql`, `0010_drop_personas_chat_model.sql`, `0011_invoked_via_multi_slash.sql`, `0012_exercise_catalog_source_nullable.sql`, `0013_exercise_catalog_seed_free_exercise_db.sql`, `0014_exercise_photo_path_2.sql` — each in a separate query, **Run**. `0013` is large (~0.9 MB) and generated (`photo_path` = path in the bucket) — see "Exercise catalog import" below. `0014` adds `photo_path_2` and backfills `…/1.jpg`.
 6. **Table Editor** — should include:
    - `profiles`, `personas`, `persona_templates`, `plan_templates`, `allowed_metrics`
    - `chat_sessions`, `chat_messages`, `results`, `plans`, `plan_items`
@@ -191,13 +191,18 @@ cd backend; uv run python ../scripts/import_free_exercise_db.py
 # 2. (optional) PL translations via LLM — requires a real OPENROUTER_API_KEY
 uv run python ../scripts/translate_exercises.py        # cache: .tmp/free-exercise-db-translations.json
 uv run python ../scripts/import_free_exercise_db.py    # regenerate 0013 with PL
+# (run 0014 first if regenerating seed that includes photo_path_2)
 
-# 3. (optional) Photos to Supabase Storage — requires SUPABASE_URL + SERVICE_ROLE_KEY
-uv run python ../scripts/import_free_exercise_db.py --upload-photos
+# 2b. (optional) Cache both frames locally (~1.7k JPGs under .tmp/)
+uv run python ../scripts/download_free_exercise_db_photos.py
+
+# 3. Photos to Supabase Storage (0.jpg + 1.jpg) — requires SUPABASE_URL + SERVICE_ROLE_KEY
+uv run python ../scripts/import_free_exercise_db.py --upload-photos --skip-sql
 ```
 
 After regeneration: commit `0013_*.sql`, then Run in SQL Editor (local and cloud).
-Re-import existing data: `DELETE FROM exercises WHERE source='free_exercise_db';` → rerun `0013`.
+Also run **`0014_exercise_photo_path_2.sql`** once (adds + backfills `photo_path_2`).
+Re-import existing data: `DELETE FROM exercises WHERE source='free_exercise_db';` → rerun `0013` (after 0014).
 
 ---
 

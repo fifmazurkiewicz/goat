@@ -373,6 +373,8 @@ export interface Exercise {
   detail_full: string;
   common_mistakes: string | null;
   photo_path: string | null;
+  /** Second frame from free-exercise-db (`…/1.jpg`); null for manual entries. */
+  photo_path_2?: string | null;
 }
 
 export interface ApiErrorBody {

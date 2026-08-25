@@ -177,9 +177,14 @@ Photos of the exercise catalog (free-exercise-db import) live in Storage — re-
 1. Supabase → **Storage** → **New bucket**.
 2. Name: `exercise-photos` | Public bucket: **YES** (`<img src>` doesn't send JWT — without public access photos won't render).
 3. Policies: **NO** INSERT/UPDATE/DELETE for `authenticated`/`anon` (default deny) — upload only via service role key, locally from the script.
-4. Upload: `cd backend; uv run python ../scripts/import_free_exercise_db.py --upload-photos`
-   (requires `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` in env; ~868 JPG files, ~50–100 MB).
+4. Optional local cache (both frames): `uv run python ../scripts/download_free_exercise_db_photos.py`
+   (~868 × 2 JPGs under `.tmp/exercise-photos-upload/`).
+5. Upload: `cd backend; uv run python ../scripts/import_free_exercise_db.py --upload-photos --skip-sql`
+   (requires `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` in env; **~1736** JPG files under
+   `exercise/free-exercise-db/<Id>/{0,1}.jpg` inside bucket `exercise-photos`, ~95–105 MB).
    Re-upload under the same paths is safe (overwrite of the same content).
+6. DB column for the second frame: run `0014_exercise_photo_path_2.sql` in SQL Editor
+   (backfills `photo_path_2` from existing `photo_path`).
 
 ---
 

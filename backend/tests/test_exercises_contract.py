@@ -33,6 +33,7 @@ def _exercise_row(*, slug: str, common_mistakes: str | None, raw_id: object) -> 
     row.detail_full = "Instrukcja wykonania."
     row.common_mistakes = common_mistakes
     row.photo_path = "free-exercise-db/Barbell_Squat/0.jpg"
+    row.photo_path_2 = "free-exercise-db/Barbell_Squat/1.jpg"
     return row
 
 
@@ -98,7 +99,10 @@ async def test_exercises_endpoint_serializes_null_common_mistakes(_patched) -> N
     assert imported["name"] == "Przysiad ze sztangą"
     assert imported["name_en"] == "Barbell Squat"
     assert str(imported["photo_path"]).endswith(
-        "exercise-photos/free-exercise-db/Barbell_Squat/0.jpg"
+        "exercise/free-exercise-db/Barbell_Squat/0.jpg"
+    )
+    assert str(imported["photo_path_2"]).endswith(
+        "exercise/free-exercise-db/Barbell_Squat/1.jpg"
     )
     # UUID from DB must be serialized as a string in JSON, not thrown at the client.
     assert imported["id"] == "f9c6dcdc-f3f6-4134-8aae-f6908ffb49ac"
@@ -111,11 +115,16 @@ async def test_exercises_endpoint_serializes_null_common_mistakes(_patched) -> N
 def test_bucket_object_path_adds_inner_folder() -> None:
     assert (
         bucket_object_path("free-exercise-db/Barbell_Squat/0.jpg")
-        == "exercise-photos/free-exercise-db/Barbell_Squat/0.jpg"
+        == "exercise/free-exercise-db/Barbell_Squat/0.jpg"
     )
     assert (
+        bucket_object_path("exercise/free-exercise-db/Barbell_Squat/0.jpg")
+        == "exercise/free-exercise-db/Barbell_Squat/0.jpg"
+    )
+    # Legacy inner folder name remapped to `exercise/`.
+    assert (
         bucket_object_path("exercise-photos/free-exercise-db/Barbell_Squat/0.jpg")
-        == "exercise-photos/free-exercise-db/Barbell_Squat/0.jpg"
+        == "exercise/free-exercise-db/Barbell_Squat/0.jpg"
     )
 
 
@@ -130,4 +139,4 @@ def test_public_photo_url_keeps_absolute_and_prefixes_relative(
     assert public_photo_url("https://cdn.example/a.jpg") == "https://cdn.example/a.jpg"
     relative = public_photo_url("free-exercise-db/Barbell_Squat/0.jpg")
     assert relative is not None
-    assert relative.endswith("exercise-photos/free-exercise-db/Barbell_Squat/0.jpg")
+    assert relative.endswith("exercise/free-exercise-db/Barbell_Squat/0.jpg")

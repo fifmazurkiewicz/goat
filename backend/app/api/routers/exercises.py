@@ -15,13 +15,16 @@ from app.models.schemas import ExerciseOut, PersonaType
 from app.repositories.exercises_repo import ExerciseRow, ExercisesRepo
 
 EXERCISE_PHOTOS_BUCKET = "exercise-photos"
-# Inner folder inside the bucket (manual upload layout in Supabase Storage).
-PHOTO_STORAGE_ROOT = "exercise-photos"
+# Inner folder inside the bucket: exercise-photos/exercise/free-exercise-db/<Id>/…
+PHOTO_STORAGE_ROOT = "exercise"
 
 
 def bucket_object_path(photo_path: str) -> str:
     """DB path (`free-exercise-db/<Id>/0.jpg`) -> object key inside the bucket."""
     path = photo_path.lstrip("/")
+    # Legacy manual upload used an inner folder also named `exercise-photos/`.
+    if path.startswith("exercise-photos/"):
+        path = path.removeprefix("exercise-photos/")
     if path.startswith(f"{PHOTO_STORAGE_ROOT}/"):
         return path
     return f"{PHOTO_STORAGE_ROOT}/{path}"
@@ -56,6 +59,7 @@ def _to_out(row: ExerciseRow) -> ExerciseOut:
         detail_full=row.detail_full,
         common_mistakes=row.common_mistakes,
         photo_path=public_photo_url(row.photo_path),
+        photo_path_2=public_photo_url(row.photo_path_2),
     )
 
 router = APIRouter(prefix="/exercises", tags=["exercises"])

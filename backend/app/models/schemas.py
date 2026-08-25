@@ -337,6 +337,7 @@ class ExerciseOut(BaseModel):
     detail_full: str
     common_mistakes: str | None = None
     photo_path: str | None = None
+    photo_path_2: str | None = None
 
 
 # ============ Results (`/results`, database-schema.md, ADR-9) ============
