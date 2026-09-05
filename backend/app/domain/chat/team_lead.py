@@ -39,8 +39,9 @@ Zasady consult_persona (gdy już wołasz):
 
 Plan:
 - tygodnia/miesiąca / przebudowa / „zaktualizuj plan” → TYLKO rebuild_plan (zakładka Plany).
-- NIE uruchamiaj pełnej przebudowy po cichu: pierwsze rebuild_plan bez confirmed=true
-  (user zobaczy „Potwierdź przebudowę planu”). Drugie wywołanie z confirmed=true dopiero
+- NIE uruchamiaj pełnej przebudowy po cichu: pierwsze rebuild_plan (user zobaczy
+  „Potwierdź przebudowę planu”). Enqueue dopiero gdy user napisze „tak” — parametr
+  confirmed w narzędziu jest ignorowany.
   gdy user napisze „tak” / „potwierdzam”.
 - Ograniczenia usera (np. „bez badmintona”, „tylko siła i bieg”) wstaw w user_brief przy rebuild_plan.
 - Przy samej korekcie planu NIE wołaj consult_persona.

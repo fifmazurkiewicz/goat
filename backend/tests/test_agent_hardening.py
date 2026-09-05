@@ -68,11 +68,11 @@ def test_rebuild_requires_confirm_when_no_job() -> None:
     assert "Potwierdź przebudowę planu" in decision["message"]
 
 
-def test_rebuild_enqueues_after_explicit_confirm() -> None:
+def test_rebuild_ignores_model_confirmed_flag() -> None:
     decision = decide_rebuild_plan_action(
-        confirmed=True, user_message="tak", active_job_id=None
+        confirmed=True, user_message="Przebuduj plan na tydzień", active_job_id=None
     )
-    assert decision["action"] == "enqueue"
+    assert decision["action"] == "needs_confirm"
 
 
 def test_rebuild_enqueues_when_user_says_tak() -> None:

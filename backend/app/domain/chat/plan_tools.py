@@ -20,16 +20,20 @@ from app.repositories.plans_repo import PlansRepo
 
 
 def decide_rebuild_plan_action(
-    *, confirmed: bool, user_message: str, active_job_id: str | None
+    *, user_message: str, active_job_id: str | None, confirmed: bool = False
 ) -> dict[str, Any]:
-    """Idempotent reuse / explicit confirm / enqueue — never a silent second 3-stage job."""
+    """Idempotent reuse / explicit confirm / enqueue — never a silent second 3-stage job.
+
+    `confirmed` from the model is ignored. Only the user's message can enqueue.
+    """
+    del confirmed  # never trust tool JSON
     if active_job_id:
         return {
             "action": "reuse",
             "job_id": active_job_id,
             "message": "Przebudowa planu już trwa — czekam na ten sam job.",
         }
-    if confirmed or user_confirms_rebuild(user_message):
+    if user_confirms_rebuild(user_message):
         return {"action": "enqueue"}
     return {
         "action": "needs_confirm",
