@@ -7,6 +7,7 @@ Validation errors -> dict with `error`, never an exception to the LLM loop.
 from __future__ import annotations
 
 import calendar
+import json
 from datetime import date, timedelta
 from typing import Any
 
@@ -19,12 +20,34 @@ from app.models.schemas import PlanItemContent
 from app.repositories.plans_repo import PlansRepo
 
 
+def tool_json_shows_rebuild_pending(contents: list[str]) -> bool:
+    """True if history has `needs_confirm` after the last successful rebuild enqueue."""
+    pending = False
+    for raw in contents:
+        try:
+            parsed = json.loads(raw) if raw else {}
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(parsed, dict):
+            continue
+        if parsed.get("status") == "needs_confirm":
+            pending = True
+        elif parsed.get("status") == "ok" and parsed.get("job_id"):
+            pending = False
+    return pending
+
+
 def decide_rebuild_plan_action(
-    *, user_message: str, active_job_id: str | None, confirmed: bool = False
+    *,
+    user_message: str,
+    active_job_id: str | None,
+    confirmed: bool = False,
+    rebuild_pending: bool = False,
 ) -> dict[str, Any]:
     """Idempotent reuse / explicit confirm / enqueue — never a silent second 3-stage job.
 
-    `confirmed` from the model is ignored. Only the user's message can enqueue.
+    `confirmed` from the model is ignored. Enqueue only after a prior `needs_confirm`
+    plus the user's next-turn „tak”.
     """
     del confirmed  # never trust tool JSON
     if active_job_id:
@@ -33,7 +56,7 @@ def decide_rebuild_plan_action(
             "job_id": active_job_id,
             "message": "Przebudowa planu już trwa — czekam na ten sam job.",
         }
-    if user_confirms_rebuild(user_message):
+    if rebuild_pending and user_confirms_rebuild(user_message):
         return {"action": "enqueue"}
     return {
         "action": "needs_confirm",
@@ -231,15 +254,33 @@ class ChatPlanToolsService:
         user_brief: str | None = None,
         confirmed: bool = False,
         user_message: str = "",
+        session_id: str | None = None,
+        prior_tool_contents: list[str] | None = None,
     ) -> dict[str, Any]:
         if period_type not in ("week", "month"):
             return {"error": "period_type musi być 'week' albo 'month'."}
+
+        history_contents: list[str] = []
+        if session_id:
+            from app.repositories.chat_repo import ChatRepo
+
+            messages = await ChatRepo(self._conn).list_recent_messages_for_context(
+                session_id=session_id,
+                persona_id=None,
+                session_type="general",
+                limit=40,
+            )
+            history_contents = [m.content or "" for m in messages if m.role == "tool"]
+        rebuild_pending = tool_json_shows_rebuild_pending(
+            history_contents + list(prior_tool_contents or [])
+        )
 
         active = await self._repo.get_active_job_for_user(user_id)
         decision = decide_rebuild_plan_action(
             confirmed=confirmed,
             user_message=user_message,
             active_job_id=active.id if active else None,
+            rebuild_pending=rebuild_pending,
         )
         if decision["action"] == "needs_confirm":
             return {"status": "needs_confirm", "message": decision["message"]}

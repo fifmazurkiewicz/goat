@@ -638,8 +638,12 @@ class ChatOrchestrator:
                     allowed_persona_ids=allowed_persona_ids,
                     consult_read_only=consult_read_only,
                     user_message=user_message,
+                    session_id=session_id,
                 )
             else:
+                prior_tool_contents = [
+                    str(msg.get("content") or "") for msg in tool_response_messages
+                ]
                 async with rls_connection(self._claims) as conn:
                     response_content = await self._run_single_tool(
                         name=name,
@@ -652,6 +656,8 @@ class ChatOrchestrator:
                         allowed_persona_ids=allowed_persona_ids,
                         consult_read_only=consult_read_only,
                         user_message=user_message,
+                        session_id=session_id,
+                        prior_tool_contents=prior_tool_contents,
                     )
 
             if emit_sse:
@@ -713,6 +719,8 @@ class ChatOrchestrator:
         allowed_persona_ids: list[str] | None = None,
         consult_read_only: bool = False,
         user_message: str = "",
+        session_id: str | None = None,
+        prior_tool_contents: list[str] | None = None,
     ) -> str:
         """Validation errors (invalid JSON / Pydantic) return as tool response, NEVER
         as a server exception (security.md §3) — untrusted input even from our model."""
@@ -851,6 +859,8 @@ class ChatOrchestrator:
                 user_brief=brief or None,
                 confirmed=confirmed,
                 user_message=user_message,
+                session_id=session_id,
+                prior_tool_contents=prior_tool_contents,
             )
             return json.dumps(result, default=str, ensure_ascii=False)
 

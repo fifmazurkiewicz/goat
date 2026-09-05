@@ -56,8 +56,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await allowed_metrics_cache.load(AllowedMetricsRepo(conn))
 
     await clear_orphaned_turns_on_startup()
-    await resume_orphaned_plan_jobs_on_startup()
+    # Pending background_jobs first — then orphans without a bg row. Reverse order
+    # double-starts the same plan_job (orphan enqueue + resume of that new row).
     await resume_pending_jobs_on_startup()
+    await resume_orphaned_plan_jobs_on_startup()
 
     yield
     logger.info("shutting_down")

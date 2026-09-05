@@ -287,9 +287,10 @@
 
 - Keep ADR-17: the user hears only Goat. No Agno Team / A2A / keep-alive. Do not parallelize `consult_persona`.
 - Plan cancel registers an in-process Task (`job_registry`, same as `turn_registry`) and `_run` refuses to finalize `success` unless the job is still `pending|running`.
-- Startup **requeues** all `pending|running` background jobs (including `running`); clears orphaned `turn_in_progress`.
+- Startup **requeues** all `pending|running` background jobs first, then orphans without an active bg row; clears orphaned `turn_in_progress`.
 - Nested consult tools = `get_plan` only; consult cap increments after success.
-- `rebuild_plan` requires explicit confirm (tool `confirmed` or next-turn „tak”) or reuses an in-flight `job_id`.
+- `rebuild_plan` requires a prior `needs_confirm` plus the user’s next-turn „tak” (model `confirmed` is ignored) or reuses an in-flight `job_id`.
+- Plan job status writes are CAS on `pending|running`. Chat `retry` is 409 while a live in-process turn exists.
 - Reconcile chat (and plan jobs after completion) with the **reserved** USD, not a zero-prompt recompute.
 - Goat gets `TEAM_LEAD_SAFETY_OVERLAY` (red flags / no meds), same family as trainer templates.
 

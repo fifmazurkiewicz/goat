@@ -11,11 +11,15 @@ import pytest
 
 from app.core.config import settings
 from app.domain.chat.orchestrator import ChatOrchestrator, _tool_result_event_payload
-from app.domain.chat.plan_tools import decide_rebuild_plan_action
+from app.domain.chat.plan_tools import (
+    decide_rebuild_plan_action,
+    tool_json_shows_rebuild_pending,
+)
 from app.domain.chat.preamble import TEAM_LEAD_SAFETY_OVERLAY, build_system_prompt
 from app.domain.chat.team_lead import TeamLeadSpeaker, user_confirms_rebuild
 from app.domain.chat.tools import get_consult_persona_tools, get_trainer_chat_tools
-from app.domain.jobs.runner import select_jobs_to_resume
+from app.domain.chat.turn_registry import should_conflict_chat_send
+from app.domain.jobs.runner import STARTUP_RESUME_ORDER, select_jobs_to_resume
 from app.domain.plans.orchestrator import should_finalize_plan_job_success
 from app.domain.usage.service import UsageLimitService
 
@@ -52,6 +56,23 @@ def test_consult_tools_are_read_only() -> None:
     assert "upsert_plan_items" not in names
 
 
+@pytest.mark.asyncio
+async def test_consult_read_only_blocks_write_tools() -> None:
+    orch = ChatOrchestrator(MagicMock(), claims={"sub": "u"})
+    persona = MagicMock(type="motor_coach", id="p1")
+    for name in ("log_result", "update_user_profile", "upsert_plan_items"):
+        raw = await orch._run_single_tool(
+            name=name,
+            raw_arguments="{}",
+            user_id="u",
+            persona=persona,
+            consult_read_only=True,
+        )
+        parsed = json.loads(raw)
+        assert "error" in parsed
+        assert "tylko do odczytu" in parsed["error"]
+
+
 def test_user_confirms_rebuild_polish_yes() -> None:
     assert user_confirms_rebuild("tak")
     assert user_confirms_rebuild("Tak, przebuduj")
@@ -75,11 +96,62 @@ def test_rebuild_ignores_model_confirmed_flag() -> None:
     assert decision["action"] == "needs_confirm"
 
 
-def test_rebuild_enqueues_when_user_says_tak() -> None:
+def test_rebuild_tak_without_pending_stays_confirm() -> None:
     decision = decide_rebuild_plan_action(
-        confirmed=False, user_message="tak", active_job_id=None
+        confirmed=False, user_message="tak", active_job_id=None, rebuild_pending=False
+    )
+    assert decision["action"] == "needs_confirm"
+
+
+def test_rebuild_enqueues_when_user_says_tak_after_pending() -> None:
+    decision = decide_rebuild_plan_action(
+        confirmed=False,
+        user_message="tak",
+        active_job_id=None,
+        rebuild_pending=True,
     )
     assert decision["action"] == "enqueue"
+
+
+def test_tool_json_shows_rebuild_pending_from_history() -> None:
+    assert tool_json_shows_rebuild_pending(
+        ['{"status": "needs_confirm", "message": "Potwierdź przebudowę planu"}']
+    )
+    assert not tool_json_shows_rebuild_pending(
+        [
+            '{"status": "needs_confirm"}',
+            '{"status": "ok", "job_id": "j1"}',
+        ]
+    )
+
+
+def test_job_status_update_is_cas_on_active_rows() -> None:
+    import inspect
+
+    from app.repositories.plans_repo import PlansRepo
+
+    source = inspect.getsource(PlansRepo.update_job_status)
+    assert "status IN ('pending', 'running')" in source
+
+
+def test_startup_resumes_pending_before_orphans() -> None:
+    import inspect
+
+    from app import main
+
+    assert STARTUP_RESUME_ORDER == ("pending", "orphaned")
+    source = inspect.getsource(main.lifespan)
+    assert source.find("resume_pending_jobs_on_startup") < source.find(
+        "resume_orphaned_plan_jobs_on_startup"
+    )
+
+
+def test_retry_conflicts_while_live_turn() -> None:
+    assert should_conflict_chat_send(live_task=True, db_flag=True, retry=True) is True
+    assert should_conflict_chat_send(live_task=True, db_flag=False, retry=True) is True
+    assert should_conflict_chat_send(live_task=False, db_flag=True, retry=True) is False
+    assert should_conflict_chat_send(live_task=False, db_flag=True, retry=False) is True
+    assert should_conflict_chat_send(live_task=False, db_flag=False, retry=True) is False
 
 
 def test_rebuild_returns_existing_job_when_in_flight() -> None:

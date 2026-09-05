@@ -25,6 +25,7 @@ from app.domain.chat.turn_registry import (
     is_turn_in_progress,
     mark_turn_finished,
     mark_turn_started,
+    should_conflict_chat_send,
 )
 from app.models.schemas import (
     ChatMessageOut,
@@ -156,10 +157,13 @@ async def send_chat_message(
         session = await ChatRepo(conn).get_session(session_id)
         if session is None or session.user_id != auth.user_id:
             raise NotFoundError(f"Sesja czatu {session_id!r} nie istnieje.")
-        in_progress = session.turn_in_progress or is_turn_in_progress(session_id)
-        if in_progress and not payload.retry:
+        if should_conflict_chat_send(
+            live_task=is_turn_in_progress(session_id),
+            db_flag=session.turn_in_progress,
+            retry=payload.retry,
+        ):
             raise ConflictError(
-                "Trwa już tura czatu. Poczekaj na koniec, anuluj albo wyślij ponownie (retry)."
+                "Trwa już tura czatu. Poczekaj na koniec albo anuluj."
             )
 
     queue: asyncio.Queue[dict] = asyncio.Queue()

@@ -347,16 +347,19 @@ class PlansRepo:
             raise NotFoundError(f"Job {job_id!r} nie istnieje.")
         if job.status not in ("pending", "running"):
             raise ConflictError("Ten job generowania planu nie jest już aktywny.")
-        await self.update_job_status(
+        updated = await self.update_job_status(
             job_id, "error", error_message="Anulowano przez użytkownika."
         )
+        if not updated:
+            raise ConflictError("Ten job generowania planu nie jest już aktywny.")
         await self.update_plan_status(job.plan_id, "error")
         return await self.get_job_or_raise(job_id)
 
     async def update_job_status(
         self, job_id: str, status: str, *, error_message: str | None = None
-    ) -> None:
-        await self._conn.execute(
+    ) -> bool:
+        """CAS: only pending/running jobs change. Returns False if already cancelled/done."""
+        result = await self._conn.execute(
             text(
                 """
                 UPDATE plan_generation_jobs
@@ -371,10 +374,12 @@ class PlansRepo:
                         ELSE finished_at
                     END
                 WHERE id = :id
+                  AND status IN ('pending', 'running')
                 """
             ),
             {"id": job_id, "status": status, "error_message": error_message},
         )
+        return bool(getattr(result, "rowcount", 0))
 
     async def increment_attempts(self, job_id: str) -> None:
         await self._conn.execute(

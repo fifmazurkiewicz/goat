@@ -67,7 +67,7 @@ async function* streamChatMessage(sessionId: string, body: SendMessageBody, sign
 Discriminated union: `type ChatStreamEvent = {type:'token', text:string} | {type:'tool_call_start', ...} | {type:'tool_result', ...} | {type:'done'} | {type:'error', message:string}`.
 
 - **Cancel:** `AbortController` in the `useChatStream` hook, `abort()` in `useEffect` cleanup (navigation aborts the stream).
-- **Reconnect: none in MVP (conscious debt).** Network error mid-stream → partial answer + "Connection lost" message + "Resend" (`POST .../message` with `retry: true` — the backend doesn't insert the same user message twice if the last `role=user` has identical content).
+- **Reconnect: none in MVP (conscious debt).** Network error mid-stream → partial answer + "Connection lost" message + "Resend" (`POST .../message` with `retry: true` — the backend doesn't insert the same user message twice if the last `role=user` has identical content). Retry is for an **orphaned** turn (DB `turn_in_progress` after a kill / dropped SSE with no live producer). A still-running in-process turn returns **409**; the client must wait or call cancel, not start a second producer.
 - **JWT expiry mid-stream** (401 mid-way) → readable "Session expired, sign in again" message, not a silent cut-off.
 - Optimistic user-message addition (skipped on `retry`), streamed token append via batching (`requestAnimationFrame`/debounce 16–30 ms) — no re-render on every token.
 - `aria-live="polite"` on the streaming assistant message container (not on the whole list) — accessibility for screen readers.

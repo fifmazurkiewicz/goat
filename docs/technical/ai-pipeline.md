@@ -86,6 +86,8 @@ FE shows an expandable preview of "what the trainer answered Goat" under the Goa
 **Golden cases:** question about motor skills → Goat + optionally `consult_persona` on slug `motor_coach`
 from the roster (not a dietitian bubble); own persona (e.g. swimming) also in the roster; plan → `rebuild_plan`.
 
+**ADDED 2026-09-06 (ADR-21):** chat hard timeout `CHAT_HARD_TIMEOUT_S=210`, per-round `CHAT_ROUND_TIMEOUT_S=90`. Nested consults are read-only (`get_plan` only). `rebuild_plan` enqueue requires a prior `needs_confirm` plus the user’s next-turn „tak”.
+
 ## 1b. LLM cost and USD budget (ADR-16)
 
 Every OpenRouter response in the SSE stream must include the final `usage` chunk

@@ -139,9 +139,9 @@ Goat **does not** participate. A trainer does not have `rebuild_plan` — full h
 ## ADDED 2026-09-06 — agent hardening (ADR-21)
 
 - **Consults are read-only.** Nested `consult_persona` turns get `get_plan` only (no `log_result` / `update_user_profile` / `upsert_plan_items`). The consult cap increments only after a successful answer.
-- **`rebuild_plan` needs confirm.** First call returns `needs_confirm` + Polish copy „Potwierdź przebudowę planu”. Enqueue only after `confirmed=true` or the next user message is „tak” / „potwierdzam”. If a job is already in-flight, the tool returns the existing `job_id` (idempotent retry) instead of starting a second 3-stage pipeline.
-- **Cancel.** `POST /plans/jobs/{id}/cancel` cancels the in-process `asyncio.Task` (same pattern as chat `turn_registry`). `_run` must not write `success` after cancel.
-- **Startup.** Resume all `background_jobs` in `pending|running` (including `running`). Clear orphaned `chat_sessions.turn_in_progress`. Do not reap those rows as error just because they are older than 5 minutes.
+- **`rebuild_plan` needs confirm.** First call returns `needs_confirm` + Polish copy „Potwierdź przebudowę planu”. Enqueue only when a prior tool result left `needs_confirm` **and** the next user message is „tak” / „potwierdzam”. The model `confirmed` flag is ignored. A bare „tak” without that pending confirm does not start a job. If a job is already in-flight, the tool returns the existing `job_id` (idempotent retry) instead of starting a second 3-stage pipeline.
+- **Cancel.** `POST /plans/jobs/{id}/cancel` cancels the in-process `asyncio.Task` (same pattern as chat `turn_registry`). Job status updates are CAS (`pending|running` only) so `_run` cannot write `success` / `ready` after cancel.
+- **Startup.** Resume `background_jobs` in `pending|running` **first**, then enqueue orphaned `plan_generation_jobs` that have no active bg row. Reverse order double-starts the same plan job. Clear orphaned `chat_sessions.turn_in_progress`. Do not reap those rows as error just because they are older than 5 minutes.
 - **Timeouts.** SSE whole-turn deadline `CHAT_HARD_TIMEOUT_S=210`; each LLM stream round `CHAT_ROUND_TIMEOUT_S=90`.
 - **Safety.** Goat (`team_lead`) gets the same red-flag / no-meds overlay as trainer templates (`TEAM_LEAD_SAFETY_OVERLAY`).
 - **Usage.** Chat reconcile uses the reserved USD from that round (does not recompute with `prompt_chars_estimate=0`). Plan jobs reconcile the reserved estimate after completion.

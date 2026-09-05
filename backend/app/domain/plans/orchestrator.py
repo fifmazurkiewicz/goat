@@ -225,8 +225,11 @@ class PlanOrchestrator:
             try:
                 async with rls_connection(claims) as conn:
                     repo = PlansRepo(conn)
-                    await repo.update_job_status(job_id, "error", error_message=str(exc)[:500])
-                    await repo.update_plan_status(plan_id, "error")
+                    marked = await repo.update_job_status(
+                        job_id, "error", error_message=str(exc)[:500]
+                    )
+                    if marked:
+                        await repo.update_plan_status(plan_id, "error")
             except Exception:  # noqa: BLE001 — nie eskalujemy błędu przy zapisie błędu
                 logger.error("plan_generation_failed_to_persist_error_state")
 
@@ -234,13 +237,11 @@ class PlanOrchestrator:
         try:
             async with rls_connection(claims) as conn:
                 repo = PlansRepo(conn)
-                job = await repo.get_job(job_id)
-                if job is None or not should_finalize_plan_job_success(job.status):
-                    return
-                await repo.update_job_status(
+                marked = await repo.update_job_status(
                     job_id, "error", error_message="Anulowano przez użytkownika."
                 )
-                await repo.update_plan_status(plan_id, "error")
+                if marked:
+                    await repo.update_plan_status(plan_id, "error")
         except Exception:  # noqa: BLE001
             logger.error("plan_generation_failed_to_persist_cancel_state")
 
@@ -261,12 +262,18 @@ class PlanOrchestrator:
     ) -> None:
         async with rls_connection(claims) as conn:
             plans_repo = PlansRepo(conn)
-            await plans_repo.update_job_status(job_id, "running")
+            claimed = await plans_repo.update_job_status(job_id, "running")
+            if not claimed:
+                raise asyncio.CancelledError
             await plans_repo.increment_attempts(job_id)
 
             plan = await plans_repo.get_plan(plan_id)
             if plan is None:
-                await plans_repo.update_job_status(job_id, "error", error_message="Plan nie istnieje.")
+                marked = await plans_repo.update_job_status(
+                    job_id, "error", error_message="Plan nie istnieje."
+                )
+                if marked:
+                    await plans_repo.update_plan_status(plan_id, "error")
                 return
 
             active_personas = await PersonasRepo(conn).list_active_for_user(user_id)
@@ -299,8 +306,11 @@ class PlanOrchestrator:
         if not active_personas:
             async with rls_connection(claims) as conn:
                 repo = PlansRepo(conn)
-                await repo.update_job_status(job_id, "error", error_message="Brak aktywnych person.")
-                await repo.update_plan_status(plan_id, "error")
+                marked = await repo.update_job_status(
+                    job_id, "error", error_message="Brak aktywnych person."
+                )
+                if marked:
+                    await repo.update_plan_status(plan_id, "error")
             return
 
         personas_to_generate = [p for p in active_personas if p.id not in done_persona_ids]
@@ -362,11 +372,12 @@ class PlanOrchestrator:
         if not succeeded_personas:
             async with rls_connection(claims) as conn:
                 repo = PlansRepo(conn)
-                job = await repo.get_job(job_id)
-                if job is not None and should_finalize_plan_job_success(job.status):
-                    await repo.update_job_status(
-                        job_id, "error", error_message="Wszystkie persony zawiodły przy generowaniu planu."
-                    )
+                marked = await repo.update_job_status(
+                    job_id,
+                    "error",
+                    error_message="Wszystkie persony zawiodły przy generowaniu planu.",
+                )
+                if marked:
                     await repo.update_plan_status(plan_id, "error")
             await self._reconcile_plan_budget(
                 claims=claims,
@@ -397,11 +408,12 @@ class PlanOrchestrator:
         all_succeeded = len(succeeded_personas) == len(active_personas)
         async with rls_connection(claims) as conn:
             repo = PlansRepo(conn)
-            job = await repo.get_job(job_id)
-            if job is None or not should_finalize_plan_job_success(job.status):
+            finalized = await repo.update_job_status(
+                job_id, "success" if all_succeeded else "partial_success"
+            )
+            if not finalized:
                 return
             await repo.update_plan_status(plan_id, "ready" if all_succeeded else "partial_ready")
-            await repo.update_job_status(job_id, "success" if all_succeeded else "partial_success")
 
         await self._reconcile_plan_budget(
             claims=claims,

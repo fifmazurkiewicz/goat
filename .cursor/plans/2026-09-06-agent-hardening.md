@@ -82,6 +82,17 @@ SSE event or tool result “Potwierdź przebudowę planu” before enqueue. If t
 6. **Konsultacja tylko do odczytu** — Goat woła trenera; trener nie zapisuje wyniku / profilu / pozycji planu w tej konsultacji.
 7. **Overlay Goat** — pytanie o leki / czerwone flagi: Goat odmawia jak trenerzy (nie przepisuje leków, kieruje do specjalisty).
 
-## Manual tests
+## Decisions (2026-09-06 review follow-up)
 
-Filled after implementation.
+- Job status `UPDATE` is CAS: `WHERE status IN ('pending','running')`. Plan `ready`/`error` only if that write lands.
+- Startup order: `resume_pending` then `resume_orphaned` (never the reverse).
+- Live in-process chat turn always 409, including `retry=true`. Retry only for a DB orphan.
+- `rebuild_plan` enqueue requires prior `needs_confirm` in history plus user „tak”. Model `confirmed` is ignored.
+
+## Manual tests (after implementation)
+
+Same as the Polish UI list above. After review fixes, also:
+
+8. **Cancel vs finish race** — cancel a nearly-done plan job; it must stay `error`, never flip to ready.
+9. **Retry while streaming** — drop the tab mid-turn (SSE gone, backend still working) then tap Resend: expect 409 until the turn finishes or you hit Stop.
+10. **Tak without prior confirm** — first message „tak” must not start a rebuild job.

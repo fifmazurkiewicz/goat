@@ -26,6 +26,10 @@ def _plan_job_registry_key(payload: dict[str, Any]) -> str | None:
     return str(raw) if raw else None
 
 
+# pending background_jobs first; then plan_generation_jobs with no bg row.
+STARTUP_RESUME_ORDER = ("pending", "orphaned")
+
+
 def select_jobs_to_resume(jobs: list[BackgroundJobRow]) -> list[BackgroundJobRow]:
     """Startup: resume every pending|running row — do not skip `running`."""
     return [job for job in jobs if job.status in ("pending", "running")]

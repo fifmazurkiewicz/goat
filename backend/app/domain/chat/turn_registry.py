@@ -24,6 +24,13 @@ def is_turn_in_progress(session_id: str) -> bool:
     return task is not None and not task.done()
 
 
+def should_conflict_chat_send(*, live_task: bool, db_flag: bool, retry: bool) -> bool:
+    """Live in-process turn always 409. Retry only for a DB orphan (no live task)."""
+    if live_task:
+        return True
+    return db_flag and not retry
+
+
 def cancel_turn(session_id: str) -> bool:
     """Cancels the active turn (Stop button) — stops LLM generation."""
     task = _active.get(session_id)
