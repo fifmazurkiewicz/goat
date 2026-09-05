@@ -222,11 +222,12 @@ async def test_consult_persona_runs_outside_parent_rls_connection(
     )
 
     consult_at = timeline.index("consult")
-    assert "conn_enter" not in timeline[consult_at:] or timeline[consult_at - 1] == "conn_exit"
     assert held["depth"] == 0
     assert timeline.count("insert_assistant") == 1
     assert timeline.count("insert_tool") == 1
-    assert timeline.index("insert_assistant") < consult_at < timeline.index("insert_tool")
+    assert consult_at < timeline.index("insert_assistant")
+    persist = timeline[consult_at + 1 :]
+    assert persist[:4] == ["conn_enter", "insert_assistant", "insert_tool", "conn_exit"]
     event = queue.get_nowait()
     assert event["event"] == "tool_result"
 

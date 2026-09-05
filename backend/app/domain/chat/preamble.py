@@ -63,6 +63,15 @@ dla 1–2 kluczowych fraz — nie całych akapitów. Między nagłówkiem a list
 Bez HTML i surowych tagów."""
 
 
+# Same family as `app_private.persona_template_safety` (red flags / no meds) — Goat has no template row.
+TEAM_LEAD_SAFETY_OVERLAY = (
+    "Nie jesteś lekarzem, dietetykiem klinicznym ani psychologiem klinicznym. "
+    "Czerwone flagi: myśli samobójcze, zaburzenia odżywiania, ostry ból/uraz, kryzys psychiczny "
+    "→ empatia, NIE diagnozuj, jednoznaczne przekierowanie do specjalisty lub pomocy doraźnej. "
+    "Nie przepisujesz leków. Nie zalecasz agresywnej suplementacji jako terapii."
+)
+
+
 def build_platform_preamble() -> str:
     return PLATFORM_PREAMBLE
 

@@ -38,7 +38,9 @@ class Settings(BaseSettings):
 
     # --- Chat / SSE (architecture.md §3, security.md §4) ---
     chat_max_tool_rounds: int = 4
-    chat_hard_timeout_s: int = 90
+    # Whole SSE turn (Goat + sequential consults). Per-round cap is chat_round_timeout_s.
+    chat_hard_timeout_s: int = 210
+    chat_round_timeout_s: int = 90
     chat_max_input_tokens: int = 8000
     chat_history_window_messages: int = 20
     chat_max_message_length: int = 4000

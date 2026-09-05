@@ -21,6 +21,8 @@ export interface ChatStreamToolResultEvent {
   success: boolean;
   /** Present for `rebuild_plan` — FE starts polling the plan job. */
   job_id?: string;
+  /** Goat asked the user to confirm a full plan rebuild. */
+  needs_confirm?: boolean;
 }
 
 export interface ChatStreamConsultDetailEvent {

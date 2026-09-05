@@ -67,6 +67,14 @@ class BackgroundJobsRepo:
         )
         return _row_to_job(result.one())
 
+    async def get(self, job_id: str) -> BackgroundJobRow | None:
+        result = await self._conn.execute(
+            text(f"SELECT {_JOB_COLUMNS} FROM background_jobs WHERE id = :id"),
+            {"id": job_id},
+        )
+        row = result.one_or_none()
+        return _row_to_job(row) if row is not None else None
+
     async def mark_running(self, job_id: str) -> None:
         await self._conn.execute(
             text(

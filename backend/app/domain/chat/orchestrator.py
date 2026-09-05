@@ -26,6 +26,7 @@ from app.core.dependencies import get_moderation_service, get_pricing_cache
 from app.core.exceptions import AppError, ConflictError, NotFoundError, ValidationError
 from app.domain.chat.context_builder import ContextBuilder
 from app.domain.chat.plan_tools import ChatPlanToolsService
+from app.domain.chat.preamble import TEAM_LEAD_SAFETY_OVERLAY
 from app.domain.chat.routing import parse_multi_slash_command
 from app.domain.chat.team_lead import (
     MAX_CONSULTS_PER_TURN,
@@ -38,6 +39,7 @@ from app.domain.chat.team_lead import (
 )
 from app.domain.chat.tools import (
     TEAM_LEAD_CHAT_TOOL_NAMES,
+    get_consult_persona_tools,
     get_team_lead_plan_tools,
     get_trainer_chat_tools,
 )
@@ -188,11 +190,14 @@ def _tool_result_event_payload(name: str, response_content: str) -> dict[str, An
             success = parsed.get("status") in ("ok", "partial")
         elif name == "rebuild_plan":
             job_id = str(parsed["job_id"]) if parsed.get("job_id") else None
-            summary = (
-                f"Uruchomiono przebudowę planu"
-                + (f" (job {job_id[:8]}…)" if job_id else "")
-            )
-            success = parsed.get("status") == "ok"
+            if parsed.get("status") == "needs_confirm":
+                summary = str(parsed.get("message") or "Potwierdź przebudowę planu")
+                success = False
+            else:
+                summary = "Uruchomiono przebudowę planu" + (
+                    f" (job {job_id[:8]}…)" if job_id else ""
+                )
+                success = parsed.get("status") == "ok"
         elif name == "consult_persona":
             if parsed.get("error"):
                 summary = str(parsed["error"])
@@ -206,6 +211,8 @@ def _tool_result_event_payload(name: str, response_content: str) -> dict[str, An
     payload: dict[str, Any] = {"tool_name": name, "summary": summary, "success": success}
     if job_id:
         payload["job_id"] = job_id
+    if name == "rebuild_plan" and isinstance(parsed, dict) and parsed.get("status") == "needs_confirm":
+        payload["needs_confirm"] = True
     return payload
 
 
@@ -242,6 +249,7 @@ class ChatOrchestrator:
         emit_sse: bool = True,
         persist_messages: bool = True,
         consult_roster: list[Any] | None = None,
+        consult_read_only: bool = False,
     ) -> tuple[bool, str | None]:
         """Handle one persona turn. Returns `(success, assistant reply content)`."""
         try:
@@ -259,6 +267,7 @@ class ChatOrchestrator:
                 emit_sse=emit_sse,
                 persist_messages=persist_messages,
                 consult_roster=consult_roster,
+                consult_read_only=consult_read_only,
             )
         except asyncio.CancelledError:
             raise
@@ -294,6 +303,7 @@ class ChatOrchestrator:
         emit_sse: bool = True,
         persist_messages: bool = True,
         consult_roster: list[Any] | None = None,
+        consult_read_only: bool = False,
     ) -> tuple[bool, str | None]:
         if consult_roster is not None:
             self._consult_roster = consult_roster
@@ -311,7 +321,9 @@ class ChatOrchestrator:
         )
 
         template_safety: str | None = None
-        if persona.type != "team_lead" and persona.base_template_id:
+        if persona.type == "team_lead":
+            template_safety = TEAM_LEAD_SAFETY_OVERLAY
+        elif persona.base_template_id:
             async with service_role_connection() as sconn:
                 template_safety = await PersonaTemplatesRepo(sconn).get_safety_prompt(
                     persona.base_template_id
@@ -352,7 +364,12 @@ class ChatOrchestrator:
             *history,
             {"role": "user", "content": user_message},
         ]
-        tools = get_team_lead_plan_tools() if persona.type == "team_lead" else get_trainer_chat_tools()
+        if consult_read_only:
+            tools = get_consult_persona_tools()
+        elif persona.type == "team_lead":
+            tools = get_team_lead_plan_tools()
+        else:
+            tools = get_trainer_chat_tools()
         fallback_models = [
             m.strip()
             for m in settings.openrouter_chat_model_fallbacks.split(",")
@@ -370,7 +387,7 @@ class ChatOrchestrator:
         emitted_writing_status = False
 
         for round_index in range(settings.chat_max_tool_rounds):
-            period_start = await self._reserve_round_budget(
+            period_start, reserved_usd = await self._reserve_round_budget(
                 user_id=user_id, model=chat_model, prompt=messages
             )
 
@@ -380,67 +397,89 @@ class ChatOrchestrator:
             usage_chunk: dict[str, Any] | None = None
             emitted_tool_call_start = False
 
-            async for chunk in self._llm_client.stream_chat(
-                model=chat_model,
-                messages=messages,
-                tools=tools,
-                max_tokens=settings.chat_max_output_tokens,
-                fallback_models=fallback_models,
-            ):
-                if chunk.get("usage"):
-                    usage_chunk = chunk["usage"]
-                choices = chunk.get("choices") or []
-                if not choices:
-                    continue
-                choice = choices[0]
-                delta = choice.get("delta") or {}
-                if choice.get("finish_reason"):
-                    finish_reason = choice["finish_reason"]
+            try:
+                async with asyncio.timeout(settings.chat_round_timeout_s):
+                    async for chunk in self._llm_client.stream_chat(
+                        model=chat_model,
+                        messages=messages,
+                        tools=tools,
+                        max_tokens=settings.chat_max_output_tokens,
+                        fallback_models=fallback_models,
+                    ):
+                        if chunk.get("usage"):
+                            usage_chunk = chunk["usage"]
+                        choices = chunk.get("choices") or []
+                        if not choices:
+                            continue
+                        choice = choices[0]
+                        delta = choice.get("delta") or {}
+                        if choice.get("finish_reason"):
+                            finish_reason = choice["finish_reason"]
 
-                if delta.get("content"):
-                    if not emitted_writing_status:
-                        emitted_writing_status = True
-                        if emit_sse:
-                            await _emit_persona_status(
-                                queue, persona=persona, phase="writing", label=status_label
-                            )
-                    content_buffer.append(delta["content"])
-                    if emit_sse and client_visible:
-                        await _emit(queue, "token", {"text": delta["content"]})
+                        if delta.get("content"):
+                            if not emitted_writing_status:
+                                emitted_writing_status = True
+                                if emit_sse:
+                                    await _emit_persona_status(
+                                        queue, persona=persona, phase="writing", label=status_label
+                                    )
+                            content_buffer.append(delta["content"])
+                            if emit_sse and client_visible:
+                                await _emit(queue, "token", {"text": delta["content"]})
 
-                for tool_call_delta in delta.get("tool_calls") or []:
-                    index = tool_call_delta.get("index", 0)
-                    buffer = tool_buffers.setdefault(index, ToolCallBuffer())
-                    buffer.accumulate(tool_call_delta)
-                    if not emitted_tool_call_start and buffer.name:
-                        emitted_tool_call_start = True
-                        if emit_sse:
-                            await _emit(
-                                queue,
-                                "tool_call_start",
-                                {
-                                    "name": buffer.name,
-                                    "persona_id": (
-                                        None
-                                        if status_label
-                                        else _persist_persona_id(persona)
-                                    ),
-                                },
-                            )
-                            if buffer.name != "consult_persona":
-                                await _emit_persona_status(
-                                    queue,
-                                    persona=persona,
-                                    phase="tool",
-                                    tool_name=buffer.name,
-                                    label=status_label,
-                                )
+                        for tool_call_delta in delta.get("tool_calls") or []:
+                            index = tool_call_delta.get("index", 0)
+                            buffer = tool_buffers.setdefault(index, ToolCallBuffer())
+                            buffer.accumulate(tool_call_delta)
+                            if not emitted_tool_call_start and buffer.name:
+                                emitted_tool_call_start = True
+                                if emit_sse:
+                                    await _emit(
+                                        queue,
+                                        "tool_call_start",
+                                        {
+                                            "name": buffer.name,
+                                            "persona_id": (
+                                                None
+                                                if status_label
+                                                else _persist_persona_id(persona)
+                                            ),
+                                        },
+                                    )
+                                    if buffer.name != "consult_persona":
+                                        await _emit_persona_status(
+                                            queue,
+                                            persona=persona,
+                                            phase="tool",
+                                            tool_name=buffer.name,
+                                            label=status_label,
+                                        )
+            except TimeoutError:
+                await self._reconcile_round_cost(
+                    user_id=user_id,
+                    model=chat_model,
+                    period_start=period_start,
+                    usage_chunk=usage_chunk,
+                    reserved_usd=reserved_usd,
+                )
+                if emit_sse:
+                    await _emit(
+                        queue,
+                        "error",
+                        {
+                            "code": "timeout",
+                            "message": "Przekroczono limit czasu rundy modelu.",
+                        },
+                    )
+                    await queue.put({"event": "done", "data": "{}"})
+                return False, None
 
             actual_cost = await self._reconcile_round_cost(
                 user_id=user_id,
                 model=chat_model,
                 period_start=period_start,
                 usage_chunk=usage_chunk,
+                reserved_usd=reserved_usd,
             )
             logger.info("chat_round_completed", round=round_index, actual_cost_usd=actual_cost)
 
@@ -469,6 +508,8 @@ class ChatOrchestrator:
                     allowed_persona_ids=allowed_persona_ids,
                     persist_messages=persist_messages,
                     emit_sse=emit_sse,
+                    consult_read_only=consult_read_only,
+                    user_message=user_message,
                 )
                 messages.extend(tool_response_messages)
 
@@ -519,7 +560,7 @@ class ChatOrchestrator:
 
     async def _reserve_round_budget(
         self, *, user_id: str, model: str, prompt: list[dict[str, Any]]
-    ) -> date:
+    ) -> tuple[date, float]:
         prompt_chars = sum(len(str(m.get("content") or "")) for m in prompt)
         async with rls_connection(self._claims) as conn:
             usage_service = UsageLimitService(
@@ -530,9 +571,10 @@ class ChatOrchestrator:
                 prompt_text_length_chars=prompt_chars,
                 max_output_tokens=settings.chat_max_output_tokens,
             )
-            return await usage_service.reserve_estimated_cost(
+            period_start = await usage_service.reserve_estimated_cost(
                 user_id=user_id, estimated_cost_usd=estimated
             )
+            return period_start, estimated
 
     async def _reconcile_round_cost(
         self,
@@ -541,6 +583,7 @@ class ChatOrchestrator:
         model: str,
         period_start: date,
         usage_chunk: dict[str, Any] | None,
+        reserved_usd: float,
     ) -> float:
         pricing_cache = get_pricing_cache()
         prompt_tokens = int((usage_chunk or {}).get("prompt_tokens", 0) or 0)
@@ -548,20 +591,14 @@ class ChatOrchestrator:
         actual_cost = await pricing_cache.estimate_cost_usd(
             model=model, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens
         )
-        prompt_chars_estimate = 0  # reconciliation adjusts cost difference only, not input tokens
         async with rls_connection(self._claims) as conn:
             usage_service = UsageLimitService(
                 UsageLimitsRepo(conn), ProfilesRepo(conn), pricing_cache
             )
-            estimated = await usage_service.estimate_turn_cost_usd(
-                model=model,
-                prompt_text_length_chars=prompt_chars_estimate,
-                max_output_tokens=settings.chat_max_output_tokens,
-            )
             await usage_service.reconcile_actual_cost(
                 user_id=user_id,
                 period_start=period_start,
-                estimated_cost_usd=estimated,
+                estimated_cost_usd=reserved_usd,
                 actual_cost_usd=actual_cost,
                 actual_tokens=prompt_tokens + completion_tokens,
             )
@@ -579,16 +616,9 @@ class ChatOrchestrator:
         allowed_persona_ids: list[str] | None = None,
         persist_messages: bool = True,
         emit_sse: bool = True,
+        consult_read_only: bool = False,
+        user_message: str = "",
     ) -> list[dict[str, Any]]:
-        if persist_messages:
-            async with rls_connection(self._claims) as conn:
-                await ChatRepo(conn).insert_assistant_message(
-                    session_id=session_id,
-                    content=assistant_content,
-                    tool_calls=tool_calls_payload,
-                    persona_id=_persist_persona_id(persona),
-                )
-
         tool_response_messages: list[dict[str, Any]] = []
         for call in tool_calls_payload:
             name = call["function"]["name"]
@@ -597,9 +627,6 @@ class ChatOrchestrator:
 
             if name == "consult_persona":
                 # Nested LLM (30–90s) must not hold the parent RLS transaction.
-                # Sequential await = FIFO event order (persona_status → tool_result
-                # → consult_detail → synthesis tokens); if roundtable is parallelized
-                # later, order must be guaranteed explicitly.
                 response_content = await self._run_single_tool(
                     name=name,
                     raw_arguments=raw_arguments,
@@ -609,6 +636,8 @@ class ChatOrchestrator:
                     user_profile_repo=None,
                     plan_tools=None,
                     allowed_persona_ids=allowed_persona_ids,
+                    consult_read_only=consult_read_only,
+                    user_message=user_message,
                 )
             else:
                 async with rls_connection(self._claims) as conn:
@@ -621,23 +650,10 @@ class ChatOrchestrator:
                         user_profile_repo=UserProfileRepo(conn),
                         plan_tools=ChatPlanToolsService(conn, claims=self._claims),
                         allowed_persona_ids=allowed_persona_ids,
+                        consult_read_only=consult_read_only,
+                        user_message=user_message,
                     )
-                    if persist_messages:
-                        await ChatRepo(conn).insert_tool_message(
-                            session_id=session_id,
-                            tool_call_id=tool_call_id,
-                            content=response_content,
-                            persona_id=_persist_persona_id(persona),
-                        )
 
-            if persist_messages and name == "consult_persona":
-                async with rls_connection(self._claims) as conn:
-                    await ChatRepo(conn).insert_tool_message(
-                        session_id=session_id,
-                        tool_call_id=tool_call_id,
-                        content=response_content,
-                        persona_id=_persist_persona_id(persona),
-                    )
             if emit_sse:
                 await _emit(
                     queue,
@@ -645,9 +661,6 @@ class ChatOrchestrator:
                     _tool_result_event_payload(name, response_content),
                 )
                 if name == "consult_persona":
-                    # Consultation visibility (2026-08-22): dedicated event with question
-                    # and full trainer answer — only when status ok; `tool_result`
-                    # contract (summary/success) stays unchanged.
                     try:
                         consult = json.loads(response_content) if response_content else {}
                     except json.JSONDecodeError:
@@ -668,6 +681,23 @@ class ChatOrchestrator:
                 {"role": "tool", "tool_call_id": tool_call_id, "content": response_content}
             )
 
+        if persist_messages:
+            async with rls_connection(self._claims) as conn:
+                chat_repo = ChatRepo(conn)
+                await chat_repo.insert_assistant_message(
+                    session_id=session_id,
+                    content=assistant_content,
+                    tool_calls=tool_calls_payload,
+                    persona_id=_persist_persona_id(persona),
+                )
+                for call, tool_msg in zip(tool_calls_payload, tool_response_messages, strict=True):
+                    await chat_repo.insert_tool_message(
+                        session_id=session_id,
+                        tool_call_id=call["id"],
+                        content=tool_msg["content"],
+                        persona_id=_persist_persona_id(persona),
+                    )
+
         return tool_response_messages
 
     async def _run_single_tool(
@@ -681,9 +711,16 @@ class ChatOrchestrator:
         user_profile_repo: UserProfileRepo | None = None,
         plan_tools: ChatPlanToolsService | None = None,
         allowed_persona_ids: list[str] | None = None,
+        consult_read_only: bool = False,
+        user_message: str = "",
     ) -> str:
         """Validation errors (invalid JSON / Pydantic) return as tool response, NEVER
         as a server exception (security.md §3) — untrusted input even from our model."""
+        if consult_read_only and name != "get_plan":
+            return json.dumps(
+                {"error": "Konsultacja jest tylko do odczytu — dostępne: get_plan."},
+                ensure_ascii=False,
+            )
         if name == "consult_persona":
             if getattr(persona, "type", None) != "team_lead":
                 return json.dumps(
@@ -806,11 +843,14 @@ class ChatOrchestrator:
                 return json.dumps({"error": f"Nieprawidłowe argumenty rebuild_plan: {exc}"})
             user_brief = arguments.get("user_brief")
             brief = str(user_brief).strip() if user_brief is not None else None
+            confirmed = bool(arguments.get("confirmed"))
             result = await plan_tools.rebuild_plan(
                 user_id=user_id,
                 period_type=period_type,
                 start_date=start_date,
                 user_brief=brief or None,
+                confirmed=confirmed,
+                user_message=user_message,
             )
             return json.dumps(result, default=str, ensure_ascii=False)
 
@@ -837,7 +877,6 @@ class ChatOrchestrator:
                 {"error": f"Brak aktywnej persony o slugu {slug!r}."},
                 ensure_ascii=False,
             )
-        self._consult_count += 1
         status = goat_consult_status_message(target)
         user_queue = self._consult_user_queue
         if user_queue is not None:
@@ -861,12 +900,14 @@ class ChatOrchestrator:
             emit_sse=False,
             persist_messages=False,
             allowed_persona_ids=[p.id for p in roster] if roster else None,
+            consult_read_only=True,
         )
         if not ok or not (answer or "").strip():
             return json.dumps(
                 {"error": "Nie udało się skonsultować trenera.", "slug": slug},
                 ensure_ascii=False,
             )
+        self._consult_count += 1
         label = persona_display_label(target)
         return json.dumps(
             {

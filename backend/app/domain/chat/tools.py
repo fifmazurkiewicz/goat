@@ -213,6 +213,13 @@ REBUILD_PLAN_TOOL_SCHEMA: dict[str, Any] = {
                         "(np. zero badmintona, fokus siła+bieg do września)."
                     ),
                 },
+                "confirmed": {
+                    "type": "boolean",
+                    "description": (
+                        "true dopiero gdy user potwierdzi przebudowę (tak / potwierdzam). "
+                        "Pierwsze wywołanie bez confirmed — nie uruchamia joba."
+                    ),
+                },
             },
             "required": ["period_type", "start_date"],
             "additionalProperties": False,
@@ -269,6 +276,11 @@ def get_trainer_chat_tools() -> list[dict[str, Any]]:
         for t in get_chat_tools()
         if t.get("function", {}).get("name") != "rebuild_plan"
     ]
+
+
+def get_consult_persona_tools() -> list[dict[str, Any]]:
+    """Nested `consult_persona` — read-only (no writes to results / profile / plan)."""
+    return [GET_PLAN_TOOL_SCHEMA]
 
 
 TEAM_LEAD_CHAT_TOOL_NAMES = frozenset(

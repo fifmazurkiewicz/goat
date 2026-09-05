@@ -13,9 +13,28 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.exceptions import ConflictError
+from app.domain.chat.team_lead import user_confirms_rebuild
 from app.domain.jobs.runner import enqueue_plan_generation_async, enqueue_plan_harmonize_async
 from app.models.schemas import PlanItemContent
 from app.repositories.plans_repo import PlansRepo
+
+
+def decide_rebuild_plan_action(
+    *, confirmed: bool, user_message: str, active_job_id: str | None
+) -> dict[str, Any]:
+    """Idempotent reuse / explicit confirm / enqueue — never a silent second 3-stage job."""
+    if active_job_id:
+        return {
+            "action": "reuse",
+            "job_id": active_job_id,
+            "message": "Przebudowa planu już trwa — czekam na ten sam job.",
+        }
+    if confirmed or user_confirms_rebuild(user_message):
+        return {"action": "enqueue"}
+    return {
+        "action": "needs_confirm",
+        "message": "Potwierdź przebudowę planu — napisz „tak” w następnej wiadomości.",
+    }
 
 
 def period_end_date(period_type: str, start_date: date) -> date:
@@ -206,9 +225,29 @@ class ChatPlanToolsService:
         period_type: str,
         start_date: date,
         user_brief: str | None = None,
+        confirmed: bool = False,
+        user_message: str = "",
     ) -> dict[str, Any]:
         if period_type not in ("week", "month"):
             return {"error": "period_type musi być 'week' albo 'month'."}
+
+        active = await self._repo.get_active_job_for_user(user_id)
+        decision = decide_rebuild_plan_action(
+            confirmed=confirmed,
+            user_message=user_message,
+            active_job_id=active.id if active else None,
+        )
+        if decision["action"] == "needs_confirm":
+            return {"status": "needs_confirm", "message": decision["message"]}
+        if decision["action"] == "reuse" and active is not None:
+            return {
+                "status": "ok",
+                "job_id": active.id,
+                "plan_id": active.plan_id,
+                "idempotent": True,
+                "message": decision["message"],
+            }
+
         end = period_end_date(period_type, start_date)
         try:
             plan = await self._repo.create_plan(
@@ -219,6 +258,15 @@ class ChatPlanToolsService:
             )
             job = await self._repo.create_job(plan_id=plan.id, user_id=user_id)
         except ConflictError as exc:
+            existing = await self._repo.get_active_job_for_user(user_id)
+            if existing is not None:
+                return {
+                    "status": "ok",
+                    "job_id": existing.id,
+                    "plan_id": existing.plan_id,
+                    "idempotent": True,
+                    "message": "Przebudowa planu już trwa — czekam na ten sam job.",
+                }
             return {"error": str(exc)}
         except Exception as exc:  # noqa: BLE001
             return {"error": f"Nie udało się utworzyć joba planu: {exc}"}

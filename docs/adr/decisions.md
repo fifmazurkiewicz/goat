@@ -274,3 +274,23 @@
 - Global rule (all repos, greenfield and brownfield): `~/.cursor/rules/graft.mdc`.
 
 **Consequences:** a new Cursor session requires a restart to load MCP. Step-by-step setup: [`local-setup.md`](../technical/local-setup.md) §G.
+
+---
+
+## ADR-21: Agent runtime hardening — cancel, consults, confirm, usage
+
+**Status:** accepted (2026-09-06).
+
+**Context:** Render Free kills the process; plan `_run` could still finish as `success` after cancel; chat turns with consults exceeded the 90s SSE deadline; nested consults could write results/profile/plan; `rebuild_plan` silently enqueued a full 3-stage job; usage reconcile recomputed the reserve with `prompt_chars_estimate=0` (double-count); Goat had no template-safety overlay.
+
+**Decision:**
+
+- Keep ADR-17: the user hears only Goat. No Agno Team / A2A / keep-alive. Do not parallelize `consult_persona`.
+- Plan cancel registers an in-process Task (`job_registry`, same as `turn_registry`) and `_run` refuses to finalize `success` unless the job is still `pending|running`.
+- Startup **requeues** all `pending|running` background jobs (including `running`); clears orphaned `turn_in_progress`.
+- Nested consult tools = `get_plan` only; consult cap increments after success.
+- `rebuild_plan` requires explicit confirm (tool `confirmed` or next-turn „tak”) or reuses an in-flight `job_id`.
+- Reconcile chat (and plan jobs after completion) with the **reserved** USD, not a zero-prompt recompute.
+- Goat gets `TEAM_LEAD_SAFETY_OVERLAY` (red flags / no meds), same family as trainer templates.
+
+**Consequences:** a Goat turn with consults can last up to ~210s; a full plan rebuild is never silent. Docs: `docs/technical/team-lead.md`.

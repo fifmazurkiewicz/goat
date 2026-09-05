@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.db import rls_connection, service_role_connection
 from app.core.security import AuthContext, get_current_user
+from app.domain.jobs.job_registry import cancel_job
 from app.domain.jobs.runner import enqueue_plan_generation_async
 from app.models.schemas import (
     PlanGenerateRequest,
@@ -155,6 +156,7 @@ async def cancel_plan_job(job_id: str, auth: AuthContext = Depends(get_current_u
     """Cancels the active job — frees the `one_active_job_per_user` slot, plan -> `error`."""
     async with rls_connection(auth.claims) as conn:
         job = await PlansRepo(conn).cancel_job(job_id)
+    cancel_job(job_id)
     await _cancel_plan_background_tasks(job_id)
     async with rls_connection(auth.claims) as conn:
         personas = await PlansRepo(conn).list_job_personas(job_id)

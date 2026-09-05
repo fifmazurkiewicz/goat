@@ -176,6 +176,19 @@ class ChatRepo:
             {"id": session_id, "flag": in_progress},
         )
 
+    async def clear_orphaned_turns(self) -> int:
+        """Startup: process restart leaves `turn_in_progress=true` with no live task."""
+        result = await self._conn.execute(
+            text(
+                """
+                UPDATE chat_sessions
+                SET turn_in_progress = false, updated_at = now()
+                WHERE turn_in_progress = true
+                """
+            )
+        )
+        return int(result.rowcount or 0)
+
     async def delete_session(self, session_id: str) -> bool:
         result = await self._conn.execute(
             text("DELETE FROM chat_sessions WHERE id = :id RETURNING id"),

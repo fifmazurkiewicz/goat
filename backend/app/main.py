@@ -32,10 +32,13 @@ from app.core.config import settings
 from app.core.db import service_role_connection
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import RequestIDMiddleware, configure_logging
-from app.domain.jobs.runner import resume_orphaned_plan_jobs_on_startup, resume_pending_jobs_on_startup
+from app.domain.jobs.runner import (
+    clear_orphaned_turns_on_startup,
+    resume_orphaned_plan_jobs_on_startup,
+    resume_pending_jobs_on_startup,
+)
 from app.domain.results.metrics_cache import allowed_metrics_cache
 from app.repositories.allowed_metrics_repo import AllowedMetricsRepo
-from app.repositories.plans_repo import PlansRepo
 
 configure_logging(settings.environment)
 logger = structlog.get_logger(__name__)
@@ -45,21 +48,14 @@ logger = structlog.get_logger(__name__)
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     logger.info("starting_up", environment=settings.environment)
 
-    # Reaper for suspended `plan_generation_jobs` (ADR-1, architecture.md §4) — protects
-    # against jobs stuck in 'pending'/'running' after a Render restart (no persistent
-    # worker, so nothing else would unblock them). `service_role` because it operates
-    # on ALL users, not one in an RLS context.
+    # Resume pending|running jobs after Render restart (do not reap them as error).
+    # `service_role` because startup operates on ALL users, not one RLS context.
     async with service_role_connection() as conn:
-        reaped = await PlansRepo(conn).reap_stale_jobs(
-            older_than_minutes=settings.plan_reaper_stale_minutes
-        )
-        if reaped:
-            logger.warning("plan_jobs_reaped", job_ids=reaped, count=len(reaped))
-
         # `allowed_metrics` — in-memory cache, hot path during `log_result` on the SSE
         # stream (we don't want an SQL query per tool call).
         await allowed_metrics_cache.load(AllowedMetricsRepo(conn))
 
+    await clear_orphaned_turns_on_startup()
     await resume_orphaned_plan_jobs_on_startup()
     await resume_pending_jobs_on_startup()
 

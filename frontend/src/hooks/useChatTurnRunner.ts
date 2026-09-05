@@ -293,6 +293,13 @@ export function useChatTurnRunner() {
           } else if (err instanceof ApiError && err.status === 429) {
             setStreamingState({ error: { message: err.message, canRetry: false } });
             refreshUsage();
+          } else if (err instanceof ApiError && err.status === 409) {
+            setStreamingState({
+              error: {
+                message: err.message || "Trwa już tura czatu. Poczekaj, anuluj albo wyślij ponownie.",
+                canRetry: true,
+              },
+            });
           } else {
             setStreamingState({ error: { message: "Połączenie przerwane.", canRetry: true } });
           }

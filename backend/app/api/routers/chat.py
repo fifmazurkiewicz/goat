@@ -17,7 +17,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.core.config import settings
 from app.core.db import rls_connection
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import ConflictError, NotFoundError
 from app.core.security import AuthContext, get_current_user
 from app.domain.chat.orchestrator import run_chat_turn
 from app.domain.chat.turn_registry import (
@@ -152,6 +152,16 @@ async def send_chat_message(
     """SSE — producer/consumer pattern from architecture.md §3. The DB connection is
     NOT held for the entire stream duration (`run_chat_turn`/`ChatOrchestrator` open
     short, per-round transactions) — this endpoint doesn't take a DB `Depends`."""
+    async with rls_connection(auth.claims) as conn:
+        session = await ChatRepo(conn).get_session(session_id)
+        if session is None or session.user_id != auth.user_id:
+            raise NotFoundError(f"Sesja czatu {session_id!r} nie istnieje.")
+        in_progress = session.turn_in_progress or is_turn_in_progress(session_id)
+        if in_progress and not payload.retry:
+            raise ConflictError(
+                "Trwa już tura czatu. Poczekaj na koniec, anuluj albo wyślij ponownie (retry)."
+            )
+
     queue: asyncio.Queue[dict] = asyncio.Queue()
 
     async def _run_and_cleanup() -> None:

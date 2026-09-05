@@ -46,6 +46,11 @@ from app.repositories.user_profile_repo import UserProfileRepo
 logger = structlog.get_logger(__name__)
 
 
+def should_finalize_plan_job_success(status: str | None) -> bool:
+    """Only an still-active job may be written as success after `_run`."""
+    return status in ("pending", "running")
+
+
 def _format_user_brief_block(user_brief: str | None) -> str:
     text = (user_brief or "").strip()
     if not text:
@@ -213,6 +218,7 @@ class PlanOrchestrator:
                 user_brief=user_brief,
             )
         except asyncio.CancelledError:
+            await self._persist_cancelled(job_id=job_id, plan_id=plan_id, claims=claims)
             raise
         except Exception as exc:  # noqa: BLE001 — top-level safety net dla background taska
             logger.error("plan_generation_unexpected_error", error=str(exc), exc_info=exc)
@@ -223,6 +229,26 @@ class PlanOrchestrator:
                     await repo.update_plan_status(plan_id, "error")
             except Exception:  # noqa: BLE001 — nie eskalujemy błędu przy zapisie błędu
                 logger.error("plan_generation_failed_to_persist_error_state")
+
+    async def _persist_cancelled(self, *, job_id: str, plan_id: str, claims: dict) -> None:
+        try:
+            async with rls_connection(claims) as conn:
+                repo = PlansRepo(conn)
+                job = await repo.get_job(job_id)
+                if job is None or not should_finalize_plan_job_success(job.status):
+                    return
+                await repo.update_job_status(
+                    job_id, "error", error_message="Anulowano przez użytkownika."
+                )
+                await repo.update_plan_status(plan_id, "error")
+        except Exception:  # noqa: BLE001
+            logger.error("plan_generation_failed_to_persist_cancel_state")
+
+    async def _abort_if_cancelled(self, *, job_id: str, claims: dict) -> None:
+        async with rls_connection(claims) as conn:
+            job = await PlansRepo(conn).get_job(job_id)
+            if job is None or not should_finalize_plan_job_success(job.status):
+                raise asyncio.CancelledError
 
     async def _run(
         self,
@@ -279,7 +305,7 @@ class PlanOrchestrator:
 
         personas_to_generate = [p for p in active_personas if p.id not in done_persona_ids]
 
-        estimated_total_cost = await self._reserve_budget(
+        reserved_period, estimated_total_cost = await self._reserve_budget(
             claims=claims, user_id=user_id, persona_count=max(len(personas_to_generate), 1)
         )
         logger.info(
@@ -287,6 +313,7 @@ class PlanOrchestrator:
             estimated_usd=estimated_total_cost,
             user_brief_set=bool(user_brief),
         )
+        await self._abort_if_cancelled(job_id=job_id, claims=claims)
 
         user_profile_summary = _summarize_user_profile(user_profile_row)
         results_summary = _summarize_results(recent_results)
@@ -321,6 +348,7 @@ class PlanOrchestrator:
         ]
         if generate_tasks:
             await asyncio.gather(*generate_tasks, return_exceptions=True)
+        await self._abort_if_cancelled(job_id=job_id, claims=claims)
 
         async with rls_connection(claims) as conn:
             plans_repo = PlansRepo(conn)
@@ -334,10 +362,18 @@ class PlanOrchestrator:
         if not succeeded_personas:
             async with rls_connection(claims) as conn:
                 repo = PlansRepo(conn)
-                await repo.update_job_status(
-                    job_id, "error", error_message="Wszystkie persony zawiodły przy generowaniu planu."
-                )
-                await repo.update_plan_status(plan_id, "error")
+                job = await repo.get_job(job_id)
+                if job is not None and should_finalize_plan_job_success(job.status):
+                    await repo.update_job_status(
+                        job_id, "error", error_message="Wszystkie persony zawiodły przy generowaniu planu."
+                    )
+                    await repo.update_plan_status(plan_id, "error")
+            await self._reconcile_plan_budget(
+                claims=claims,
+                user_id=user_id,
+                period_start=reserved_period,
+                reserved_usd=estimated_total_cost,
+            )
             return
 
         async with rls_connection(claims) as conn:
@@ -361,10 +397,22 @@ class PlanOrchestrator:
         all_succeeded = len(succeeded_personas) == len(active_personas)
         async with rls_connection(claims) as conn:
             repo = PlansRepo(conn)
+            job = await repo.get_job(job_id)
+            if job is None or not should_finalize_plan_job_success(job.status):
+                return
             await repo.update_plan_status(plan_id, "ready" if all_succeeded else "partial_ready")
             await repo.update_job_status(job_id, "success" if all_succeeded else "partial_success")
 
-    async def _reserve_budget(self, *, claims: dict, user_id: str, persona_count: int) -> float:
+        await self._reconcile_plan_budget(
+            claims=claims,
+            user_id=user_id,
+            period_start=reserved_period,
+            reserved_usd=estimated_total_cost,
+        )
+
+    async def _reserve_budget(
+        self, *, claims: dict, user_id: str, persona_count: int
+    ) -> tuple[Any, float]:
         async with rls_connection(claims) as conn:
             usage_service = UsageLimitService(
                 UsageLimitsRepo(conn), ProfilesRepo(conn), get_pricing_cache()
@@ -375,8 +423,33 @@ class PlanOrchestrator:
                 prompt_text_length_chars=3000,
                 max_output_tokens=settings.plan_max_output_tokens * (persona_count + 1),
             )
-            await usage_service.reserve_plan_generation(user_id=user_id, estimated_cost_usd=estimated)
-            return estimated
+            period_start = await usage_service.reserve_plan_generation(
+                user_id=user_id, estimated_cost_usd=estimated
+            )
+            return period_start, estimated
+
+    async def _reconcile_plan_budget(
+        self,
+        *,
+        claims: dict,
+        user_id: str,
+        period_start: Any,
+        reserved_usd: float,
+    ) -> None:
+        """Correct the reserved estimate after the job — pass reserved USD, do not recompute."""
+        try:
+            async with rls_connection(claims) as conn:
+                usage_service = UsageLimitService(
+                    UsageLimitsRepo(conn), ProfilesRepo(conn), get_pricing_cache()
+                )
+                await usage_service.reconcile_actual_cost(
+                    user_id=user_id,
+                    period_start=period_start,
+                    estimated_cost_usd=reserved_usd,
+                    actual_cost_usd=reserved_usd,
+                )
+        except Exception as exc:  # noqa: BLE001 — usage fix must not fail the job
+            logger.warning("plan_generation_usage_reconcile_failed", error=str(exc))
 
     async def _run_coordinator_pass(
         self,

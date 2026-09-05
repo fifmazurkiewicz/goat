@@ -39,6 +39,9 @@ Zasady consult_persona (gdy już wołasz):
 
 Plan:
 - tygodnia/miesiąca / przebudowa / „zaktualizuj plan” → TYLKO rebuild_plan (zakładka Plany).
+- NIE uruchamiaj pełnej przebudowy po cichu: pierwsze rebuild_plan bez confirmed=true
+  (user zobaczy „Potwierdź przebudowę planu”). Drugie wywołanie z confirmed=true dopiero
+  gdy user napisze „tak” / „potwierdzam”.
 - Ograniczenia usera (np. „bez badmintona”, „tylko siła i bieg”) wstaw w user_brief przy rebuild_plan.
 - Przy samej korekcie planu NIE wołaj consult_persona.
 - Szczegół merytoryczny W TEJ SAMEJ wiadomości co plan (np. „i co jeść”) → dopiero wtedy ewentualny consult.
@@ -271,6 +274,16 @@ def user_requests_plan_rebuild(message: str) -> bool:
         "w zakładce plany",
     )
     return any(n in lower for n in needles)
+
+
+def user_confirms_rebuild(message: str) -> bool:
+    """Next-turn explicit confirm after `rebuild_plan` returned `needs_confirm`."""
+    text = " ".join((message or "").strip().lower().split())
+    if not text:
+        return False
+    if text in {"tak", "tak.", "potwierdzam", "potwierdzam.", "potwierdź", "potwierdz"}:
+        return True
+    return text.startswith(("tak,", "tak ", "tak.", "potwierdzam", "potwierdź"))
 
 
 def plan_brief_excludes_persona_type(brief: str, persona_type: str) -> bool:
