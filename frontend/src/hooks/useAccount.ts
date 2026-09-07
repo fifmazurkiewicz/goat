@@ -13,6 +13,7 @@ export function useAccount() {
   return useQuery({
     queryKey: ACCOUNT_KEY,
     queryFn: () => apiFetch<Account>("/api/v1/account"),
+    refetchInterval: (query) => (query.state.data?.is_approved === false ? 15_000 : false),
   });
 }
 

@@ -9,11 +9,11 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 
 from app.core.db import rls_connection
-from app.core.security import AuthContext, get_current_user
+from app.core.security import AuthContext, get_current_user, require_approved
 from app.models.schemas import PersonaTemplateOut, PlanTemplateOut
 from app.repositories.templates_repo import PersonaTemplatesRepo, PlanTemplatesRepo
 
-router = APIRouter(tags=["templates"])
+router = APIRouter(tags=["templates"], dependencies=[Depends(require_approved)])
 
 
 @router.get("/persona-templates", response_model=list[PersonaTemplateOut])

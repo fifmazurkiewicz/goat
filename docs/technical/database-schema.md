@@ -7,6 +7,7 @@ Source of truth: `supabase/migrations/*.sql` (to be created in implementation st
 profiles (
   id uuid PK references auth.users,
   is_admin boolean default false,  -- bootstrap: exclusively fmazurkiewicz@gmail.com (handle_new_user + seed from auth.users)
+  is_approved boolean not null default false,  -- ADR-22; existing rows grandfathered true in 0015
   -- Limit of active personas PER ACCOUNT, editable by admin (ADR-12) — replaces
   -- the global constant "5". Lives here (not in usage_limits — PK (user_id, period_start),
   -- reset per period), because it should persist regardless of billing period.

@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     # Comma-separated string (env var format) — see cors_origins_list below.
     cors_origins: str = "http://localhost:3000"
 
+    # Auto-approve on ProfilesRepo.ensure INSERT only (ADR-22). Sole admin is always
+    # included even if this list is empty.
+    admin_emails: str = "fmazurkiewicz@gmail.com"
+
     # --- Chat / SSE (architecture.md §3, security.md §4) ---
     chat_max_tool_rounds: int = 4
     # Whole SSE turn (Goat + sequential consults). Per-round cap is chat_round_timeout_s.

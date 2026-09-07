@@ -15,7 +15,7 @@ from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.db import rls_connection, service_role_connection
-from app.core.security import AuthContext, get_current_user
+from app.core.security import AuthContext, get_current_user, require_approved
 from app.domain.jobs.job_registry import cancel_job
 from app.domain.jobs.runner import enqueue_plan_generation_async
 from app.models.schemas import (
@@ -29,7 +29,7 @@ from app.models.schemas import (
 )
 from app.repositories.plans_repo import PlanJobRow, PlanRow, PlansRepo
 
-router = APIRouter(prefix="/plans", tags=["plans"])
+router = APIRouter(prefix="/plans", tags=["plans"], dependencies=[Depends(require_approved)])
 
 
 def _period_end_date(period_type: str, start_date: date) -> date:

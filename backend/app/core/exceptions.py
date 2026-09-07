@@ -43,6 +43,12 @@ class ForbiddenError(AppError):
     code = "forbidden"
 
 
+class AccountPendingApprovalError(ForbiddenError):
+    """Authenticated but `profiles.is_approved=false` — waiting screen, not a feature 403."""
+
+    code = "account_pending_approval"
+
+
 class PersonaLimitExceededError(AppError):
     """Active persona limit reached — per account (`profiles.max_active_personas`,
     default 5, editable by admin), see database-schema.md and ADR-12."""

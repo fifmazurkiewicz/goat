@@ -38,7 +38,7 @@ Rule: routers are thin (parsing + calling the orchestrator), all business logic 
 - `NullPool` in `create_async_engine` — pooling is done by Supavisor, we don't duplicate it in the app.
 - `connect_args={"statement_cache_size": 0}` — **mandatory**. `asyncpg` caches prepared statements client-side by default; in transaction mode Supavisor assigns a different physical connection to each transaction, so a statement prepared on one backend doesn't exist on the next (`prepared statement does not exist`).
 - `SET LOCAL` (never `SET`) + `set_config('request.jwt.claims', json, true)` — set in the same transaction as the queries, auto-undone on `COMMIT`/`ROLLBACK`. Session `SET` would leak between users with a shared physical connection.
-- `service_role` — separate engine/DSN, used **exclusively** for Supabase Admin API and `/admin/*`, never as a fallback default dependency. `/admin/*` endpoints have explicit, in-code verification of `profiles.is_admin` — hiding in the UI is not authorization.
+- `service_role` — separate engine/DSN, used **exclusively** for Supabase Admin API and `/admin/*`, never as a fallback default dependency. `/admin/*` endpoints have explicit, in-code verification of `profiles.is_admin` and `profiles.is_approved` (ADR-22) — hiding in the UI is not authorization.
 - Claim format must be consistent with what RLS policies in SQL migrations expect (typically `auth.uid()` reads `request.jwt.claims->>'sub'`) — this is a shared contract between SQL and backend code, documented in [`database-schema.md`](database-schema.md).
 
 ## 3. Chat — SSE + multi-turn tool calling

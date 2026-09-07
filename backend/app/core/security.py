@@ -17,10 +17,11 @@ import structlog
 from fastapi import Depends, Header
 from jwt import PyJWKClient
 
+from app.core.approval import email_from_claims
 from app.core.config import settings
 from app.core.db import service_role_connection
 from app.core.dev_auth import decode_local_access_token
-from app.core.exceptions import ForbiddenError, UnauthorizedError
+from app.core.exceptions import AccountPendingApprovalError, ForbiddenError, UnauthorizedError
 from app.repositories.profiles_repo import ProfilesRepo
 
 logger = structlog.get_logger(__name__)
@@ -96,6 +97,22 @@ async def get_current_user(authorization: str = Header(...)) -> AuthContext:
     return _verify_supabase_token(token)
 
 
+async def require_approved(auth: AuthContext = Depends(get_current_user)) -> AuthContext:
+    """Feature-router gate (ADR-22). Health, auth, and GET /account stay ungated.
+
+    After `ProfilesRepo.ensure` (insert-only approval flag), unapproved users get
+    403 `account_pending_approval`.
+    """
+    async with service_role_connection() as conn:
+        profile = await ProfilesRepo(conn).ensure(
+            auth.user_id, email=email_from_claims(auth.claims)
+        )
+
+    if not profile.is_approved:
+        raise AccountPendingApprovalError("Konto oczekuje na akceptację.")
+    return auth
+
+
 async def require_admin(auth: AuthContext = Depends(get_current_user)) -> AuthContext:
     """Dependency for `/admin/*` — explicit, code-level verification of `profiles.is_admin`
     (docs/technical/security.md section 2: "hiding in UI is not authorization"),
@@ -104,12 +121,17 @@ async def require_admin(auth: AuthContext = Depends(get_current_user)) -> AuthCo
     admin must be able to verify this independently of whether their own profile is
     even readable by RLS in a given context.
 
-    Raises `ForbiddenError` (403) when the profile doesn't exist or `is_admin=False`.
+    Raises `AccountPendingApprovalError` when `is_approved=false`, else
+    `ForbiddenError` (403) when the profile doesn't exist or `is_admin=False`.
     """
     async with service_role_connection() as conn:
-        profile = await ProfilesRepo(conn).get(auth.user_id)
+        profile = await ProfilesRepo(conn).ensure(
+            auth.user_id, email=email_from_claims(auth.claims)
+        )
 
-    if profile is None or not profile.is_admin:
+    if not profile.is_approved:
+        raise AccountPendingApprovalError("Konto oczekuje na akceptację.")
+    if not profile.is_admin:
         raise ForbiddenError("Administrator permissions required.")
 
     return auth

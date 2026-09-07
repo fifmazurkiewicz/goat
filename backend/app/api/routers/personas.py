@@ -9,9 +9,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
+from app.core.approval import email_from_claims
 from app.core.db import rls_connection, service_role_connection
 from app.core.dependencies import get_moderation_service
-from app.core.security import AuthContext, get_current_user
+from app.core.security import AuthContext, get_current_user, require_approved
 from app.domain.personas.service import PersonaService
 from app.models.schemas import (
     PersonaCreate,
@@ -23,7 +24,11 @@ from app.models.schemas import (
 from app.repositories.personas_repo import PersonasRepo
 from app.repositories.profiles_repo import DEFAULT_MAX_ACTIVE_PERSONAS, ProfilesRepo
 
-router = APIRouter(prefix="/personas", tags=["personas"])
+router = APIRouter(
+    prefix="/personas",
+    tags=["personas"],
+    dependencies=[Depends(require_approved)],
+)
 
 
 @router.get("", response_model=PersonasListOut)
@@ -67,7 +72,7 @@ async def create_persona(
     # row after a DB wipe would yield NULL/5, but the API limit also depends on the
     # profile; `ensure` = consistent state.
     async with service_role_connection() as conn:
-        await ProfilesRepo(conn).ensure(auth.user_id)
+        await ProfilesRepo(conn).ensure(auth.user_id, email=email_from_claims(auth.claims))
     async with rls_connection(auth.claims) as conn:
         service = PersonaService(PersonasRepo(conn), ProfilesRepo(conn), get_moderation_service())
         row = await service.create_persona(auth.user_id, payload.model_dump())

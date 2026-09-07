@@ -32,7 +32,7 @@ Hits are logged to `moderation_events`. **Retention/RBAC:** `raw_snippet` may co
 
 ## 2. RLS as a real barrier, not fiction
 
-The backend connects per-request as the authenticated user (RLS context set from JWT via `SET LOCAL` + `set_config`, see [`architecture.md`](architecture.md#2-baza-danych--dostęp-i-rls)) for all per-user operations. `service_role` only for Supabase Admin API and `/admin/*`, with explicit in-code verification of `profiles.is_admin`. If the backend connected by default via the service role "for convenience", RLS would stop protecting anything — any code bug becomes a potential data leak between users.
+The backend connects per-request as the authenticated user (RLS context set from JWT via `SET LOCAL` + `set_config`, see [`architecture.md`](architecture.md#2-baza-danych--dostęp-i-rls)) for all per-user operations. `service_role` only for Supabase Admin API and `/admin/*`, with explicit in-code verification of `profiles.is_admin` **and** `profiles.is_approved` (ADR-22). If the backend connected by default via the service role "for convenience", RLS would stop protecting anything — any code bug becomes a potential data leak between users.
 
 **Mandatory RLS contract test:** an integration test that sets user A's claims, inserts data, switches to user B, and asserts that the repo doesn't see other people's rows.
 
@@ -53,4 +53,8 @@ The backend connects per-request as the authenticated user (RLS context set from
 
 ## 5. CORS and secrets
 
-CORS as an explicit allowlist (Vercel domain + final domain), never wildcard, especially with the `Authorization` header. Full list of secrets and rotation rules in [`devops.md`](devops.md#5-sekrety-i-zmienne-środowiskowe).
+CORS as an explicit allowlist (Vercel domain + final domain), never wildcard, especially with the Authorization header. Full list of secrets and rotation rules in [`devops.md`](devops.md#5-sekrety-i-zmienne-środowiskowe).
+
+## 6. User approval gate (ADR-22)
+
+Public signup remains. New `profiles` rows are `is_approved=false` except the sole admin email (and `ADMIN_EMAILS`) on **insert only**. Feature APIs return 403 `account_pending_approval`. `GET /api/health` and `GET /api/v1/account` stay reachable so Render liveness and the waiting screen can poll. Admin cannot revoke themselves. Authenticated clients cannot flip `is_approved` (privileged-column trigger).

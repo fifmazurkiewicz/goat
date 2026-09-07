@@ -12,12 +12,14 @@ from fastapi import APIRouter, Depends
 
 from app.core.config import settings
 from app.core.db import service_role_connection
+from app.core.exceptions import ForbiddenError
 from app.core.security import AuthContext, require_admin
 from app.core.supabase_admin import get_supabase_admin_client
 from app.core.version import get_deploy_info
 from app.domain.usage.service import current_period_start
 from app.models.schemas import (
     AdminUserOut,
+    ApprovalUpdate,
     AuditLogEntryOut,
     DeployInfoOut,
     PasswordResetOut,
@@ -25,10 +27,28 @@ from app.models.schemas import (
     UsageBudgetUpdate,
 )
 from app.repositories.admin_audit_repo import AdminAuditRepo
-from app.repositories.profiles_repo import ProfilesRepo
+from app.repositories.profiles_repo import ProfileRow, ProfilesRepo
 from app.repositories.usage_limits_repo import UsageLimitsRepo
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+def _admin_user_out(
+    profile: ProfileRow,
+    *,
+    email: str | None = None,
+    cost_usd_used: float = 0.0,
+) -> AdminUserOut:
+    return AdminUserOut(
+        id=profile.id,
+        email=email,
+        is_admin=profile.is_admin,
+        is_approved=profile.is_approved,
+        max_active_personas=profile.max_active_personas,
+        usage_budget_usd=profile.usage_budget_usd,
+        cost_usd_used=cost_usd_used,
+        created_at=profile.created_at,
+    )
 
 
 @router.get("/deploy-info", response_model=DeployInfoOut)
@@ -62,14 +82,12 @@ async def list_users(auth: AuthContext = Depends(require_admin)) -> list[AdminUs
     emails = await get_supabase_admin_client().list_user_emails()
 
     return [
-        AdminUserOut(
-            id=profile.id,
+        _admin_user_out(
+            profile,
             email=emails.get(profile.id),
-            is_admin=profile.is_admin,
-            max_active_personas=profile.max_active_personas,
-            usage_budget_usd=profile.usage_budget_usd,
-            cost_usd_used=usage_by_user[profile.id].cost_usd_used if profile.id in usage_by_user else 0.0,
-            created_at=profile.created_at,
+            cost_usd_used=(
+                usage_by_user[profile.id].cost_usd_used if profile.id in usage_by_user else 0.0
+            ),
         )
         for profile in profiles
     ]
@@ -94,14 +112,7 @@ async def update_persona_limit(
             target_user_id=user_id,
             details={"max_active_personas": payload.max_active_personas},
         )
-    return AdminUserOut(
-        id=profile.id,
-        email=None,
-        is_admin=profile.is_admin,
-        max_active_personas=profile.max_active_personas,
-        usage_budget_usd=profile.usage_budget_usd,
-        created_at=profile.created_at,
-    )
+    return _admin_user_out(profile)
 
 
 @router.patch("/users/{user_id}/usage-budget", response_model=AdminUserOut)
@@ -120,14 +131,27 @@ async def update_usage_budget(
             target_user_id=user_id,
             details={"usage_budget_usd": payload.usage_budget_usd},
         )
-    return AdminUserOut(
-        id=profile.id,
-        email=None,
-        is_admin=profile.is_admin,
-        max_active_personas=profile.max_active_personas,
-        usage_budget_usd=profile.usage_budget_usd,
-        created_at=profile.created_at,
-    )
+    return _admin_user_out(profile)
+
+
+@router.patch("/users/{user_id}/approval", response_model=AdminUserOut)
+async def update_user_approval(
+    user_id: str,
+    payload: ApprovalUpdate,
+    auth: AuthContext = Depends(require_admin),
+) -> AdminUserOut:
+    """Accept or revoke access (ADR-22). Does not change `usage_budget_usd`."""
+    if user_id == auth.user_id and not payload.is_approved:
+        raise ForbiddenError("Nie możesz cofnąć sobie dostępu.")
+    async with service_role_connection() as conn:
+        profile = await ProfilesRepo(conn).update_is_approved(user_id, payload.is_approved)
+        await AdminAuditRepo(conn).log(
+            admin_user_id=auth.user_id,
+            action="edit_approval",
+            target_user_id=user_id,
+            details={"is_approved": payload.is_approved},
+        )
+    return _admin_user_out(profile)
 
 
 @router.post("/users/{user_id}/reset-password", response_model=PasswordResetOut)

@@ -303,6 +303,7 @@ export interface AdminUser {
   email: string;
   nick: string | null;
   is_admin: boolean;
+  is_approved: boolean;
   max_active_personas: number;
   active_personas_count: number;
   cost_usd_used: number;
@@ -314,7 +315,8 @@ export type AdminAuditAction =
   | "reset_password"
   | "edit_limits"
   | "edit_persona_limit"
-  | "edit_usage_budget";
+  | "edit_usage_budget"
+  | "edit_approval";
 
 export interface AdminAuditLogEntry {
   id: string;
@@ -353,6 +355,7 @@ export interface Account {
   id: string;
   nick: string | null;
   is_admin: boolean;
+  is_approved: boolean;
   email?: string;
 }
 

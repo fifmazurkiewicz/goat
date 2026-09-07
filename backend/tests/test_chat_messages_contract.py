@@ -88,10 +88,12 @@ def _patched(monkeypatch: pytest.MonkeyPatch):
         ctx.user_id = "u1"
         return ctx
 
-    from app.core.security import get_current_user
+    from app.core.security import get_current_user, require_approved
     app.dependency_overrides[get_current_user] = fake_auth
+    app.dependency_overrides[require_approved] = fake_auth
     yield
     app.dependency_overrides.pop(get_current_user, None)
+    app.dependency_overrides.pop(require_approved, None)
 
 
 @pytest.mark.asyncio

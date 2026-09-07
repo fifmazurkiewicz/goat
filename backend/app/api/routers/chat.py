@@ -18,7 +18,7 @@ from sse_starlette.sse import EventSourceResponse
 from app.core.config import settings
 from app.core.db import rls_connection
 from app.core.exceptions import ConflictError, NotFoundError
-from app.core.security import AuthContext, get_current_user
+from app.core.security import AuthContext, get_current_user, require_approved
 from app.domain.chat.orchestrator import run_chat_turn
 from app.domain.chat.turn_registry import (
     cancel_turn,
@@ -40,7 +40,7 @@ from app.repositories.personas_repo import PersonasRepo
 
 logger = structlog.get_logger(__name__)
 
-router = APIRouter(prefix="/chat", tags=["chat"])
+router = APIRouter(prefix="/chat", tags=["chat"], dependencies=[Depends(require_approved)])
 
 
 @router.get("/sessions", response_model=list[ChatSessionOut])

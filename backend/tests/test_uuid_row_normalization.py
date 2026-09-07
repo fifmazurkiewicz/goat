@@ -21,6 +21,7 @@ def test_profile_row_stringifies_uuid_and_decimal() -> None:
         {
             "id": profile_id,
             "is_admin": False,
+            "is_approved": True,
             "max_active_personas": 5,
             "nick": "Admin",
             "usage_budget_usd": Decimal("10.00"),
@@ -31,6 +32,7 @@ def test_profile_row_stringifies_uuid_and_decimal() -> None:
     assert profile.id == str(profile_id)
     assert isinstance(profile.usage_budget_usd, float)
     assert profile.usage_budget_usd == 10.0
+    assert profile.is_approved is True
 
 
 def test_persona_row_stringifies_uuid_fks() -> None:

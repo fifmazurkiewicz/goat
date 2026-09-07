@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.core.config import settings
 from app.core.db import rls_connection
-from app.core.security import AuthContext, get_current_user
+from app.core.security import AuthContext, get_current_user, require_approved
 from app.models.schemas import ExerciseOut, PersonaType
 from app.repositories.exercises_repo import ExerciseRow, ExercisesRepo
 
@@ -62,7 +62,11 @@ def _to_out(row: ExerciseRow) -> ExerciseOut:
         photo_path_2=public_photo_url(row.photo_path_2),
     )
 
-router = APIRouter(prefix="/exercises", tags=["exercises"])
+router = APIRouter(
+    prefix="/exercises",
+    tags=["exercises"],
+    dependencies=[Depends(require_approved)],
+)
 
 
 @router.get("", response_model=list[ExerciseOut])

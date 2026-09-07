@@ -13,12 +13,12 @@ import jwt
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from app.core.approval import SOLE_ADMIN_EMAIL
 from app.core.config import settings
 from app.repositories.profiles_repo import ProfilesRepo
 
 _LOCAL_JWT_ALGORITHM = "HS256"
 _LOCAL_JWT_TTL = timedelta(days=7)
-_ADMIN_EMAIL = "fmazurkiewicz@gmail.com"
 
 
 def create_local_access_token(user_id: str, email: str) -> str:
@@ -68,9 +68,9 @@ async def bootstrap_dev_user(conn: AsyncConnection, user_id: str, email: str) ->
     repo = ProfilesRepo(conn)
     profile = await repo.get(user_id)
     if profile is None:
-        await repo.ensure(user_id)
+        await repo.ensure(user_id, email=email)
 
-    if email.strip().lower() == _ADMIN_EMAIL:
+    if email.strip().lower() == SOLE_ADMIN_EMAIL:
         await conn.execute(
             text("UPDATE profiles SET is_admin = true WHERE id = :user_id"),
             {"user_id": user_id},

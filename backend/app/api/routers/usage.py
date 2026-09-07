@@ -7,13 +7,17 @@ from datetime import date
 from fastapi import APIRouter, Depends
 
 from app.core.db import rls_connection
-from app.core.security import AuthContext, get_current_user
+from app.core.security import AuthContext, get_current_user, require_approved
 from app.domain.usage.service import current_period_start
 from app.models.schemas import UsageLimitsOut
 from app.repositories.profiles_repo import DEFAULT_USAGE_BUDGET_USD, ProfilesRepo
 from app.repositories.usage_limits_repo import UsageLimitsRepo
 
-router = APIRouter(prefix="/usage", tags=["usage"])
+router = APIRouter(
+    prefix="/usage",
+    tags=["usage"],
+    dependencies=[Depends(require_approved)],
+)
 
 
 def _period_renews_at(period_start: date) -> date:

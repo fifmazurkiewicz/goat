@@ -240,6 +240,7 @@ class AdminUserOut(BaseModel):
     id: str
     email: str | None = None
     is_admin: bool
+    is_approved: bool
     max_active_personas: int
     usage_budget_usd: float
     cost_usd_used: float = 0.0
@@ -251,6 +252,12 @@ class UsageBudgetUpdate(BaseModel):
     pattern as `PersonaLimitUpdate`."""
 
     usage_budget_usd: float = Field(ge=0, le=1000)
+
+
+class ApprovalUpdate(BaseModel):
+    """Body of `PATCH /api/v1/admin/users/{user_id}/approval` (ADR-22)."""
+
+    is_approved: bool
 
 
 class PasswordResetOut(BaseModel):
@@ -296,6 +303,7 @@ class AccountOut(BaseModel):
     id: str
     nick: str | None = None
     is_admin: bool = False
+    is_approved: bool = False
 
 
 class AccountUpdate(BaseModel):

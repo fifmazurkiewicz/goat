@@ -5,8 +5,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useResetPassword, useUpdatePersonaLimit, useUpdateUsageBudget } from "@/hooks/useAdmin";
+import {
+  useResetPassword,
+  useUpdateApproval,
+  useUpdatePersonaLimit,
+  useUpdateUsageBudget,
+} from "@/hooks/useAdmin";
 import { ApiError } from "@/lib/api-client";
+import { useAuthStore } from "@/store/useAuthStore";
 import type { AdminUser } from "@/types/api";
 
 /**
@@ -15,8 +21,10 @@ import type { AdminUser } from "@/types/api";
  * left-0` + horizontal scroll (docs/technical/frontend.md section 11).
  */
 export function AdminUsersTable({ users }: { users: AdminUser[] }) {
+  const currentUserId = useAuthStore((state) => state.user?.id);
   const updatePersonaLimit = useUpdatePersonaLimit();
   const updateUsageBudget = useUpdateUsageBudget();
+  const updateApproval = useUpdateApproval();
   const resetPassword = useResetPassword();
   const [drafts, setDrafts] = useState<Record<string, { maxPersonas: string; budget: string }>>({});
 
@@ -65,12 +73,22 @@ export function AdminUsersTable({ users }: { users: AdminUser[] }) {
     }
   }
 
+  async function handleApproval(user: AdminUser, isApproved: boolean) {
+    try {
+      await updateApproval.mutateAsync({ userId: user.id, isApproved });
+      toast.success(isApproved ? "Konto zaakceptowane" : "Cofnięto dostęp");
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Nie udało się zmienić statusu.");
+    }
+  }
+
   return (
     <div className="overflow-x-auto rounded-md border">
       <Table>
         <TableHeader>
           <TableRow>
             <TableHead className="sticky left-0 bg-background">Użytkownik</TableHead>
+            <TableHead>Status</TableHead>
             <TableHead>Budżet (USD)</TableHead>
             <TableHead>Persony (limit)</TableHead>
             <TableHead className="text-right">Akcje</TableHead>
@@ -80,12 +98,18 @@ export function AdminUsersTable({ users }: { users: AdminUser[] }) {
           {users.map((user) => {
             const draft = draftFor(user);
             const isNearBudget = user.usage_budget_usd > 0 && user.cost_usd_used / user.usage_budget_usd >= 0.9;
+            const isSelf = user.id === currentUserId;
             return (
               <TableRow key={user.id}>
                 <TableCell className="sticky left-0 bg-background">
                   <div className="font-medium">{user.nick ?? user.email}</div>
                   <div className="text-xs text-muted-foreground">{user.email}</div>
                   {user.is_admin ? <Badge variant="outline">Admin</Badge> : null}
+                </TableCell>
+                <TableCell>
+                  <Badge variant={user.is_approved ? "secondary" : "outline"}>
+                    {user.is_approved ? "Aktywne" : "Oczekuje"}
+                  </Badge>
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
@@ -122,16 +146,38 @@ export function AdminUsersTable({ users }: { users: AdminUser[] }) {
                   </div>
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button size="sm" variant="ghost" onClick={() => handleResetPassword(user)}>
-                    Reset hasła
-                  </Button>
+                  <div className="flex flex-wrap items-center justify-end gap-1">
+                    {user.is_approved ? (
+                      isSelf ? null : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => void handleApproval(user, false)}
+                          disabled={updateApproval.isPending}
+                        >
+                          Cofnij dostęp
+                        </Button>
+                      )
+                    ) : (
+                      <Button
+                        size="sm"
+                        onClick={() => void handleApproval(user, true)}
+                        disabled={updateApproval.isPending}
+                      >
+                        Akceptuj
+                      </Button>
+                    )}
+                    <Button size="sm" variant="ghost" onClick={() => handleResetPassword(user)}>
+                      Reset hasła
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             );
           })}
           {users.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={4} className="text-center text-muted-foreground">
+              <TableCell colSpan={5} className="text-center text-muted-foreground">
                 Brak użytkowników.
               </TableCell>
             </TableRow>

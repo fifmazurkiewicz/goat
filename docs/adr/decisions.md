@@ -295,3 +295,21 @@
 - Goat gets `TEAM_LEAD_SAFETY_OVERLAY` (red flags / no meds), same family as trainer templates.
 
 **Consequences:** a Goat turn with consults can last up to ~210s; a full plan rebuild is never silent. Docs: `docs/technical/team-lead.md`.
+
+---
+
+## ADR-22: Manual user approval gate
+
+**Status:** accepted (2026-09-07).
+
+**Context:** Public signup stays (Google OAuth / local dev login). The product is still a small allowlist of real users. Without a gate, anyone who can complete OAuth gets personas, chat, and plans.
+
+**Decision:**
+
+- `profiles.is_approved` boolean. Existing rows grandfathered `true`. New inserts default `false`.
+- Auto-approve **only** on `ProfilesRepo.ensure` INSERT (and the matching `handle_new_user` trigger) for `fmazurkiewicz@gmail.com` plus any extra `ADMIN_EMAILS`. Subsequent `ensure`/`get` never flips the flag.
+- Unapproved users may log in and see one waiting screen (poll `GET /account` every 15s). Logout works. No personas / plans / chat / admin chrome.
+- Feature routers return 403 `account_pending_approval`. Health and GET `/account` stay ungated. Admin requires `is_approved` and `is_admin`. Admin cannot revoke themselves. Accept does not overwrite `usage_budget_usd`.
+- No notification emails or Slack.
+
+**Consequences:** a new signup is usable only after an admin clicks Accept. Revoke returns the same waiting screen. Cloud SQL: apply `supabase/migrations/0015_user_approval_gate.sql` in the SQL Editor before relying on the new column in production.

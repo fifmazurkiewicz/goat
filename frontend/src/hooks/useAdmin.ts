@@ -49,6 +49,20 @@ export function useResetPassword() {
   });
 }
 
+export function useUpdateApproval() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, isApproved }: { userId: string; isApproved: boolean }) =>
+      apiFetch<AdminUser>(`/api/v1/admin/users/${userId}/approval`, {
+        method: "PATCH",
+        body: { is_approved: isApproved },
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ADMIN_USERS_KEY });
+    },
+  });
+}
+
 export function useModerationEvents() {
   return useQuery({
     queryKey: ["admin", "moderation-events"],

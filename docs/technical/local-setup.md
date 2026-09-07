@@ -47,7 +47,7 @@ If you're starting from scratch locally only (no deploy):
 2. Supabase → **SQL** → **New query**.
 3. Paste the **entire** content of `0001_init.sql` → **Run** (must succeed without errors).
 4. New query → paste the **entire** content of `0002_exercise_catalog.sql` → **Run**.
-5. Next migrations (if not already on the project): `0007_running_metrics_strength.sql`, `0008_background_jobs.sql`, `0009_persona_role_boundaries.sql`, `0010_drop_personas_chat_model.sql`, `0011_invoked_via_multi_slash.sql`, `0012_exercise_catalog_source_nullable.sql`, `0013_exercise_catalog_seed_free_exercise_db.sql`, `0014_exercise_photo_path_2.sql` — each in a separate query, **Run**. `0013` is large (~0.9 MB) and generated (`photo_path` = path in the bucket) — see "Exercise catalog import" below. `0014` adds `photo_path_2` and backfills `…/1.jpg`.
+5. Next migrations (if not already on the project): `0007_running_metrics_strength.sql`, `0008_background_jobs.sql`, `0009_persona_role_boundaries.sql`, `0010_drop_personas_chat_model.sql`, `0011_invoked_via_multi_slash.sql`, `0012_exercise_catalog_source_nullable.sql`, `0013_exercise_catalog_seed_free_exercise_db.sql`, `0014_exercise_photo_path_2.sql`, `0015_user_approval_gate.sql` — each in a separate query, **Run**. `0013` is large (~0.9 MB) and generated (`photo_path` = path in the bucket) — see "Exercise catalog import" below. `0014` adds `photo_path_2` and backfills `…/1.jpg`. `0015` adds `profiles.is_approved` (existing rows stay approved; new signups wait).
 6. **Table Editor** — should include:
    - `profiles`, `personas`, `persona_templates`, `plan_templates`, `allowed_metrics`
    - `chat_sessions`, `chat_messages`, `results`, `plans`, `plan_items`
@@ -201,7 +201,7 @@ uv run python ../scripts/import_free_exercise_db.py --upload-photos --skip-sql
 ```
 
 After regeneration: commit `0013_*.sql`, then Run in SQL Editor (local and cloud).
-Also run **`0014_exercise_photo_path_2.sql`** once (adds + backfills `photo_path_2`).
+Also run **`0014_exercise_photo_path_2.sql`** once (adds + backfills `photo_path_2`). Run **`0015_user_approval_gate.sql`** once (`profiles.is_approved`; existing users stay approved).
 Re-import existing data: `DELETE FROM exercises WHERE source='free_exercise_db';` → rerun `0013` (after 0014).
 
 ---

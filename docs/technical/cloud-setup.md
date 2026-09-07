@@ -116,7 +116,9 @@ If the database has old tables / partial seed — **first wipe**, then fresh ini
    `0010_drop_personas_chat_model.sql`, `0011_invoked_via_multi_slash.sql`,
    `0012_exercise_catalog_source_nullable.sql`,
    **`0013_exercise_catalog_seed_free_exercise_db.sql`** (large ~0.9 MB, generated — import
-   of 868 PL exercises; `photo_path` = path in bucket, not full URL).
+   of 868 PL exercises; `photo_path` = path in bucket, not full URL),
+   `0014_exercise_photo_path_2.sql`, **`0015_user_approval_gate.sql`** (`profiles.is_approved`;
+   existing rows stay approved, new signups wait).
 7. Table Editor — should include:
    - `profiles`, `personas`, `persona_templates`, `plan_templates`, `allowed_metrics`
    - `user_profile`, `chat_sessions`, `chat_messages`, `results`

@@ -1,7 +1,9 @@
 import { useEffect } from "react";
 import { Moon, ShieldAlert, Sun } from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 
+import { PendingApprovalScreen } from "@/components/auth/PendingApprovalScreen";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PullToRefresh } from "@/components/layout/PullToRefresh";
@@ -12,6 +14,7 @@ import { useUsage } from "@/hooks/useUsage";
 import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
 import { ChatTurnBanner } from "@/components/chat/ChatTurnBanner";
 import { ApiStatusLamp } from "@/components/layout/ApiStatusLamp";
+import { signOut as signOutSupabase } from "@/lib/supabase";
 import { isChatPath } from "@/lib/layout";
 import { cn } from "@/lib/utils";
 import { useApiHealthStore } from "@/store/useApiHealthStore";
@@ -29,27 +32,18 @@ const NAV_ITEMS = [
 ];
 
 /**
- * App shell / root layout for protected routes. `usePlanGenerationPolling` lives HERE
- * (not inside /plans) — mounted once, it survives navigation between pages
+ * App shell / root layout for protected routes. Unapproved users see only the
+ * waiting screen (ADR-22). `usePlanGenerationPolling` lives HERE (not inside /plans)
+ * — mounted once, it survives navigation between pages
  * (docs/technical/frontend.md sections 2 and 5). `useUsage` polls the USD budget at the
  * shell level and feeds `useUsageLimitsStore`. `GET /account` sets `isAdmin`.
  */
 export function AppShell() {
-  const location = useLocation();
-  const chatMode = isChatPath(location.pathname);
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated());
-  const isAdmin = useAuthStore((state) => state.isAdmin);
+  const { data: account, isPending, isFetching, isError, refetch } = useAccount();
+  const signOutLocal = useAuthStore((state) => state.signOut);
+  const queryClient = useQueryClient();
   const setIsAdmin = useAuthStore((state) => state.setIsAdmin);
-  const theme = useThemeStore((state) => state.theme);
-  const toggleTheme = useThemeStore((state) => state.toggleTheme);
-  const isNearLimit = useUsageLimitsStore((state) => state.isNearLimit);
-  const limits = useUsageLimitsStore((state) => state.limits);
-  const lamp = useApiHealthStore((state) => state.lamp);
-  const startWakeWindow = useApiHealthStore((state) => state.startWakeWindow);
-
-  useVisualViewportHeight();
-
-  const { data: account } = useAccount();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated());
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -61,6 +55,63 @@ export function AppShell() {
     }
   }, [isAuthenticated, account, setIsAdmin]);
 
+  async function handleLogout() {
+    await signOutSupabase();
+    queryClient.clear();
+    signOutLocal();
+  }
+
+  if (isError) {
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-3 bg-background p-4 text-center">
+        <p className="text-sm text-muted-foreground">Nie udało się wczytać konta.</p>
+        <Button type="button" onClick={() => void refetch()}>
+          Spróbuj ponownie
+        </Button>
+        <Button type="button" variant="outline" onClick={() => void handleLogout()}>
+          Wyloguj
+        </Button>
+      </div>
+    );
+  }
+
+  if (isPending || !account) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-background text-sm text-muted-foreground">
+        Ładowanie…
+      </div>
+    );
+  }
+
+  if (!account.is_approved) {
+    return (
+      <PendingApprovalScreen
+        onCheckStatus={() => {
+          void refetch();
+        }}
+        onLogout={() => {
+          void handleLogout();
+        }}
+        isChecking={isFetching}
+      />
+    );
+  }
+
+  return <ApprovedAppShell />;
+}
+
+function ApprovedAppShell() {
+  const location = useLocation();
+  const chatMode = isChatPath(location.pathname);
+  const isAdmin = useAuthStore((state) => state.isAdmin);
+  const theme = useThemeStore((state) => state.theme);
+  const toggleTheme = useThemeStore((state) => state.toggleTheme);
+  const isNearLimit = useUsageLimitsStore((state) => state.isNearLimit);
+  const limits = useUsageLimitsStore((state) => state.limits);
+  const lamp = useApiHealthStore((state) => state.lamp);
+  const startWakeWindow = useApiHealthStore((state) => state.startWakeWindow);
+
+  useVisualViewportHeight();
   useUsage();
   usePlanGenerationSync();
   usePlanGenerationPolling();

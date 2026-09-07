@@ -13,9 +13,11 @@ Vite + React + TypeScript + Tailwind + shadcn/ui, hosted on Vercel (Hobby — 2�
 /results              → protected (auth)
 /profile              → protected (auth) — preview/edit `user_profile` (ADR-11); main filling path still via chat
 /settings             → protected (auth) — nickname (+ Save nickname), theme, exercise catalog (ADR-14, ADR-15)
-/admin                → protected (auth + is_admin); bootstrap: exclusively fmazurkiewicz@gmail.com
+/admin                → protected (auth + is_admin + is_approved); bootstrap: exclusively fmazurkiewicz@gmail.com
 …
 ```
+
+Unapproved accounts (`GET /account` → `is_approved=false`) stay inside the authenticated shell but see only the waiting screen (ADR-22): no nav, no personas/chat/admin. Poll every 15s; **Sprawdź status** / **Wyloguj**.
 
 **Route guard "min. 1 active persona" for `/chat` and `/plans` — DECISION: deferred, doesn't block the first iteration.** Only implement when the core flow (personas → chat → results → plan) works end-to-end. When added: in the route loader (not in the page component, to avoid a flash before redirect), the condition read from `usePersonaStore` (shared with the onboarding gallery, not duplicated fetch).
 
