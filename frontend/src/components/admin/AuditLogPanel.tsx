@@ -10,6 +10,7 @@ const ACTION_LABELS: Record<AdminAuditAction, string> = {
   edit_limits: "Edycja limitów",
   edit_persona_limit: "Edycja limitu person",
   edit_usage_budget: "Edycja budżetu",
+  edit_approval: "Zmiana akceptacji",
 };
 
 /** Admin audit log (`admin_audit_log`) — who, what, to whom, when. */

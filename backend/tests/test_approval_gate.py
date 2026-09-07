@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock
+from datetime import UTC, datetime
+from unittest.mock import MagicMock
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -23,7 +23,7 @@ def _profile(*, is_approved: bool, is_admin: bool = False, user_id: str = "u1") 
         max_active_personas=5,
         nick=None,
         usage_budget_usd=10.0,
-        created_at=datetime.now(timezone.utc),
+        created_at=datetime.now(UTC),
     )
 
 
@@ -34,14 +34,6 @@ def _auth(*, user_id: str = "u1", email: str = "user@example.com") -> AuthContex
 @asynccontextmanager
 async def _fake_conn(_claims: object = None):
     yield MagicMock()
-
-
-@pytest.fixture
-def client_factory():
-    async def _client() -> AsyncClient:
-        return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
-
-    return _client
 
 
 @pytest.mark.asyncio

@@ -24,9 +24,7 @@ from app.repositories._row_utils import as_float, stringify_uuid
 DEFAULT_MAX_ACTIVE_PERSONAS = 5
 DEFAULT_USAGE_BUDGET_USD = 10.00
 
-_COLUMNS = (
-    "id, is_admin, is_approved, max_active_personas, nick, usage_budget_usd, created_at"
-)
+_COLUMNS = "id, is_admin, is_approved, max_active_personas, nick, usage_budget_usd, created_at"
 
 
 @dataclass(frozen=True, slots=True)

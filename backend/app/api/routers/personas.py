@@ -17,8 +17,8 @@ from app.domain.personas.service import PersonaService
 from app.models.schemas import (
     PersonaCreate,
     PersonaOut,
-    PersonasListOut,
     PersonaShareUpdate,
+    PersonasListOut,
     PersonaUpdate,
 )
 from app.repositories.personas_repo import PersonasRepo

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -20,7 +20,7 @@ def _profile_row(*, is_approved: bool = False, is_admin: bool = False) -> MagicM
         "max_active_personas": 5,
         "nick": None,
         "usage_budget_usd": 10.0,
-        "created_at": datetime.now(timezone.utc),
+        "created_at": datetime.now(UTC),
     }
     return row
 
