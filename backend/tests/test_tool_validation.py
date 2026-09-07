@@ -13,7 +13,6 @@ from app.domain.results.metrics_cache import AllowedMetricsCache
 from app.domain.results.service import ResultsService
 from app.models.schemas import LogResultArgs, UserProfileUpdate
 
-
 # ============ LogResultArgs — schema-level validation ============
 
 
@@ -31,11 +30,7 @@ def test_log_result_args_rejects_unknown_category() -> None:
 
 def test_log_result_args_accepts_valid_entry() -> None:
     parsed = LogResultArgs.model_validate(
-        {
-            "entries": [
-                {"category": "strength", "metric": "weight_kg", "value": 82.5, "date": "2026-01-01"}
-            ]
-        }
+        {"entries": [{"category": "strength", "metric": "weight_kg", "value": 82.5, "date": "2026-01-01"}]}
     )
     assert parsed.entries[0].value == 82.5
 
@@ -78,9 +73,7 @@ class _FakeResultsRepo:
 
 def _metrics_cache() -> AllowedMetricsCache:
     cache = AllowedMetricsCache()
-    cache.load_rows(
-        [_FakeAllowedMetric("strength", "weight_kg", "kg", "numeric", 20, 400)]
-    )
+    cache.load_rows([_FakeAllowedMetric("strength", "weight_kg", "kg", "numeric", 20, 400)])
     return cache
 
 
@@ -110,9 +103,7 @@ async def test_log_batch_unknown_metric_falls_back_to_custom() -> None:
     outcomes = await service.log_batch_from_agent(
         user_id="u1",
         source_persona_id="p1",
-        entries=[
-            {"category": "custom", "metric": "vertical_jump_cm", "value": 55, "logged_date": date(2026, 1, 1)}
-        ],
+        entries=[{"category": "custom", "metric": "vertical_jump_cm", "value": 55, "logged_date": date(2026, 1, 1)}],
     )
 
     assert outcomes[0].ok is True

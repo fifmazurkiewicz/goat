@@ -1,7 +1,5 @@
 """Tests for deploy metadata."""
 
-import os
-
 from app.core.version import get_deploy_info, normalize_app_version, resolve_app_version
 
 

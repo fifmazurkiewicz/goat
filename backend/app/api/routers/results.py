@@ -41,9 +41,7 @@ async def list_results(
 
 @router.post("", response_model=ResultOut, status_code=201)
 @router.post("/", response_model=ResultOut, status_code=201, include_in_schema=False)
-async def create_result(
-    payload: ResultCreate, auth: AuthContext = Depends(get_current_user)
-) -> ResultOut:
+async def create_result(payload: ResultCreate, auth: AuthContext = Depends(get_current_user)) -> ResultOut:
     async with rls_connection(auth.claims) as conn:
         service = ResultsService(ResultsRepo(conn), allowed_metrics_cache)
         row = await service.create_manual(auth.user_id, payload.model_dump())
@@ -56,9 +54,7 @@ async def update_result(
 ) -> ResultOut:
     async with rls_connection(auth.claims) as conn:
         service = ResultsService(ResultsRepo(conn), allowed_metrics_cache)
-        row = await service.update_manual(
-            result_id, auth.user_id, payload.model_dump(exclude_unset=True)
-        )
+        row = await service.update_manual(result_id, auth.user_id, payload.model_dump(exclude_unset=True))
     return ResultOut.model_validate(row)
 
 

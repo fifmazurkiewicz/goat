@@ -58,23 +58,37 @@ def _patched(monkeypatch: pytest.MonkeyPatch):
 
         async def list_messages(self, _session_id: str):
             return [
-                _row(id="m1", role="assistant", content="", tool_calls={
-                    "calls": [{
-                        "id": "call-1",
-                        "type": "function",
-                        "function": {
-                            "name": "consult_persona",
-                            "arguments": '{"slug": "motoryka", "question": "q"}',
-                        },
-                    }]
-                }),
-                _row(id="m2", role="tool",
-                     content=json.dumps({
-                         "status": "ok", "slug": "motoryka",
-                         "persona_label": "Bartek · Trener motoryczny",
-                         "question": "q", "answer": "a",
-                     }),
-                     tool_calls={"tool_call_id": "call-1"}),
+                _row(
+                    id="m1",
+                    role="assistant",
+                    content="",
+                    tool_calls={
+                        "calls": [
+                            {
+                                "id": "call-1",
+                                "type": "function",
+                                "function": {
+                                    "name": "consult_persona",
+                                    "arguments": '{"slug": "motoryka", "question": "q"}',
+                                },
+                            }
+                        ]
+                    },
+                ),
+                _row(
+                    id="m2",
+                    role="tool",
+                    content=json.dumps(
+                        {
+                            "status": "ok",
+                            "slug": "motoryka",
+                            "persona_label": "Bartek · Trener motoryczny",
+                            "question": "q",
+                            "answer": "a",
+                        }
+                    ),
+                    tool_calls={"tool_call_id": "call-1"},
+                ),
                 _row(id="m3", role="assistant", content="Synteza Goata."),
             ]
 
@@ -89,6 +103,7 @@ def _patched(monkeypatch: pytest.MonkeyPatch):
         return ctx
 
     from app.core.security import get_current_user, require_approved
+
     app.dependency_overrides[get_current_user] = fake_auth
     app.dependency_overrides[require_approved] = fake_auth
     yield

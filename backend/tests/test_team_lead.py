@@ -66,9 +66,7 @@ def test_consult_scope_hint_matches_custom_persona_from_prompt() -> None:
 
 def test_consult_scope_hint_none_when_no_roster_match() -> None:
     diet = _FakePersona(id="a", type="dietitian", slug="dietetyk", name="Anna")
-    assert (
-        consult_scope_hint(message="Jak poprawić plyometrię?", active_personas=[diet]) is None
-    )
+    assert consult_scope_hint(message="Jak poprawić plyometrię?", active_personas=[diet]) is None
 
 
 def test_build_goat_turn_prompt_includes_roster_and_consult_tool() -> None:
@@ -90,9 +88,7 @@ def test_user_requests_plan_rebuild_detects_harmonized_plan() -> None:
 
 def test_user_requests_plan_rebuild_detects_update_and_complaints() -> None:
     assert user_requests_plan_rebuild("Zaktualizuj plan na ten tydzień")
-    assert user_requests_plan_rebuild(
-        "W aktualnym planie widzę w każdy dzień trening badmintonowy"
-    )
+    assert user_requests_plan_rebuild("W aktualnym planie widzę w każdy dzień trening badmintonowy")
     assert user_requests_plan_rebuild("Przebuduj plan bez badmintona")
 
 

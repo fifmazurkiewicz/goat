@@ -36,8 +36,13 @@ class _FakeUsageRepo:
         self.row = _FakeUsageRow(user_id="u1", period_start=current_period_start(), cost_usd_used=already_used)
 
     async def try_reserve(
-        self, *, user_id: str, period_start: date, amount_usd: float,
-        message_delta: int = 0, plan_generation_delta: int = 0,
+        self,
+        *,
+        user_id: str,
+        period_start: date,
+        amount_usd: float,
+        message_delta: int = 0,
+        plan_generation_delta: int = 0,
     ) -> _FakeUsageRow | None:
         if self.row.cost_usd_used + amount_usd > self._budget:
             return None
@@ -117,9 +122,7 @@ async def test_reserve_plan_generation_increments_plan_counter_not_messages() ->
 async def test_estimate_turn_cost_uses_pricing_cache() -> None:
     service = UsageLimitService(_FakeUsageRepo(10.0), _FakeProfilesRepo(10.0), _FakePricingCache(usd_per_token=0.0001))
 
-    cost = await service.estimate_turn_cost_usd(
-        model="test-model", prompt_text_length_chars=400, max_output_tokens=100
-    )
+    cost = await service.estimate_turn_cost_usd(model="test-model", prompt_text_length_chars=400, max_output_tokens=100)
 
     # 400 chars / 4 chars-per-token = 100 input tokens + 100 output tokens = 200 * 0.0001
     assert cost == pytest.approx(0.02)

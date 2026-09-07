@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 
 from app.repositories.plans_repo import PlanRow, pick_best_plan_for_range
 
@@ -28,8 +28,8 @@ def _plan(
 
 
 def test_pick_best_plan_prefers_newest_generating_over_older_ready() -> None:
-    older = _plan(plan_id="a", status="ready", created_at=datetime(2026, 8, 1, tzinfo=timezone.utc))
-    newer = _plan(plan_id="b", status="generating", created_at=datetime(2026, 8, 2, tzinfo=timezone.utc))
+    older = _plan(plan_id="a", status="ready", created_at=datetime(2026, 8, 1, tzinfo=UTC))
+    newer = _plan(plan_id="b", status="generating", created_at=datetime(2026, 8, 2, tzinfo=UTC))
 
     picked = pick_best_plan_for_range([older, newer])
 
@@ -38,8 +38,8 @@ def test_pick_best_plan_prefers_newest_generating_over_older_ready() -> None:
 
 
 def test_pick_best_plan_newest_when_same_status() -> None:
-    older = _plan(plan_id="a", status="ready", created_at=datetime(2026, 8, 1, tzinfo=timezone.utc))
-    newer = _plan(plan_id="b", status="ready", created_at=datetime(2026, 8, 3, tzinfo=timezone.utc))
+    older = _plan(plan_id="a", status="ready", created_at=datetime(2026, 8, 1, tzinfo=UTC))
+    newer = _plan(plan_id="b", status="ready", created_at=datetime(2026, 8, 3, tzinfo=UTC))
 
     picked = pick_best_plan_for_range([older, newer])
 

@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import re
 import warnings
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 import structlog
 
@@ -27,6 +28,7 @@ class PersonaLike(Protocol):
     id: str
     type: str
     slug: str
+    name: str
     system_prompt: str
 
 
@@ -59,9 +61,7 @@ def _first_sentence(text: str, *, max_length: int = 200) -> str:
     return stripped[:max_length]
 
 
-def parse_multi_slash_command(
-    message: str, active_personas: list[PersonaLike]
-) -> tuple[list[PersonaLike], str] | None:
+def parse_multi_slash_command(message: str, active_personas: Sequence[Any]) -> tuple[list[Any], str] | None:
     """All `/slug` at the start of the message (order preserved, dedupe by id).
 
     `None` when there's no `/` prefix, an unknown slug in the chain, or empty
@@ -91,9 +91,7 @@ def parse_multi_slash_command(
     return personas, rest
 
 
-def parse_slash_command(
-    message: str, active_personas: list[PersonaLike]
-) -> tuple[PersonaLike, str] | None:
+def parse_slash_command(message: str, active_personas: list[PersonaLike]) -> tuple[PersonaLike, str] | None:
     """Compatibility: single `/slug content` -> first persona from the multi-parser."""
     multi = parse_multi_slash_command(message, active_personas)
     if multi is None or len(multi[0]) != 1:
@@ -134,9 +132,7 @@ class ChatRoutingService:
         self._chat_repo = chat_repo
         self._chat_model = chat_model
 
-    async def route(
-        self, *, session_id: str, message: str, active_personas: list[PersonaLike]
-    ) -> RoutingResult:
+    async def route(self, *, session_id: str, message: str, active_personas: list[PersonaLike]) -> RoutingResult:
         warnings.warn(
             "ChatRoutingService.route() is deprecated.",
             DeprecationWarning,
@@ -148,23 +144,17 @@ class ChatRoutingService:
         slash_match = parse_multi_slash_command(message, active_personas)
         if slash_match is not None:
             personas, rest = slash_match
-            invoked: Literal["slash_command", "multi_slash"] = (
-                "multi_slash" if len(personas) > 1 else "slash_command"
-            )
+            invoked: Literal["slash_command", "multi_slash"] = "multi_slash" if len(personas) > 1 else "slash_command"
             return RoutingResult(
                 persona_ids=[p.id for p in personas],
                 invoked_via=invoked,
                 content=rest,
             )
 
-        persona_ids = await self._classify(
-            session_id=session_id, message=message, active_personas=active_personas
-        )
+        persona_ids = await self._classify(session_id=session_id, message=message, active_personas=active_personas)
         return RoutingResult(persona_ids=persona_ids, invoked_via="auto_routed", content=message)
 
-    async def _classify(
-        self, *, session_id: str, message: str, active_personas: list[PersonaLike]
-    ) -> list[str]:
+    async def _classify(self, *, session_id: str, message: str, active_personas: list[PersonaLike]) -> list[str]:
         ids = [persona.id for persona in active_personas]
 
         if len(active_personas) == 1:
@@ -184,8 +174,7 @@ class ChatRoutingService:
             f"{max_n} person (po polu id), które powinny ODPOWIEDZIEĆ SEKWENCYJNIE na "
             "wiadomość użytkownika. Kolejność listy = kolejność odpowiedzi.\n\n"
             f"{ROUTING_CLASSIFIER_RULES}\n\n"
-            "Dostępne persony:\n"
-            + descriptions
+            "Dostępne persony:\n" + descriptions
         )
         json_schema = {
             "name": _ROUTING_JSON_SCHEMA_NAME,

@@ -85,9 +85,7 @@ async def list_users(auth: AuthContext = Depends(require_admin)) -> list[AdminUs
         _admin_user_out(
             profile,
             email=emails.get(profile.id),
-            cost_usd_used=(
-                usage_by_user[profile.id].cost_usd_used if profile.id in usage_by_user else 0.0
-            ),
+            cost_usd_used=(usage_by_user[profile.id].cost_usd_used if profile.id in usage_by_user else 0.0),
         )
         for profile in profiles
     ]
@@ -103,9 +101,7 @@ async def update_persona_limit(
     "5" constant. The DB trigger (`enforce_persona_limit`) remains the last line of
     defense regardless of this setting."""
     async with service_role_connection() as conn:
-        profile = await ProfilesRepo(conn).update_max_active_personas(
-            user_id, payload.max_active_personas
-        )
+        profile = await ProfilesRepo(conn).update_max_active_personas(user_id, payload.max_active_personas)
         await AdminAuditRepo(conn).log(
             admin_user_id=auth.user_id,
             action="edit_persona_limit",
@@ -160,7 +156,5 @@ async def reset_password(user_id: str, auth: AuthContext = Depends(require_admin
     temporary password is returned ONCE in the response, for manual delivery to the user."""
     temp_password = await get_supabase_admin_client().reset_password(user_id)
     async with service_role_connection() as conn:
-        await AdminAuditRepo(conn).log(
-            admin_user_id=auth.user_id, action="reset_password", target_user_id=user_id
-        )
+        await AdminAuditRepo(conn).log(admin_user_id=auth.user_id, action="reset_password", target_user_id=user_id)
     return PasswordResetOut(temporary_password=temp_password)

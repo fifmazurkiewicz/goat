@@ -13,9 +13,7 @@ def is_auto_approved_email(email: str | None) -> bool:
     from app.core.config import settings
 
     allowlist = {SOLE_ADMIN_EMAIL}
-    allowlist.update(
-        part.strip().lower() for part in settings.admin_emails.split(",") if part.strip()
-    )
+    allowlist.update(part.strip().lower() for part in settings.admin_emails.split(",") if part.strip())
     return normalized in allowlist
 
 

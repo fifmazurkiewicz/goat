@@ -98,9 +98,7 @@ class UsageLimitsRepo:
         row = result.one_or_none()
         return _row_to_usage(row) if row is not None else None
 
-    async def reconcile(
-        self, *, user_id: str, period_start: date, delta_usd: float, tokens_delta: int = 0
-    ) -> None:
+    async def reconcile(self, *, user_id: str, period_start: date, delta_usd: float, tokens_delta: int = 0) -> None:
         """Adjust to actual cost after the LLM response (see module docstring) —
         `GREATEST(..., 0)` prevents negative `cost_usd_used` if actual cost were below
         the reservation (should not happen, but a cheap assertion)."""

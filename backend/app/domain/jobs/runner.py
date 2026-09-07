@@ -59,9 +59,7 @@ async def _run_job_wrapper(*, bg_job_id: str, claims: dict[str, Any], coro) -> N
     except Exception as exc:  # noqa: BLE001
         logger.error("background_job_failed", bg_job_id=bg_job_id, error=str(exc), exc_info=exc)
         async with service_role_connection() as conn:
-            await BackgroundJobsRepo(conn).mark_finished(
-                bg_job_id, status="error", error_message=str(exc)[:500]
-            )
+            await BackgroundJobsRepo(conn).mark_finished(bg_job_id, status="error", error_message=str(exc)[:500])
 
 
 async def enqueue_background_job(
@@ -73,9 +71,7 @@ async def enqueue_background_job(
     background_tasks: BackgroundTasks | None = None,
 ) -> str:
     async with rls_connection(claims) as conn:
-        row = await BackgroundJobsRepo(conn).create(
-            user_id=user_id, job_type=job_type, payload=payload
-        )
+        row = await BackgroundJobsRepo(conn).create(user_id=user_id, job_type=job_type, payload=payload)
 
     coro = _dispatch(job_type=job_type, user_id=user_id, claims=claims, payload=payload)
     runner = _run_job_wrapper(bg_job_id=row.id, claims=claims, coro=coro)
@@ -99,9 +95,7 @@ async def _track_plan_job_task(*, payload: dict[str, Any], runner) -> None:
             mark_job_finished(plan_job_id)
 
 
-async def _dispatch(
-    *, job_type: str, user_id: str, claims: dict[str, Any], payload: dict[str, Any]
-) -> None:
+async def _dispatch(*, job_type: str, user_id: str, claims: dict[str, Any], payload: dict[str, Any]) -> None:
     if job_type == "plan_generate":
         orchestrator = PlanOrchestrator(get_openrouter_client())
         await orchestrator.generate_plan(

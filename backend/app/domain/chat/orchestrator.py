@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import AsyncIterator
 from datetime import date
 from typing import Any, Protocol
 
@@ -75,9 +76,9 @@ def should_run_goat_turn(message: str, active_personas: list[Any]) -> bool:
 
 
 class LLMClientProtocol(Protocol):
-    async def stream_chat(
+    def stream_chat(
         self, *, model: str, messages: list[dict[str, Any]], **kwargs: Any
-    ) -> Any: ...
+    ) -> AsyncIterator[dict[str, Any]]: ...
 
 
 async def _emit(queue: asyncio.Queue[dict[str, Any]], event: str, data: dict[str, Any]) -> None:
@@ -103,9 +104,7 @@ async def _emit_persona_status(
     label: str | None = None,
 ) -> None:
     display = label or (
-        TEAM_LEAD_DISPLAY_LABEL
-        if getattr(persona, "type", None) == "team_lead"
-        else persona_display_label(persona)
+        TEAM_LEAD_DISPLAY_LABEL if getattr(persona, "type", None) == "team_lead" else persona_display_label(persona)
     )
     persona_id = None if getattr(persona, "type", None) == "team_lead" else persona.id
     if message is None:
@@ -162,11 +161,7 @@ def _tool_result_event_payload(name: str, response_content: str) -> dict[str, An
             success = False
         elif name == "update_user_profile":
             fields = parsed.get("updated_fields") or []
-            summary = (
-                f"Zaktualizowano profil: {', '.join(fields)}"
-                if fields
-                else "Profil bez zmian"
-            )
+            summary = f"Zaktualizowano profil: {', '.join(fields)}" if fields else "Profil bez zmian"
             success = parsed.get("status") != "error"
         elif name == "log_result":
             results = parsed.get("results") or []
@@ -194,9 +189,7 @@ def _tool_result_event_payload(name: str, response_content: str) -> dict[str, An
                 summary = str(parsed.get("message") or "Potwierdź przebudowę planu")
                 success = False
             else:
-                summary = "Uruchomiono przebudowę planu" + (
-                    f" (job {job_id[:8]}…)" if job_id else ""
-                )
+                summary = "Uruchomiono przebudowę planu" + (f" (job {job_id[:8]}…)" if job_id else "")
                 success = parsed.get("status") == "ok"
         elif name == "consult_persona":
             if parsed.get("error"):
@@ -316,27 +309,21 @@ class ChatOrchestrator:
         # alone would carry too much false-positive risk (a normal question about "training
         # rules" contains the word "rules") and hurt UX. If hard blocking is needed later,
         # this is the only place to add it.
-        await get_moderation_service().check_chat_message(
-            user_id=user_id, message=user_message, session_id=session_id
-        )
+        await get_moderation_service().check_chat_message(user_id=user_id, message=user_message, session_id=session_id)
 
         template_safety: str | None = None
         if persona.type == "team_lead":
             template_safety = TEAM_LEAD_SAFETY_OVERLAY
         elif persona.base_template_id:
             async with service_role_connection() as sconn:
-                template_safety = await PersonaTemplatesRepo(sconn).get_safety_prompt(
-                    persona.base_template_id
-                )
+                template_safety = await PersonaTemplatesRepo(sconn).get_safety_prompt(persona.base_template_id)
 
         async with rls_connection(self._claims) as conn:
             context_builder = ContextBuilder(
                 ChatRepo(conn), history_window_messages=settings.chat_history_window_messages
             )
             user_profile_row = await UserProfileRepo(conn).get(user_id)
-            user_profile = (
-                UserProfileOut.model_validate(user_profile_row) if user_profile_row else None
-            )
+            user_profile = UserProfileOut.model_validate(user_profile_row) if user_profile_row else None
             plans_repo = PlansRepo(conn)
             plan_row = await plans_repo.get_latest_editable_plan_for_user(user_id)
             plan_items: list[Any] = []
@@ -370,11 +357,7 @@ class ChatOrchestrator:
             tools = get_team_lead_plan_tools()
         else:
             tools = get_trainer_chat_tools()
-        fallback_models = [
-            m.strip()
-            for m in settings.openrouter_chat_model_fallbacks.split(",")
-            if m.strip()
-        ]
+        fallback_models = [m.strip() for m in settings.openrouter_chat_model_fallbacks.split(",") if m.strip()]
         chat_model = settings.openrouter_chat_model
 
         if emit_sse:
@@ -439,11 +422,7 @@ class ChatOrchestrator:
                                         "tool_call_start",
                                         {
                                             "name": buffer.name,
-                                            "persona_id": (
-                                                None
-                                                if status_label
-                                                else _persist_persona_id(persona)
-                                            ),
+                                            "persona_id": (None if status_label else _persist_persona_id(persona)),
                                         },
                                     )
                                     if buffer.name != "consult_persona":
@@ -494,9 +473,7 @@ class ChatOrchestrator:
                     }
                     for idx, buf in sorted(tool_buffers.items())
                 ]
-                messages.append(
-                    {"role": "assistant", "content": assistant_content, "tool_calls": tool_calls_payload}
-                )
+                messages.append({"role": "assistant", "content": assistant_content, "tool_calls": tool_calls_payload})
 
                 tool_response_messages = await self._execute_tool_calls(
                     user_id=user_id,
@@ -519,9 +496,7 @@ class ChatOrchestrator:
 
             # finish_reason == 'stop' (or no further tool calls) -> end of turn.
             if emit_sse:
-                await _emit_persona_status(
-                    queue, persona=persona, phase="wrapping_up", label=status_label
-                )
+                await _emit_persona_status(queue, persona=persona, phase="wrapping_up", label=status_label)
             if persist_messages and client_visible:
                 async with rls_connection(self._claims) as conn:
                     chat_repo = ChatRepo(conn)
@@ -563,17 +538,13 @@ class ChatOrchestrator:
     ) -> tuple[date, float]:
         prompt_chars = sum(len(str(m.get("content") or "")) for m in prompt)
         async with rls_connection(self._claims) as conn:
-            usage_service = UsageLimitService(
-                UsageLimitsRepo(conn), ProfilesRepo(conn), get_pricing_cache()
-            )
+            usage_service = UsageLimitService(UsageLimitsRepo(conn), ProfilesRepo(conn), get_pricing_cache())
             estimated = await usage_service.estimate_turn_cost_usd(
                 model=model,
                 prompt_text_length_chars=prompt_chars,
                 max_output_tokens=settings.chat_max_output_tokens,
             )
-            period_start = await usage_service.reserve_estimated_cost(
-                user_id=user_id, estimated_cost_usd=estimated
-            )
+            period_start = await usage_service.reserve_estimated_cost(user_id=user_id, estimated_cost_usd=estimated)
             return period_start, estimated
 
     async def _reconcile_round_cost(
@@ -592,9 +563,7 @@ class ChatOrchestrator:
             model=model, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens
         )
         async with rls_connection(self._claims) as conn:
-            usage_service = UsageLimitService(
-                UsageLimitsRepo(conn), ProfilesRepo(conn), pricing_cache
-            )
+            usage_service = UsageLimitService(UsageLimitsRepo(conn), ProfilesRepo(conn), pricing_cache)
             await usage_service.reconcile_actual_cost(
                 user_id=user_id,
                 period_start=period_start,
@@ -641,9 +610,7 @@ class ChatOrchestrator:
                     session_id=session_id,
                 )
             else:
-                prior_tool_contents = [
-                    str(msg.get("content") or "") for msg in tool_response_messages
-                ]
+                prior_tool_contents = [str(msg.get("content") or "") for msg in tool_response_messages]
                 async with rls_connection(self._claims) as conn:
                     response_content = await self._run_single_tool(
                         name=name,
@@ -683,9 +650,7 @@ class ChatOrchestrator:
                                 "answer": consult.get("answer", ""),
                             },
                         )
-            tool_response_messages.append(
-                {"role": "tool", "tool_call_id": tool_call_id, "content": response_content}
-            )
+            tool_response_messages.append({"role": "tool", "tool_call_id": tool_call_id, "content": response_content})
 
         if persist_messages:
             async with rls_connection(self._claims) as conn:
@@ -777,8 +742,7 @@ class ChatOrchestrator:
             return json.dumps(
                 {
                     "results": [
-                        {"index": o.index, "status": "ok" if o.ok else "error", "error": o.error}
-                        for o in outcomes
+                        {"index": o.index, "status": "ok" if o.ok else "error", "error": o.error} for o in outcomes
                     ]
                 }
             )
@@ -809,9 +773,10 @@ class ChatOrchestrator:
             return json.dumps(result, default=str, ensure_ascii=False)
 
         if name == "upsert_plan_items":
-            entries = arguments.get("entries")
-            if not isinstance(entries, list) or not entries:
+            raw_entries = arguments.get("entries")
+            if not isinstance(raw_entries, list) or not raw_entries:
                 return json.dumps({"error": "Wymagane entries: lista pozycji planu."})
+            entries = raw_entries
             is_goat = getattr(persona, "type", None) == "team_lead"
             if is_goat:
                 missing = [
@@ -821,10 +786,7 @@ class ChatOrchestrator:
                 ]
                 if missing:
                     return json.dumps(
-                        {
-                            "error": "Goat musi podać persona_id w każdej pozycji "
-                            f"(brak w indeksach: {missing})."
-                        },
+                        {"error": f"Goat musi podać persona_id w każdej pozycji (brak w indeksach: {missing})."},
                         ensure_ascii=False,
                     )
                 if not allowed_persona_ids:
@@ -925,7 +887,7 @@ class ChatOrchestrator:
                 "slug": target.slug,
                 "persona_label": label,
                 "question": question,
-                "answer": answer.strip(),
+                "answer": (answer or "").strip(),
             },
             ensure_ascii=False,
         )
@@ -1034,8 +996,7 @@ async def _run_chat_turn_body(
             active_personas = await personas_repo.list_active_for_user(user_id)
             if not active_personas:
                 raise ConflictError(
-                    "Brak aktywnych person — dodaj przynajmniej jedną personę przed "
-                    "rozpoczęciem ogólnej rozmowy."
+                    "Brak aktywnych person — dodaj przynajmniej jedną personę przed rozpoczęciem ogólnej rozmowy."
                 )
             personas_by_id = {p.id: p for p in active_personas}
             slash_match = parse_multi_slash_command(user_message, active_personas)
@@ -1085,9 +1046,7 @@ async def _run_chat_turn_body(
 
     if goat_turn:
         goat = TeamLeadSpeaker(
-            system_prompt=build_goat_turn_prompt(
-                active_personas=active_personas, user_message=content
-            )
+            system_prompt=build_goat_turn_prompt(active_personas=active_personas, user_message=content)
         )
         orchestrator._consult_roster = list(active_personas)
         orchestrator._consult_count = 0

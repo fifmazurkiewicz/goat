@@ -28,9 +28,6 @@ class AllowedMetricsRepo:
 
     async def list_all(self) -> list[AllowedMetricRow]:
         result = await self._conn.execute(
-            text(
-                "SELECT category, metric_key, unit, value_type, value_min, value_max "
-                "FROM allowed_metrics"
-            )
+            text("SELECT category, metric_key, unit, value_type, value_min, value_max FROM allowed_metrics")
         )
         return [AllowedMetricRow(**row._mapping) for row in result]

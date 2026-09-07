@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.models.schemas import PlanGenerationJobOut
 
 
 def test_plan_generation_job_out_exposes_job_id_alias() -> None:
-    now = datetime(2026, 8, 4, 12, 0, tzinfo=timezone.utc)
+    now = datetime(2026, 8, 4, 12, 0, tzinfo=UTC)
     out = PlanGenerationJobOut(
         id="job-uuid",
         plan_id="plan-uuid",

@@ -17,8 +17,7 @@ from app.core.exceptions import NotFoundError
 from app.repositories._row_utils import normalize_row_mapping
 
 _COLUMNS = (
-    "id, user_id, category, metric, value, unit, logged_date, source, "
-    "source_persona_id, is_custom, notes, created_at"
+    "id, user_id, category, metric, value, unit, logged_date, source, source_persona_id, is_custom, notes, created_at"
 )
 
 _UUID_KEYS = ("id", "user_id", "source_persona_id")
@@ -75,20 +74,14 @@ class ResultsRepo:
 
         where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
         result = await self._conn.execute(
-            text(
-                f"SELECT {_COLUMNS} FROM results {where} "
-                "ORDER BY logged_date DESC, created_at DESC"
-            ),
+            text(f"SELECT {_COLUMNS} FROM results {where} ORDER BY logged_date DESC, created_at DESC"),
             params,
         )
         return [_row_to_result(row) for row in result]
 
     async def list_recent_for_user(self, *, limit: int = 12) -> list[ResultRow]:
         result = await self._conn.execute(
-            text(
-                f"SELECT {_COLUMNS} FROM results "
-                "ORDER BY logged_date DESC, created_at DESC LIMIT :limit"
-            ),
+            text(f"SELECT {_COLUMNS} FROM results ORDER BY logged_date DESC, created_at DESC LIMIT :limit"),
             {"limit": limit},
         )
         return [_row_to_result(row) for row in result]
@@ -156,10 +149,7 @@ class ResultsRepo:
         where = "WHERE category = :category" if category else ""
         params = {"category": category} if category else {}
         result = await self._conn.execute(
-            text(
-                f"SELECT {_COLUMNS} FROM results {where} "
-                "ORDER BY logged_date DESC, created_at DESC LIMIT :limit"
-            ),
+            text(f"SELECT {_COLUMNS} FROM results {where} ORDER BY logged_date DESC, created_at DESC LIMIT :limit"),
             {**params, "limit": limit},
         )
         return [_row_to_result(row) for row in result]

@@ -61,10 +61,22 @@ ChartContainer.displayName = "ChartContainer";
 
 const ChartTooltip = RechartsPrimitive.Tooltip;
 
-const ChartTooltipContent = React.forwardRef<
-  HTMLDivElement,
-  React.ComponentProps<typeof RechartsPrimitive.Tooltip> & React.ComponentProps<"div"> & { labelKey?: string }
->(({ active, payload, className, label }, ref) => {
+type ChartTooltipItem = {
+  dataKey?: string | number;
+  name?: string;
+  value?: number | string;
+  color?: string;
+};
+
+type ChartTooltipContentProps = React.ComponentProps<"div"> & {
+  active?: boolean;
+  payload?: ChartTooltipItem[];
+  label?: React.ReactNode;
+  labelKey?: string;
+};
+
+const ChartTooltipContent = React.forwardRef<HTMLDivElement, ChartTooltipContentProps>(
+  ({ active, payload, className, label }, ref) => {
   const { config } = useChart();
 
   if (!active || !payload?.length) return null;

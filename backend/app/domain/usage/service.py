@@ -47,9 +47,7 @@ class UsageLimitsRepositoryProtocol(Protocol):
         plan_generation_delta: int = 0,
     ) -> object | None: ...
 
-    async def reconcile(
-        self, *, user_id: str, period_start: date, delta_usd: float, tokens_delta: int = 0
-    ) -> None: ...
+    async def reconcile(self, *, user_id: str, period_start: date, delta_usd: float, tokens_delta: int = 0) -> None: ...
 
     async def get(self, user_id: str, period_start: date) -> object | None: ...
 
@@ -104,9 +102,7 @@ class UsageLimitService:
             "o zwiększenie budżetu, jeśli to konieczne."
         )
 
-    async def reserve_estimated_cost(
-        self, *, user_id: str, estimated_cost_usd: float, is_message: bool = True
-    ) -> date:
+    async def reserve_estimated_cost(self, *, user_id: str, estimated_cost_usd: float, is_message: bool = True) -> date:
         """Budget gate BEFORE the LLM call — returns the `period_start` used (for later
         reconciliation), raises `UsageLimitExceededError` (429) when rejected."""
         period_start = current_period_start()

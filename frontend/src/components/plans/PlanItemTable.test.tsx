@@ -1,13 +1,42 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 
 import { PlanItemTable } from "@/components/plans/PlanItemTable";
-import type { PlanItemContent } from "@/types/api";
+import type { Exercise, PlanItemContent } from "@/types/api";
+
+vi.mock("@/hooks/useExercises", () => ({
+  useExercises: () => ({
+    data: [
+      {
+        id: "1",
+        slug: "calf-raise",
+        name: "Wspięcia na palce",
+        name_en: "Calf Raise",
+        persona_type: "motor_coach",
+        level: "beginner",
+        categories: ["Siłowe"],
+        short_description: "opis",
+        detail_full: "kroki",
+        common_mistakes: null,
+        photo_path: null,
+      } satisfies Exercise,
+    ],
+  }),
+}));
+
+function renderTable(content: PlanItemContent, variant: "table" | "cards" = "table") {
+  return render(
+    <MemoryRouter>
+      <PlanItemTable content={content} variant={variant} />
+    </MemoryRouter>
+  );
+}
 
 describe("PlanItemTable", () => {
   it("renders an empty-state message when there are no rows", () => {
     const content: PlanItemContent = { title: "Trening", columns: ["Ćwiczenie", "Serie"], rows: [], notes: null };
-    render(<PlanItemTable content={content} variant="table" />);
+    renderTable(content);
     expect(screen.getByText("Brak pozycji do wyświetlenia.")).toBeInTheDocument();
   });
 
@@ -18,7 +47,7 @@ describe("PlanItemTable", () => {
       rows: [["Przysiad", "4", "8"]],
       notes: null,
     };
-    render(<PlanItemTable content={content} variant="table" />);
+    renderTable(content);
     expect(screen.getByText("Ćwiczenie")).toBeInTheDocument();
     expect(screen.getByText("Przysiad")).toBeInTheDocument();
   });
@@ -30,7 +59,7 @@ describe("PlanItemTable", () => {
       rows: [["Przysiad", "4"]],
       notes: null,
     };
-    render(<PlanItemTable content={content} variant="cards" />);
+    renderTable(content, "cards");
     expect(screen.getByText("Ćwiczenie")).toBeInTheDocument();
     expect(screen.getByText("Przysiad")).toBeInTheDocument();
   });
@@ -42,7 +71,7 @@ describe("PlanItemTable", () => {
       rows: [["Przysiad", "4"]],
       notes: null,
     };
-    render(<PlanItemTable content={content} variant="table" />);
+    renderTable(content);
     expect(screen.getByText("—")).toBeInTheDocument();
   });
 
@@ -53,7 +82,7 @@ describe("PlanItemTable", () => {
       rows: [{ Ćwiczenie: "Przysiad", Serie: "4", Powtórzenia: "8" }],
       notes: null,
     };
-    render(<PlanItemTable content={content} variant="table" />);
+    renderTable(content);
     expect(screen.getByText("Przysiad")).toBeInTheDocument();
     expect(screen.getByText("4")).toBeInTheDocument();
   });
@@ -65,7 +94,22 @@ describe("PlanItemTable", () => {
       rows: [["Przysiad", "4", "8"]],
       notes: null,
     };
-    expect(() => render(<PlanItemTable content={content} variant="table" />)).not.toThrow();
+    expect(() => renderTable(content)).not.toThrow();
     expect(screen.getByText("Przysiad")).toBeInTheDocument();
+  });
+
+  it("links the Ćwiczenie column when Day is first (not column 0)", () => {
+    const content: PlanItemContent = {
+      title: "Trening",
+      columns: ["Dzień (P/P/L)", "Ćwiczenie", "Serie"],
+      rows: [["Czw (P)", "Calf raise 2-leg (pełny ROM, kontrola)", "3"]],
+      notes: null,
+    };
+    renderTable(content);
+    const link = screen.getByRole("link", {
+      name: "Calf raise 2-leg (pełny ROM, kontrola)",
+    });
+    expect(link).toHaveAttribute("href", "/exercises/calf-raise");
+    expect(screen.queryByRole("link", { name: "Czw (P)" })).not.toBeInTheDocument();
   });
 });

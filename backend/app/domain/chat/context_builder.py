@@ -128,8 +128,7 @@ def build_plan_summary_block(plan: Any | None, items: list[Any]) -> str | None:
     if plan is None:
         return "[PLAN TRENINGOWY]\nNo active plan in the calendar."
     header = (
-        f"Plan {plan.period_type} {plan.start_date.isoformat()}–{plan.end_date.isoformat()} "
-        f"(status: {plan.status})"
+        f"Plan {plan.period_type} {plan.start_date.isoformat()}–{plan.end_date.isoformat()} (status: {plan.status})"
     )
     if not items:
         return f"[PLAN TRENINGOWY]\n{header}\nNo items — you can suggest rebuild_plan."

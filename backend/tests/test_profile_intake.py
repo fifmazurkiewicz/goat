@@ -40,9 +40,7 @@ def test_complete_profile_yields_no_instruction() -> None:
 
 
 def test_partial_profile_lists_only_missing_fields() -> None:
-    instruction = build_profile_intake_instruction(
-        _profile(weight_kg=None, activity_level=None)
-    )
+    instruction = build_profile_intake_instruction(_profile(weight_kg=None, activity_level=None))
 
     assert instruction is not None
     assert "waga" in instruction

@@ -60,9 +60,7 @@ class ProfilesRepo:
     async def list_all(self) -> list[ProfileRow]:
         """`/admin/users` — requires a `service_role` connection (RLS on `profiles` gives
         a regular user visibility only to their own row, see security.md)."""
-        result = await self._conn.execute(
-            text(f"SELECT {_COLUMNS} FROM profiles ORDER BY created_at DESC")
-        )
+        result = await self._conn.execute(text(f"SELECT {_COLUMNS} FROM profiles ORDER BY created_at DESC"))
         return [_row_to_profile(row) for row in result]
 
     async def update_max_active_personas(self, user_id: str, value: int) -> ProfileRow:

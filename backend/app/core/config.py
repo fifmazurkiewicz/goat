@@ -84,12 +84,10 @@ class Settings(BaseSettings):
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
 
     @model_validator(mode="after")
-    def _validate_auth_config(self) -> "Settings":
+    def _validate_auth_config(self) -> Settings:
         if self.dev_auth_enabled:
             if not self.dev_auth_email or self.dev_auth_password is None:
-                raise ValueError(
-                    "DEV_AUTH_EMAIL i DEV_AUTH_PASSWORD są wymagane przy ENVIRONMENT=local."
-                )
+                raise ValueError("DEV_AUTH_EMAIL i DEV_AUTH_PASSWORD są wymagane przy ENVIRONMENT=local.")
         else:
             missing = [
                 name
@@ -101,9 +99,7 @@ class Settings(BaseSettings):
                 if not value
             ]
             if missing:
-                raise ValueError(
-                    f"Brak wymaganych zmiennych Supabase w produkcji: {', '.join(missing)}"
-                )
+                raise ValueError(f"Brak wymaganych zmiennych Supabase w produkcji: {', '.join(missing)}")
         return self
 
 

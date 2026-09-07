@@ -7,21 +7,13 @@ PERSONA_TYPE_SCOPE: dict[str, str] = {
     "personal_trainer": (
         "siła, hipertrofia, plan treningowy siłowy, technika podstawowych ćwiczeń, progresja obciążenia"
     ),
-    "dietitian": (
-        "żywienie, makroskładniki, posiłki, kalorie, nawodnienie, timing posiłków wokół treningu"
-    ),
+    "dietitian": ("żywienie, makroskładniki, posiłki, kalorie, nawodnienie, timing posiłków wokół treningu"),
     "sport_psychologist": (
         "motywacja sportowa, stres startowy, koncentracja, nawyki mentalne w sporcie, rutyny przedmeczowe"
     ),
-    "psychologist": (
-        "ogólny dobrostan, stres codzienny, nawyki, równowaga życiowa w kontekście aktywności"
-    ),
-    "motor_coach": (
-        "motoryka, plyometria, szybkość, dynamika, skok, bieganie, wydolność, mobilność, prewencja urazów"
-    ),
-    "badminton_coach": (
-        "badminton: technika, taktyka, trening specyficzny, przygotowanie do meczu, footwork"
-    ),
+    "psychologist": ("ogólny dobrostan, stres codzienny, nawyki, równowaga życiowa w kontekście aktywności"),
+    "motor_coach": ("motoryka, plyometria, szybkość, dynamika, skok, bieganie, wydolność, mobilność, prewencja urazów"),
+    "badminton_coach": ("badminton: technika, taktyka, trening specyficzny, przygotowanie do meczu, footwork"),
     "team_lead": (
         "koordynacja zespołu, uruchamianie i harmonizacja planu w zakładce Plany — bez szczegółów "
         "treningu/diety pojedynczych trenerów"

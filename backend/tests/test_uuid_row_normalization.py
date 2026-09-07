@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import uuid4
 
@@ -25,7 +25,7 @@ def test_profile_row_stringifies_uuid_and_decimal() -> None:
             "max_active_personas": 5,
             "nick": "Admin",
             "usage_budget_usd": Decimal("10.00"),
-            "created_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
         }
     )
     profile = _row_to_profile(row)
@@ -59,8 +59,8 @@ def test_persona_row_stringifies_uuid_fks() -> None:
             "preamble_version": 2,
             "cloned_from_persona_id": None,
             "active": True,
-            "created_at": datetime.now(timezone.utc),
-            "updated_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
         }
     )
     persona = _row_to_persona(row)
@@ -82,8 +82,8 @@ def test_chat_session_row_stringifies_uuids() -> None:
             "persona_id": persona_id,
             "session_type": "persona",
             "title": None,
-            "created_at": datetime.now(timezone.utc),
-            "updated_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
         }
     )
     session = _row_to_session(row)
@@ -113,7 +113,7 @@ def test_result_row_stringifies_uuid_and_decimal() -> None:
             "source_persona_id": persona_id,
             "is_custom": True,
             "notes": None,
-            "created_at": datetime.now(timezone.utc),
+            "created_at": datetime.now(UTC),
         }
     )
     result = _row_to_result(row)
@@ -138,7 +138,7 @@ def test_user_profile_row_stringifies_uuid_and_decimal() -> None:
             "activity_level": None,
             "primary_goal": None,
             "notes": None,
-            "updated_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(UTC),
         }
     )
     profile = _row_to_profile(row)

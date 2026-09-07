@@ -177,7 +177,9 @@ UPSERT_PLAN_ITEMS_TOOL_SCHEMA: dict[str, Any] = {
                             "notes": {"type": "string"},
                             "persona_id": {
                                 "type": "string",
-                                "description": "Opcjonalne — zapis pozycji dla innej aktywnej persony (koordynacja zespołu).",
+                                "description": (
+                                    "Opcjonalne — zapis pozycji dla innej aktywnej persony (koordynacja zespołu)."
+                                ),
                             },
                         },
                         "required": ["item_date", "item_type", "title", "columns", "rows"],
@@ -271,11 +273,7 @@ def get_chat_tools() -> list[dict[str, Any]]:
 
 def get_trainer_chat_tools() -> list[dict[str, Any]]:
     """Trainers — without rebuild_plan (harmonization is triggered by Goat)."""
-    return [
-        t
-        for t in get_chat_tools()
-        if t.get("function", {}).get("name") != "rebuild_plan"
-    ]
+    return [t for t in get_chat_tools() if t.get("function", {}).get("name") != "rebuild_plan"]
 
 
 def get_consult_persona_tools() -> list[dict[str, Any]]:
@@ -332,6 +330,7 @@ def build_profile_intake_instruction(profile: UserProfileOut | None) -> str | No
         f"Brakuje: {missing_pl}. Zanim przejdziesz do właściwego coachingu, dopytaj "
         "naturalnie o brakujące dane w 1-2 pierwszych wiadomościach tej rozmowy (nie "
         "jako sztywna ankieta). Gdy user je poda, zapisz je narzędziem "
-        "update_user_profile (tylko jawnie podane wartości, bez zgadywania). Nie blokuj rozmowy, jeśli user nie chce podać któregoś "
+        "update_user_profile (tylko jawnie podane wartości, bez zgadywania). "
+        "Nie blokuj rozmowy, jeśli user nie chce podać któregoś "
         "pola — kontynuuj z tym, co masz."
     )

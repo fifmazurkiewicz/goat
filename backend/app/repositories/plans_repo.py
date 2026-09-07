@@ -118,9 +118,7 @@ class PlansRepo:
 
     # ---------- plans ----------
 
-    async def create_plan(
-        self, *, user_id: str, period_type: str, start_date: date, end_date: date
-    ) -> PlanRow:
+    async def create_plan(self, *, user_id: str, period_type: str, start_date: date, end_date: date) -> PlanRow:
         result = await self._conn.execute(
             text(
                 f"""
@@ -139,9 +137,7 @@ class PlansRepo:
         return _row_to_plan(result.one())
 
     async def get_plan(self, plan_id: str) -> PlanRow | None:
-        result = await self._conn.execute(
-            text(f"SELECT {_PLAN_COLUMNS} FROM plans WHERE id = :id"), {"id": plan_id}
-        )
+        result = await self._conn.execute(text(f"SELECT {_PLAN_COLUMNS} FROM plans WHERE id = :id"), {"id": plan_id})
         row = result.one_or_none()
         return _row_to_plan(row) if row is not None else None
 
@@ -228,10 +224,7 @@ class PlansRepo:
 
     async def list_items_for_plan(self, plan_id: str) -> list[PlanItemRow]:
         result = await self._conn.execute(
-            text(
-                f"SELECT {_ITEM_COLUMNS} FROM plan_items WHERE plan_id = :plan_id "
-                "ORDER BY item_date, created_at"
-            ),
+            text(f"SELECT {_ITEM_COLUMNS} FROM plan_items WHERE plan_id = :plan_id ORDER BY item_date, created_at"),
             {"plan_id": plan_id},
         )
         return [_row_to_item(row) for row in result]
@@ -252,9 +245,7 @@ class PlansRepo:
             value_parts: list[str] = []
             params: dict[str, Any] = {"plan_id": plan_id}
             for i, item in enumerate(chunk):
-                value_parts.append(
-                    f"(:plan_id, :date_{i}, :type_{i}, :persona_{i}, CAST(:content_{i} AS jsonb))"
-                )
+                value_parts.append(f"(:plan_id, :date_{i}, :type_{i}, :persona_{i}, CAST(:content_{i} AS jsonb))")
                 params[f"date_{i}"] = item["item_date"]
                 params[f"type_{i}"] = item["item_type"]
                 params[f"persona_{i}"] = item["persona_id"]
@@ -311,9 +302,7 @@ class PlansRepo:
                 {"plan_id": plan_id, "user_id": user_id},
             )
         except IntegrityError as exc:
-            raise ConflictError(
-                "Masz już aktywny job generowania planu — poczekaj na zakończenie."
-            ) from exc
+            raise ConflictError("Masz już aktywny job generowania planu — poczekaj na zakończenie.") from exc
         return _row_to_job(result.one())
 
     async def get_job(self, job_id: str) -> PlanJobRow | None:
@@ -347,17 +336,13 @@ class PlansRepo:
             raise NotFoundError(f"Job {job_id!r} nie istnieje.")
         if job.status not in ("pending", "running"):
             raise ConflictError("Ten job generowania planu nie jest już aktywny.")
-        updated = await self.update_job_status(
-            job_id, "error", error_message="Anulowano przez użytkownika."
-        )
+        updated = await self.update_job_status(job_id, "error", error_message="Anulowano przez użytkownika.")
         if not updated:
             raise ConflictError("Ten job generowania planu nie jest już aktywny.")
         await self.update_plan_status(job.plan_id, "error")
         return await self.get_job_or_raise(job_id)
 
-    async def update_job_status(
-        self, job_id: str, status: str, *, error_message: str | None = None
-    ) -> bool:
+    async def update_job_status(self, job_id: str, status: str, *, error_message: str | None = None) -> bool:
         """CAS: only pending/running jobs change. Returns False if already cancelled/done."""
         result = await self._conn.execute(
             text(
@@ -461,10 +446,7 @@ class PlansRepo:
 
     async def list_job_personas(self, job_id: str) -> list[PlanJobPersonaRow]:
         result = await self._conn.execute(
-            text(
-                f"SELECT {_JOB_PERSONA_COLUMNS} FROM plan_generation_job_personas "
-                "WHERE job_id = :job_id"
-            ),
+            text(f"SELECT {_JOB_PERSONA_COLUMNS} FROM plan_generation_job_personas WHERE job_id = :job_id"),
             {"job_id": job_id},
         )
         return [_row_to_job_persona(row) for row in result]

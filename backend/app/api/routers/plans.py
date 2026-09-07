@@ -173,9 +173,7 @@ async def get_plan_job(job_id: str, auth: AuthContext = Depends(get_current_user
 
 
 @router.get("/{target_date}", response_model=PlanOut | None)
-async def get_plan_for_date(
-    target_date: date, auth: AuthContext = Depends(get_current_user)
-) -> PlanOut | None:
+async def get_plan_for_date(target_date: date, auth: AuthContext = Depends(get_current_user)) -> PlanOut | None:
     async with rls_connection(auth.claims) as conn:
         plan = await PlansRepo(conn).get_plan_for_date(target_date)
         if plan is None:
@@ -201,9 +199,5 @@ async def get_plan_range(
             return PlanRangeOut(plan=None, items=[])
 
         all_items = await plans_repo.list_items_for_plan(plan.id)
-        filtered = [
-            PlanItemOut.model_validate(item)
-            for item in all_items
-            if start_date <= item.item_date <= end_date
-        ]
+        filtered = [PlanItemOut.model_validate(item) for item in all_items if start_date <= item.item_date <= end_date]
         return PlanRangeOut(plan=_plan_summary(plan), items=filtered)

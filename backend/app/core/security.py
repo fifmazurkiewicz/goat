@@ -104,9 +104,7 @@ async def require_approved(auth: AuthContext = Depends(get_current_user)) -> Aut
     403 `account_pending_approval`.
     """
     async with service_role_connection() as conn:
-        profile = await ProfilesRepo(conn).ensure(
-            auth.user_id, email=email_from_claims(auth.claims)
-        )
+        profile = await ProfilesRepo(conn).ensure(auth.user_id, email=email_from_claims(auth.claims))
 
     if not profile.is_approved:
         raise AccountPendingApprovalError("Konto oczekuje na akceptację.")
@@ -125,9 +123,7 @@ async def require_admin(auth: AuthContext = Depends(get_current_user)) -> AuthCo
     `ForbiddenError` (403) when the profile doesn't exist or `is_admin=False`.
     """
     async with service_role_connection() as conn:
-        profile = await ProfilesRepo(conn).ensure(
-            auth.user_id, email=email_from_claims(auth.claims)
-        )
+        profile = await ProfilesRepo(conn).ensure(auth.user_id, email=email_from_claims(auth.claims))
 
     if not profile.is_approved:
         raise AccountPendingApprovalError("Konto oczekuje na akceptację.")

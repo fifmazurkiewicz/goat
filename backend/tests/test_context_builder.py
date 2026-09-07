@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from app.domain.chat.context_builder import ContextBuilder
 from app.models.schemas import UserProfileOut
 
@@ -17,7 +19,12 @@ def test_context_builder_orders_segments_with_safety_and_constraints() -> None:
         persona_type="dietitian",
         persona_system_prompt="Styl: konkretny.",
         persona_constraints="Unikaj pełnych przysiadów.",
-        user_profile=UserProfileOut(user_id="u1", height_cm=180, weight_kg=80),
+        user_profile=UserProfileOut(
+            user_id="u1",
+            height_cm=180,
+            weight_kg=80,
+            updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+        ),
         template_safety_prompt="Nie przepisujesz leków.",
     )
     assert "ZABEZPIECZENIA GOTOWCA" in out
@@ -42,7 +49,8 @@ def test_context_builder_omits_empty_optional_blocks() -> None:
         user_profile=None,
         template_safety_prompt=None,
     )
-    assert "ZABEZPIECZENIA GOTOWCA" not in out
+    # Preamble text names the heading; the optional safety *block* must stay off.
+    assert "[ZABEZPIECZENIA GOTOWCA — NIENEDYTOWALNE" not in out
     assert "[TWARDE OGRANICZENIA PERSONY]" not in out
     assert "[PROFIL UŻYTKOWNIKA]" not in out
     assert "[ZAKRES ROLI" in out

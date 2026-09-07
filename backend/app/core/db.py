@@ -47,6 +47,7 @@ engine = create_async_engine(
     connect_args={"statement_cache_size": 0},
 )
 
+
 # service_role — a separate logical "engine" for /admin/* and Supabase Admin API
 # (architecture.md §2, ADR-3). In this repo `DATABASE_URL` connects as a Postgres role
 # with permission to `SET ROLE service_role` (standard Supabase setup: the connection

@@ -78,8 +78,6 @@ class ModelPricingCache:
         logger.warning("model_pricing_unknown_model", model=model)
         return (self._fallback, self._fallback)
 
-    async def estimate_cost_usd(
-        self, *, model: str, prompt_tokens: int, completion_tokens: int
-    ) -> float:
+    async def estimate_cost_usd(self, *, model: str, prompt_tokens: int, completion_tokens: int) -> float:
         prompt_price, completion_price = await self.get_price_per_token(model)
         return prompt_tokens * prompt_price + completion_tokens * completion_price

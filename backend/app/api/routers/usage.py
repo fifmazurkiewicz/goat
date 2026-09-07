@@ -34,11 +34,7 @@ async def get_usage(auth: AuthContext = Depends(get_current_user)) -> UsageLimit
         profile = await ProfilesRepo(conn).get(auth.user_id)
         usage = await UsageLimitsRepo(conn).get(auth.user_id, period_start)
 
-    budget = (
-        float(profile.usage_budget_usd)
-        if profile is not None
-        else float(DEFAULT_USAGE_BUDGET_USD)
-    )
+    budget = float(profile.usage_budget_usd) if profile is not None else float(DEFAULT_USAGE_BUDGET_USD)
     return UsageLimitsOut(
         user_id=auth.user_id,
         period_start=period_start,

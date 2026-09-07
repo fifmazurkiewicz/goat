@@ -82,17 +82,13 @@ def test_user_confirms_rebuild_polish_yes() -> None:
 
 
 def test_rebuild_requires_confirm_when_no_job() -> None:
-    decision = decide_rebuild_plan_action(
-        confirmed=False, user_message="Przebuduj plan", active_job_id=None
-    )
+    decision = decide_rebuild_plan_action(confirmed=False, user_message="Przebuduj plan", active_job_id=None)
     assert decision["action"] == "needs_confirm"
     assert "Potwierdź przebudowę planu" in decision["message"]
 
 
 def test_rebuild_ignores_model_confirmed_flag() -> None:
-    decision = decide_rebuild_plan_action(
-        confirmed=True, user_message="Przebuduj plan na tydzień", active_job_id=None
-    )
+    decision = decide_rebuild_plan_action(confirmed=True, user_message="Przebuduj plan na tydzień", active_job_id=None)
     assert decision["action"] == "needs_confirm"
 
 
@@ -114,9 +110,7 @@ def test_rebuild_enqueues_when_user_says_tak_after_pending() -> None:
 
 
 def test_tool_json_shows_rebuild_pending_from_history() -> None:
-    assert tool_json_shows_rebuild_pending(
-        ['{"status": "needs_confirm", "message": "Potwierdź przebudowę planu"}']
-    )
+    assert tool_json_shows_rebuild_pending(['{"status": "needs_confirm", "message": "Potwierdź przebudowę planu"}'])
     assert not tool_json_shows_rebuild_pending(
         [
             '{"status": "needs_confirm"}',
@@ -141,9 +135,7 @@ def test_startup_resumes_pending_before_orphans() -> None:
 
     assert STARTUP_RESUME_ORDER == ("pending", "orphaned")
     source = inspect.getsource(main.lifespan)
-    assert source.find("resume_pending_jobs_on_startup") < source.find(
-        "resume_orphaned_plan_jobs_on_startup"
-    )
+    assert source.find("resume_pending_jobs_on_startup") < source.find("resume_orphaned_plan_jobs_on_startup")
 
 
 def test_retry_conflicts_while_live_turn() -> None:
@@ -155,9 +147,7 @@ def test_retry_conflicts_while_live_turn() -> None:
 
 
 def test_rebuild_returns_existing_job_when_in_flight() -> None:
-    decision = decide_rebuild_plan_action(
-        confirmed=True, user_message="tak", active_job_id="job-existing"
-    )
+    decision = decide_rebuild_plan_action(confirmed=True, user_message="tak", active_job_id="job-existing")
     assert decision["action"] == "reuse"
     assert decision["job_id"] == "job-existing"
 
@@ -200,18 +190,14 @@ async def test_reconcile_uses_reserved_usd_not_zero_prompt_recompute() -> None:
     )
     assert usage_repo.row.cost_usd_used == pytest.approx(0.4)
 
-    recomputed = await service.estimate_turn_cost_usd(
-        model="test", prompt_text_length_chars=0, max_output_tokens=1500
-    )
+    recomputed = await service.estimate_turn_cost_usd(model="test", prompt_text_length_chars=0, max_output_tokens=1500)
     assert recomputed != reserved
 
 
 @pytest.mark.asyncio
 async def test_consult_cap_increments_only_after_success(monkeypatch: pytest.MonkeyPatch) -> None:
     orch = ChatOrchestrator(MagicMock(), claims={"sub": "u"})
-    orch._consult_roster = [
-        MagicMock(id="b", type="motor_coach", slug="motoryka", name="Bartek")
-    ]
+    orch._consult_roster = [MagicMock(id="b", type="motor_coach", slug="motoryka", name="Bartek")]
     orch._consult_count = 0
     orch._consult_session_id = "sess"
     orch._consult_user_queue = None

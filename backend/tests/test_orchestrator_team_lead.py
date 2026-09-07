@@ -70,9 +70,7 @@ class _SpyResultsService:
     async def log_batch_from_agent(
         self, *, user_id: str, source_persona_id: str | None, entries: list[dict[str, Any]]
     ) -> list[Any]:
-        self.calls.append(
-            {"user_id": user_id, "source_persona_id": source_persona_id, "entries": entries}
-        )
+        self.calls.append({"user_id": user_id, "source_persona_id": source_persona_id, "entries": entries})
 
         @dataclass
         class _Outcome:
@@ -84,11 +82,7 @@ class _SpyResultsService:
 
 
 _LOG_ARGS = json.dumps(
-    {
-        "entries": [
-            {"category": "strength", "metric": "bench_press_kg", "value": 45, "date": "2026-08-17"}
-        ]
-    }
+    {"entries": [{"category": "strength", "metric": "bench_press_kg", "value": 45, "date": "2026-08-17"}]}
 )
 
 

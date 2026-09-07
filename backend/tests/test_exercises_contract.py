@@ -83,6 +83,7 @@ def _patched(monkeypatch: pytest.MonkeyPatch):
         return ctx
 
     from app.core.security import get_current_user, require_approved
+
     app.dependency_overrides[get_current_user] = fake_auth
     app.dependency_overrides[require_approved] = fake_auth
     yield
@@ -100,12 +101,8 @@ async def test_exercises_endpoint_serializes_null_common_mistakes(_patched) -> N
     assert imported["common_mistakes"] is None
     assert imported["name"] == "Przysiad ze sztangą"
     assert imported["name_en"] == "Barbell Squat"
-    assert str(imported["photo_path"]).endswith(
-        "exercise/free-exercise-db/Barbell_Squat/0.jpg"
-    )
-    assert str(imported["photo_path_2"]).endswith(
-        "exercise/free-exercise-db/Barbell_Squat/1.jpg"
-    )
+    assert str(imported["photo_path"]).endswith("exercise/free-exercise-db/Barbell_Squat/0.jpg")
+    assert str(imported["photo_path_2"]).endswith("exercise/free-exercise-db/Barbell_Squat/1.jpg")
     # UUID from DB must be serialized as a string in JSON, not thrown at the client.
     assert imported["id"] == "f9c6dcdc-f3f6-4134-8aae-f6908ffb49ac"
     assert isinstance(imported["id"], str)
@@ -115,10 +112,7 @@ async def test_exercises_endpoint_serializes_null_common_mistakes(_patched) -> N
 
 
 def test_bucket_object_path_adds_inner_folder() -> None:
-    assert (
-        bucket_object_path("free-exercise-db/Barbell_Squat/0.jpg")
-        == "exercise/free-exercise-db/Barbell_Squat/0.jpg"
-    )
+    assert bucket_object_path("free-exercise-db/Barbell_Squat/0.jpg") == "exercise/free-exercise-db/Barbell_Squat/0.jpg"
     assert (
         bucket_object_path("exercise/free-exercise-db/Barbell_Squat/0.jpg")
         == "exercise/free-exercise-db/Barbell_Squat/0.jpg"

@@ -87,9 +87,7 @@ def persona_display_label(persona: PersonaLike) -> str:
     return f"{name} · {role}"
 
 
-def resolve_persona_by_slug(
-    slug: str, active_personas: list[PersonaLike]
-) -> PersonaLike | None:
+def resolve_persona_by_slug(slug: str, active_personas: list[PersonaLike]) -> PersonaLike | None:
     needle = slug.strip().lstrip("/").lower()
     if not needle:
         return None
@@ -176,9 +174,7 @@ def build_goat_turn_prompt(*, active_personas: list[PersonaLike], user_message: 
             prompt_head = (getattr(p, "system_prompt", None) or "").strip().split("\n")[0][:160]
             if prompt_head:
                 extra = f" | zachowanie: {prompt_head}"
-        lines.append(
-            f"- slug=`{p.slug}` | {persona_display_label(p)} | zakres: {scope}{extra}"
-        )
+        lines.append(f"- slug=`{p.slug}` | {persona_display_label(p)} | zakres: {scope}{extra}")
     if is_plan_coordination_only(user_message):
         lines.extend(
             [
@@ -243,10 +239,7 @@ def user_requests_all_trainers(message: str) -> bool:
     if any(n in lower for n in needles):
         return True
     if ("skład" in lower or "sklad" in lower) and ("zespół" in lower or "zespol" in lower):
-        return any(
-            w in lower
-            for w in ("trener", "person", "persony", "kto", "jakich", "składa", "sklada")
-        )
+        return any(w in lower for w in ("trener", "person", "persony", "kto", "jakich", "składa", "sklada"))
     if "z jakich person" in lower or "z jakich trener" in lower:
         return True
     return False

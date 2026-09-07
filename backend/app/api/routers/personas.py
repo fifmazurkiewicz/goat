@@ -41,9 +41,7 @@ async def list_personas(auth: AuthContext = Depends(get_current_user)) -> Person
         profile = await profiles_repo.get(auth.user_id)
     return PersonasListOut(
         items=[PersonaOut.model_validate(row) for row in rows],
-        max_active_personas=(
-            profile.max_active_personas if profile is not None else DEFAULT_MAX_ACTIVE_PERSONAS
-        ),
+        max_active_personas=(profile.max_active_personas if profile is not None else DEFAULT_MAX_ACTIVE_PERSONAS),
     )
 
 
@@ -65,9 +63,7 @@ async def get_persona(persona_id: str, auth: AuthContext = Depends(get_current_u
 
 @router.post("", response_model=PersonaOut, status_code=201)
 @router.post("/", response_model=PersonaOut, status_code=201, include_in_schema=False)
-async def create_persona(
-    payload: PersonaCreate, auth: AuthContext = Depends(get_current_user)
-) -> PersonaOut:
+async def create_persona(payload: PersonaCreate, auth: AuthContext = Depends(get_current_user)) -> PersonaOut:
     # The `enforce_persona_limit` trigger reads `profiles.max_active_personas` — a missing
     # row after a DB wipe would yield NULL/5, but the API limit also depends on the
     # profile; `ensure` = consistent state.
@@ -85,9 +81,7 @@ async def update_persona(
 ) -> PersonaOut:
     async with rls_connection(auth.claims) as conn:
         service = PersonaService(PersonasRepo(conn), ProfilesRepo(conn), get_moderation_service())
-        row = await service.update_persona(
-            persona_id, auth.user_id, payload.model_dump(exclude_unset=True)
-        )
+        row = await service.update_persona(persona_id, auth.user_id, payload.model_dump(exclude_unset=True))
     return PersonaOut.model_validate(row)
 
 

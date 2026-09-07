@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from pydantic import ValidationError
@@ -39,7 +39,7 @@ def test_persona_update_accepts_plan_template_id() -> None:
 
 
 def test_persona_out_excludes_persona_constraints_even_if_present_on_source() -> None:
-    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    now = datetime(2026, 1, 1, tzinfo=UTC)
 
     class _Row:
         id = "p1"

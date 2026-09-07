@@ -131,9 +131,7 @@ class PersonasRepo:
         """Persona ONLY if it belongs to the user — for edit/delete (never someone
         else's, even if it is an approved community persona)."""
         result = await self._conn.execute(
-            text(
-                f"SELECT {_SELECT_COLUMNS} FROM personas WHERE id = :id AND user_id = :user_id"
-            ),
+            text(f"SELECT {_SELECT_COLUMNS} FROM personas WHERE id = :id AND user_id = :user_id"),
             {"id": persona_id, "user_id": user_id},
         )
         row = result.one_or_none()
@@ -198,10 +196,7 @@ class PersonasRepo:
         # expression is of type text`), which ends in 500 on persona create/update.
         placeholders = [
             ":user_id",
-            *(
-                f"CAST(:{key} AS jsonb)" if key == "template_overrides" else f":{key}"
-                for key in values.keys()
-            ),
+            *(f"CAST(:{key} AS jsonb)" if key == "template_overrides" else f":{key}" for key in values.keys()),
         ]
         params: dict[str, Any] = {"user_id": user_id, **values}
         if "template_overrides" in params and params["template_overrides"] is not None:
@@ -229,11 +224,7 @@ class PersonasRepo:
         if "template_overrides" in params and params["template_overrides"] is not None:
             params["template_overrides"] = json.dumps(params["template_overrides"])
         set_parts = [
-            (
-                f"{key} = CAST(:{key} AS jsonb)"
-                if key == "template_overrides"
-                else f"{key} = :{key}"
-            )
+            (f"{key} = CAST(:{key} AS jsonb)" if key == "template_overrides" else f"{key} = :{key}")
             for key in values.keys()
         ]
         set_clause = ", ".join(set_parts)

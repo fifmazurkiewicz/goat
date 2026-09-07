@@ -3,7 +3,10 @@ import { Link } from "react-router-dom";
 
 import { useExercises } from "@/hooks/useExercises";
 import { useIsMobile } from "@/hooks/useMediaQuery";
-import { buildExerciseMatcher } from "@/lib/exercise-matcher";
+import {
+  buildExerciseMatcher,
+  findExerciseColumnIndex,
+} from "@/lib/exercise-matcher";
 import { normalizePlanRow } from "@/lib/plan-item-content";
 import { cn } from "@/lib/utils";
 import type { Exercise, PlanItemContent } from "@/types/api";
@@ -29,14 +32,18 @@ function ExerciseCell({ cell, exercise }: { cell: string; exercise: Exercise }) 
  * Generic {title, columns, rows, notes} renderer — `variant: 'table' | 'cards'`
  * (docs/technical/frontend.md section 11): mobile renders a card-per-row list
  * (column label + value, like a definition list) instead of horizontal scroll inside
- * `<table>`. Cells in the first column matched against the exercise catalog become
- * links to `/exercises/:slug` (ADR-14 update 2026-08-23).
+ * `<table>`. Cells in the Ćwiczenie/Exercise column (else column 0) matched against
+ * the catalog become links to `/exercises/:slug` (ADR-14; column fix 2026-08-25).
  */
 export function PlanItemTable({ content, variant }: PlanItemTableProps) {
   const isMobile = useIsMobile();
   const resolvedVariant = variant ?? (isMobile ? "cards" : "table");
   const { data: exercises } = useExercises();
   const matchExercise = useMemo(() => buildExerciseMatcher(exercises ?? []), [exercises]);
+  const exerciseColIndex = useMemo(
+    () => findExerciseColumnIndex(content.columns),
+    [content.columns]
+  );
 
   if (content.rows.length === 0) {
     return <p className="text-sm text-muted-foreground">Brak pozycji do wyświetlenia.</p>;
@@ -51,7 +58,7 @@ export function PlanItemTable({ content, variant }: PlanItemTableProps) {
 
   const matchedRows = normalizedRows.map((row) => ({
     cells: row,
-    exercise: matchExercise(row[0] ?? ""),
+    exercise: matchExercise(row[exerciseColIndex] ?? ""),
   }));
 
   if (resolvedVariant === "cards") {
@@ -64,13 +71,13 @@ export function PlanItemTable({ content, variant }: PlanItemTableProps) {
                 key={column}
                 className={cn(
                   "flex justify-between gap-3 py-0.5 text-sm",
-                  colIndex === 0 && "font-medium"
+                  colIndex === exerciseColIndex && "font-medium"
                 )}
               >
                 <span className="text-muted-foreground">{column}</span>
                 <span className="text-right">
                   {cells[colIndex]?.trim() ? (
-                    colIndex === 0 && exercise ? (
+                    colIndex === exerciseColIndex && exercise ? (
                       <ExerciseCell cell={cells[colIndex]} exercise={exercise} />
                     ) : (
                       cells[colIndex]
@@ -105,7 +112,7 @@ export function PlanItemTable({ content, variant }: PlanItemTableProps) {
               {content.columns.map((column, colIndex) => (
                 <td key={column} className="px-2 py-1.5">
                   {cells[colIndex]?.trim() ? (
-                    colIndex === 0 && exercise ? (
+                    colIndex === exerciseColIndex && exercise ? (
                       <ExerciseCell cell={cells[colIndex]} exercise={exercise} />
                     ) : (
                       cells[colIndex]

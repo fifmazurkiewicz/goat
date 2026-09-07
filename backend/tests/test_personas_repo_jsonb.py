@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -23,7 +24,7 @@ class _FakeResult:
 
 
 def _fake_row(**overrides: Any) -> MagicMock:
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     base = {
         "id": "p1",
@@ -44,8 +45,8 @@ def _fake_row(**overrides: Any) -> MagicMock:
         "preamble_version": 2,
         "cloned_from_persona_id": None,
         "active": True,
-        "created_at": datetime.now(timezone.utc),
-        "updated_at": datetime.now(timezone.utc),
+        "created_at": datetime.now(UTC),
+        "updated_at": datetime.now(UTC),
     }
     base.update(overrides)
     row = MagicMock()

@@ -16,10 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.repositories._row_utils import normalize_row_mapping
 
-_JOB_COLUMNS = (
-    "id, user_id, job_type, status, payload, error_message, attempts, "
-    "created_at, started_at, finished_at"
-)
+_JOB_COLUMNS = "id, user_id, job_type, status, payload, error_message, attempts, created_at, started_at, finished_at"
 _JOB_UUID_KEYS = ("id", "user_id")
 
 
@@ -48,9 +45,7 @@ class BackgroundJobsRepo:
     def __init__(self, conn: AsyncConnection) -> None:
         self._conn = conn
 
-    async def create(
-        self, *, user_id: str, job_type: str, payload: dict[str, Any]
-    ) -> BackgroundJobRow:
+    async def create(self, *, user_id: str, job_type: str, payload: dict[str, Any]) -> BackgroundJobRow:
         result = await self._conn.execute(
             text(
                 f"""
@@ -89,9 +84,7 @@ class BackgroundJobsRepo:
             {"id": job_id},
         )
 
-    async def mark_finished(
-        self, job_id: str, *, status: str, error_message: str | None = None
-    ) -> None:
+    async def mark_finished(self, job_id: str, *, status: str, error_message: str | None = None) -> None:
         await self._conn.execute(
             text(
                 """

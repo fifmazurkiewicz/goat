@@ -73,6 +73,7 @@ def period_end_date(period_type: str, start_date: date) -> date:
 
 class ChatPlanToolsService:
     def __init__(self, conn: AsyncConnection, *, claims: dict[str, Any]) -> None:
+        self._conn = conn
         self._repo = PlansRepo(conn)
         self._claims = claims
 
@@ -156,8 +157,7 @@ class ChatPlanToolsService:
                     {
                         "index": index,
                         "status": "error",
-                        "error": f"Data {item_date} poza zakresem planu "
-                        f"({plan.start_date}–{plan.end_date}).",
+                        "error": f"Data {item_date} poza zakresem planu ({plan.start_date}–{plan.end_date}).",
                     }
                 )
                 continue
@@ -190,9 +190,7 @@ class ChatPlanToolsService:
             if item_id:
                 existing = await self._repo.get_item(str(item_id))
                 if existing is None or existing.plan_id != plan.id:
-                    outcomes.append(
-                        {"index": index, "status": "error", "error": "Nie znaleziono pozycji planu."}
-                    )
+                    outcomes.append({"index": index, "status": "error", "error": "Nie znaleziono pozycji planu."})
                     continue
                 if existing.persona_id != target_persona_id:
                     outcomes.append(
@@ -218,9 +216,7 @@ class ChatPlanToolsService:
                         }
                     ],
                 )
-                outcomes.append(
-                    {"index": index, "status": "ok", "item_id": inserted[0].id if inserted else None}
-                )
+                outcomes.append({"index": index, "status": "ok", "item_id": inserted[0].id if inserted else None})
                 touched_dates.append(item_date.isoformat())
 
         ok = sum(1 for o in outcomes if o["status"] == "ok")
@@ -271,9 +267,7 @@ class ChatPlanToolsService:
                 limit=40,
             )
             history_contents = [m.content or "" for m in messages if m.role == "tool"]
-        rebuild_pending = tool_json_shows_rebuild_pending(
-            history_contents + list(prior_tool_contents or [])
-        )
+        rebuild_pending = tool_json_shows_rebuild_pending(history_contents + list(prior_tool_contents or []))
 
         active = await self._repo.get_active_job_for_user(user_id)
         decision = decide_rebuild_plan_action(

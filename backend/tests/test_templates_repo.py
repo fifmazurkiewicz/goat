@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from app.models.schemas import PersonaTemplateOut, PlanTemplateOut
@@ -23,7 +23,7 @@ def test_persona_template_row_serializes_uuid_id_for_api() -> None:
                 "type": "personal_trainer",
                 "default_prompt": "Prompt trenera",
                 "label": "Trener personalny",
-                "created_at": datetime.now(timezone.utc),
+                "created_at": datetime.now(UTC),
             }
         )
     )
@@ -43,7 +43,7 @@ def test_plan_template_row_serializes_uuid_id_for_api() -> None:
                 "suggested_for": ["personal_trainer"],
                 "default_columns": '["Ćwiczenie", "Serie"]',
                 "default_rows": "[]",
-                "created_at": datetime.now(timezone.utc),
+                "created_at": datetime.now(UTC),
             }
         )
     )

@@ -26,17 +26,13 @@ async def get_account(auth: AuthContext = Depends(get_current_user)) -> AccountO
         profile = await ProfilesRepo(conn).get(auth.user_id)
     if profile is None:
         async with service_role_connection() as conn:
-            profile = await ProfilesRepo(conn).ensure(
-                auth.user_id, email=email_from_claims(auth.claims)
-            )
+            profile = await ProfilesRepo(conn).ensure(auth.user_id, email=email_from_claims(auth.claims))
     return AccountOut.model_validate(profile)
 
 
 @router.patch("", response_model=AccountOut)
 @router.patch("/", response_model=AccountOut, include_in_schema=False)
-async def update_account(
-    payload: AccountUpdate, auth: AuthContext = Depends(require_approved)
-) -> AccountOut:
+async def update_account(payload: AccountUpdate, auth: AuthContext = Depends(require_approved)) -> AccountOut:
     # ensure via service_role (no INSERT policy for authenticated), then UPDATE of
     # the user's own nick — `auth.user_id` from the JWT, never from the body.
     async with service_role_connection() as conn:

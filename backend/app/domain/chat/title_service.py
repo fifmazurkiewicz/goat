@@ -34,9 +34,7 @@ class ChatTitleService:
     def __init__(self, llm_client: TitleLLMProtocol) -> None:
         self._llm_client = llm_client
 
-    async def generate_and_set_title(
-        self, *, session_id: str, user_message: str, claims: dict[str, Any]
-    ) -> None:
+    async def generate_and_set_title(self, *, session_id: str, user_message: str, claims: dict[str, Any]) -> None:
         title = await self._generate_title(user_message)
         if not title:
             return

@@ -39,19 +39,13 @@ class PersonaTemplatesRepo:
 
     async def list_all(self) -> list[PersonaTemplateRow]:
         result = await self._conn.execute(
-            text(
-                "SELECT id, type, default_prompt, label, created_at "
-                "FROM persona_templates ORDER BY label"
-            )
+            text("SELECT id, type, default_prompt, label, created_at FROM persona_templates ORDER BY label")
         )
         return [_row_to_persona_template(row) for row in result]
 
     async def get(self, template_id: str) -> PersonaTemplateRow | None:
         result = await self._conn.execute(
-            text(
-                "SELECT id, type, default_prompt, label, created_at "
-                "FROM persona_templates WHERE id = :id"
-            ),
+            text("SELECT id, type, default_prompt, label, created_at FROM persona_templates WHERE id = :id"),
             {"id": template_id},
         )
         row = result.one_or_none()
@@ -61,10 +55,7 @@ class PersonaTemplatesRepo:
         """Read `app_private.persona_template_safety` — call only on a
         `service_role` connection (no GRANT for anon/authenticated)."""
         result = await self._conn.execute(
-            text(
-                "SELECT safety_prompt FROM app_private.persona_template_safety "
-                "WHERE template_id = :id"
-            ),
+            text("SELECT safety_prompt FROM app_private.persona_template_safety WHERE template_id = :id"),
             {"id": template_id},
         )
         row = result.one_or_none()

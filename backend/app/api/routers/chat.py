@@ -77,9 +77,7 @@ async def create_chat_session(
 
 
 @router.get("/sessions/{session_id}/messages", response_model=list[ChatMessageOut])
-async def list_chat_messages(
-    session_id: str, auth: AuthContext = Depends(get_current_user)
-) -> list[ChatMessageOut]:
+async def list_chat_messages(session_id: str, auth: AuthContext = Depends(get_current_user)) -> list[ChatMessageOut]:
     async with rls_connection(auth.claims) as conn:
         chat_repo = ChatRepo(conn)
         session = await chat_repo.get_session(session_id)
@@ -107,9 +105,7 @@ async def update_chat_session(
 
 
 @router.delete("/sessions/{session_id}", status_code=204)
-async def delete_chat_session(
-    session_id: str, auth: AuthContext = Depends(get_current_user)
-) -> None:
+async def delete_chat_session(session_id: str, auth: AuthContext = Depends(get_current_user)) -> None:
     async with rls_connection(auth.claims) as conn:
         chat_repo = ChatRepo(conn)
         session = await chat_repo.get_session(session_id)
@@ -119,9 +115,7 @@ async def delete_chat_session(
 
 
 @router.get("/sessions/{session_id}/turn-status", response_model=ChatSessionTurnStatus)
-async def chat_turn_status(
-    session_id: str, auth: AuthContext = Depends(get_current_user)
-) -> ChatSessionTurnStatus:
+async def chat_turn_status(session_id: str, auth: AuthContext = Depends(get_current_user)) -> ChatSessionTurnStatus:
     async with rls_connection(auth.claims) as conn:
         session = await ChatRepo(conn).get_session(session_id)
         if session is None or session.user_id != auth.user_id:
@@ -131,9 +125,7 @@ async def chat_turn_status(
 
 
 @router.post("/sessions/{session_id}/cancel", status_code=204)
-async def cancel_chat_turn(
-    session_id: str, auth: AuthContext = Depends(get_current_user)
-) -> None:
+async def cancel_chat_turn(session_id: str, auth: AuthContext = Depends(get_current_user)) -> None:
     """Stop generation — user clicked Stop (unlike navigating away from the chat,
     where the turn may continue in the background)."""
     async with rls_connection(auth.claims) as conn:
@@ -162,9 +154,7 @@ async def send_chat_message(
             db_flag=session.turn_in_progress,
             retry=payload.retry,
         ):
-            raise ConflictError(
-                "Trwa już tura czatu. Poczekaj na koniec albo anuluj."
-            )
+            raise ConflictError("Trwa już tura czatu. Poczekaj na koniec albo anuluj.")
 
     queue: asyncio.Queue[dict] = asyncio.Queue()
 
@@ -195,11 +185,14 @@ async def send_chat_message(
                 remaining = deadline - loop.time()
                 if remaining <= 0:
                     orchestrator_task.cancel()
-                    yield {"event": "error", "data": '{"code":"timeout","message":"Przekroczono limit czasu odpowiedzi."}'}
+                    yield {
+                        "event": "error",
+                        "data": ('{"code":"timeout","message":"Przekroczono limit czasu odpowiedzi."}'),
+                    }
                     break
                 try:
                     event = await asyncio.wait_for(queue.get(), timeout=min(15, remaining))
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     continue  # sse-starlette itself sends the ping (heartbeat)
                 yield event
                 if event["event"] in ("done", "error"):

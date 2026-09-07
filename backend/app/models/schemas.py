@@ -146,9 +146,7 @@ class PlanTemplateOut(BaseModel):
 
 Sex = Literal["male", "female", "other"]
 ActivityLevel = Literal["sedentary", "light", "moderate", "active", "very_active"]
-PrimaryGoal = Literal[
-    "lose_weight", "build_muscle", "improve_endurance", "general_health", "sport_specific"
-]
+PrimaryGoal = Literal["lose_weight", "build_muscle", "improve_endurance", "general_health", "sport_specific"]
 
 # Fields considered "critical" for personalization — used by ContextBuilder to detect
 # incomplete profile and append the "ask about missing data" instruction

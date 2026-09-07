@@ -95,9 +95,7 @@ def test_parse_multi_slash_dedupes() -> None:
 
 
 def test_parse_multi_slash_unknown_in_chain_returns_none() -> None:
-    assert (
-        parse_multi_slash_command("/trener /nieznany hej", [_TRAINER, _DIETITIAN]) is None
-    )
+    assert parse_multi_slash_command("/trener /nieznany hej", [_TRAINER, _DIETITIAN]) is None
 
 
 async def test_route_uses_slash_command_without_calling_llm() -> None:
@@ -183,9 +181,7 @@ async def test_route_classifier_legacy_persona_id_wrapped() -> None:
         _FakeChatRepo(),
         chat_model="test-model",
     )
-    result = await service.route(
-        session_id="s1", message="dieta?", active_personas=[_TRAINER, _DIETITIAN]
-    )
+    result = await service.route(session_id="s1", message="dieta?", active_personas=[_TRAINER, _DIETITIAN])
     assert result.persona_ids == [_DIETITIAN.id]
 
 
@@ -196,9 +192,7 @@ async def test_route_classifier_failure_falls_back_to_last_responding_persona() 
         chat_model="test-model",
     )
 
-    result = await service.route(
-        session_id="s1", message="a co teraz?", active_personas=[_TRAINER, _DIETITIAN]
-    )
+    result = await service.route(session_id="s1", message="a co teraz?", active_personas=[_TRAINER, _DIETITIAN])
 
     assert result.persona_ids == [_DIETITIAN.id]
 
@@ -210,8 +204,6 @@ async def test_route_classifier_invalid_id_falls_back_to_first_persona() -> None
         chat_model="test-model",
     )
 
-    result = await service.route(
-        session_id="s1", message="hej", active_personas=[_TRAINER, _DIETITIAN]
-    )
+    result = await service.route(session_id="s1", message="hej", active_personas=[_TRAINER, _DIETITIAN])
 
     assert result.persona_ids == [_TRAINER.id]

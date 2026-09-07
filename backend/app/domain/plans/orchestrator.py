@@ -225,9 +225,7 @@ class PlanOrchestrator:
             try:
                 async with rls_connection(claims) as conn:
                     repo = PlansRepo(conn)
-                    marked = await repo.update_job_status(
-                        job_id, "error", error_message=str(exc)[:500]
-                    )
+                    marked = await repo.update_job_status(job_id, "error", error_message=str(exc)[:500])
                     if marked:
                         await repo.update_plan_status(plan_id, "error")
             except Exception:  # noqa: BLE001 — nie eskalujemy błędu przy zapisie błędu
@@ -237,9 +235,7 @@ class PlanOrchestrator:
         try:
             async with rls_connection(claims) as conn:
                 repo = PlansRepo(conn)
-                marked = await repo.update_job_status(
-                    job_id, "error", error_message="Anulowano przez użytkownika."
-                )
+                marked = await repo.update_job_status(job_id, "error", error_message="Anulowano przez użytkownika.")
                 if marked:
                     await repo.update_plan_status(plan_id, "error")
         except Exception:  # noqa: BLE001
@@ -269,9 +265,7 @@ class PlanOrchestrator:
 
             plan = await plans_repo.get_plan(plan_id)
             if plan is None:
-                marked = await plans_repo.update_job_status(
-                    job_id, "error", error_message="Plan nie istnieje."
-                )
+                marked = await plans_repo.update_job_status(job_id, "error", error_message="Plan nie istnieje.")
                 if marked:
                     await plans_repo.update_plan_status(plan_id, "error")
                 return
@@ -279,9 +273,7 @@ class PlanOrchestrator:
             active_personas = await PersonasRepo(conn).list_active_for_user(user_id)
             if user_brief:
                 active_personas = [
-                    p
-                    for p in active_personas
-                    if not plan_brief_excludes_persona_type(user_brief, p.type)
+                    p for p in active_personas if not plan_brief_excludes_persona_type(user_brief, p.type)
                 ]
             recent_results = await ResultsRepo(conn).list_recent_for_planner(category=None, limit=50)
             user_profile_row = await UserProfileRepo(conn).get(user_id)
@@ -289,11 +281,7 @@ class PlanOrchestrator:
             plan_templates_repo = PlanTemplatesRepo(conn)
             persona_columns: dict[str, list[str]] = {}
             for persona in active_personas:
-                template = (
-                    await plan_templates_repo.get(persona.plan_template_id)
-                    if persona.plan_template_id
-                    else None
-                )
+                template = await plan_templates_repo.get(persona.plan_template_id) if persona.plan_template_id else None
                 persona_columns[persona.id] = resolve_persona_columns(
                     {"template_overrides": persona.template_overrides},
                     {"default_columns": template.default_columns} if template else None,
@@ -306,9 +294,7 @@ class PlanOrchestrator:
         if not active_personas:
             async with rls_connection(claims) as conn:
                 repo = PlansRepo(conn)
-                marked = await repo.update_job_status(
-                    job_id, "error", error_message="Brak aktywnych person."
-                )
+                marked = await repo.update_job_status(job_id, "error", error_message="Brak aktywnych person.")
                 if marked:
                     await repo.update_plan_status(plan_id, "error")
             return
@@ -364,9 +350,9 @@ class PlanOrchestrator:
             plans_repo = PlansRepo(conn)
             job_personas_after = await plans_repo.list_job_personas(job_id)
             succeeded_personas = [
-                p for p in active_personas if any(
-                    jp.persona_id == p.id and jp.status == "done" for jp in job_personas_after
-                )
+                p
+                for p in active_personas
+                if any(jp.persona_id == p.id and jp.status == "done" for jp in job_personas_after)
             ]
 
         if not succeeded_personas:
@@ -390,9 +376,7 @@ class PlanOrchestrator:
         async with rls_connection(claims) as conn:
             plans_repo = PlansRepo(conn)
             all_items = await plans_repo.list_items_for_plan(plan_id)
-            item_lookup = {
-                (item.persona_id, item.item_date.isoformat()): item for item in all_items
-            }
+            item_lookup = {(item.persona_id, item.item_date.isoformat()): item for item in all_items}
 
         try:
             await self._run_harmonization(
@@ -408,9 +392,7 @@ class PlanOrchestrator:
         all_succeeded = len(succeeded_personas) == len(active_personas)
         async with rls_connection(claims) as conn:
             repo = PlansRepo(conn)
-            finalized = await repo.update_job_status(
-                job_id, "success" if all_succeeded else "partial_success"
-            )
+            finalized = await repo.update_job_status(job_id, "success" if all_succeeded else "partial_success")
             if not finalized:
                 return
             await repo.update_plan_status(plan_id, "ready" if all_succeeded else "partial_ready")
@@ -422,22 +404,16 @@ class PlanOrchestrator:
             reserved_usd=estimated_total_cost,
         )
 
-    async def _reserve_budget(
-        self, *, claims: dict, user_id: str, persona_count: int
-    ) -> tuple[Any, float]:
+    async def _reserve_budget(self, *, claims: dict, user_id: str, persona_count: int) -> tuple[Any, float]:
         async with rls_connection(claims) as conn:
-            usage_service = UsageLimitService(
-                UsageLimitsRepo(conn), ProfilesRepo(conn), get_pricing_cache()
-            )
+            usage_service = UsageLimitService(UsageLimitsRepo(conn), ProfilesRepo(conn), get_pricing_cache())
             # Rough estimate: coordinator (cheap) + N personas + harmonization (PLANNER_MODEL).
             estimated = await usage_service.estimate_turn_cost_usd(
                 model=self._planner_model,
                 prompt_text_length_chars=3000,
                 max_output_tokens=settings.plan_max_output_tokens * (persona_count + 1),
             )
-            period_start = await usage_service.reserve_plan_generation(
-                user_id=user_id, estimated_cost_usd=estimated
-            )
+            period_start = await usage_service.reserve_plan_generation(user_id=user_id, estimated_cost_usd=estimated)
             return period_start, estimated
 
     async def _reconcile_plan_budget(
@@ -451,9 +427,7 @@ class PlanOrchestrator:
         """Correct the reserved estimate after the job — pass reserved USD, do not recompute."""
         try:
             async with rls_connection(claims) as conn:
-                usage_service = UsageLimitService(
-                    UsageLimitsRepo(conn), ProfilesRepo(conn), get_pricing_cache()
-                )
+                usage_service = UsageLimitService(UsageLimitsRepo(conn), ProfilesRepo(conn), get_pricing_cache())
                 await usage_service.reconcile_actual_cost(
                     user_id=user_id,
                     period_start=period_start,
@@ -588,9 +562,7 @@ class PlanOrchestrator:
         template_safety: str | None = None
         if persona.base_template_id:
             async with service_role_connection() as sconn:
-                template_safety = await PersonaTemplatesRepo(sconn).get_safety_prompt(
-                    persona.base_template_id
-                )
+                template_safety = await PersonaTemplatesRepo(sconn).get_safety_prompt(persona.base_template_id)
         persona_block = build_system_prompt(
             persona.system_prompt,
             template_safety_prompt=template_safety,
@@ -606,10 +578,7 @@ class PlanOrchestrator:
             f"{persona.persona_constraints or 'brak'}."
             f"{_format_user_brief_block(user_brief)}"
         )
-        user_message = (
-            f"Profil użytkownika: {user_profile_summary}\n"
-            f"Ostatnie wyniki: {results_summary}"
-        )
+        user_message = f"Profil użytkownika: {user_profile_summary}\nOstatnie wyniki: {results_summary}"
         result = await self._llm_client.complete_json(
             model=self._planner_model,
             messages=[
@@ -654,11 +623,7 @@ class PlanOrchestrator:
 
         # Deterministic brief enforcement (e.g. remove all badminton_coach cards).
         if user_brief:
-            excluded_ids = {
-                p.id
-                for p in succeeded_personas
-                if plan_brief_excludes_persona_type(user_brief, p.type)
-            }
+            excluded_ids = {p.id for p in succeeded_personas if plan_brief_excludes_persona_type(user_brief, p.type)}
             if excluded_ids:
                 async with rls_connection(claims) as conn:
                     plans_repo = PlansRepo(conn)
@@ -679,9 +644,7 @@ class PlanOrchestrator:
             f"title={item.content.get('title')} rows={item.content.get('rows')}"
             for item in item_lookup.values()
         )
-        personas_context = "\n".join(
-            f"- id={p.id} typ={p.type}: {p.system_prompt[:200]}" for p in succeeded_personas
-        )
+        personas_context = "\n".join(f"- id={p.id} typ={p.type}: {p.system_prompt[:200]}" for p in succeeded_personas)
         system_message = (
             "Jesteś Goat — Kierownikiem Zespołu. Masz OSTATECZNY GŁOS nad planem. "
             "Dostałeś DRAFT od trenerów. Wykryj konflikty (ciężki trening + długi bieg tego "
@@ -712,9 +675,10 @@ class PlanOrchestrator:
             plans_repo = PlansRepo(conn)
             for patch in patches:
                 key = (patch["persona_id"], patch["item_date"])
-                item = item_lookup.get(key)
-                if item is None:
+                maybe_item = item_lookup.get(key)
+                if maybe_item is None:
                     continue
+                item = maybe_item
                 action = str(patch.get("action") or "update")
                 if action == "delete":
                     await plans_repo.delete_item(item.id)
@@ -783,10 +747,7 @@ def _parse_date(value: str) -> date | None:
 def _summarize_results(results: list[Any]) -> str:
     if not results:
         return "brak zalogowanych wyników"
-    lines = [
-        f"{r.logged_date.isoformat()} {r.category}/{r.metric}={r.value}{r.unit or ''}"
-        for r in results[:30]
-    ]
+    lines = [f"{r.logged_date.isoformat()} {r.category}/{r.metric}={r.value}{r.unit or ''}" for r in results[:30]]
     return "\n".join(lines)
 
 

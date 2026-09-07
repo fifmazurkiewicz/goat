@@ -13,12 +13,12 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           sparse-checkout: |
             backend
       - name: Install uv
-        uses: astral-sh/setup-uv@v3
+        uses: astral-sh/setup-uv@v6
       - name: Set up Python
         run: uv python install 3.12
       - name: Install dependencies
@@ -38,11 +38,11 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           sparse-checkout: |
             frontend
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: "npm"
@@ -59,14 +59,13 @@ jobs:
   secret-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: TruffleHog (verified secrets only)
         uses: trufflesecurity/trufflehog@v3.88.29
         with:
           extra_args: --only-verified
-
 
   migrations-check:
     runs-on: ubuntu-latest
@@ -83,7 +82,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Bootstrap minimal Supabase-like schema (pgcrypto + auth.users stub)
         env:
           PGPASSWORD: postgres

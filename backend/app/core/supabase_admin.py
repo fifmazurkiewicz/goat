@@ -47,13 +47,9 @@ class SupabaseAdminClient:
         page = 1
         try:
             while True:
-                response = await self._client.get(
-                    "/users", params={"page": page, "per_page": 1000}
-                )
+                response = await self._client.get("/users", params={"page": page, "per_page": 1000})
                 if response.status_code >= 400:
-                    logger.warning(
-                        "supabase_admin_list_users_failed", status=response.status_code
-                    )
+                    logger.warning("supabase_admin_list_users_failed", status=response.status_code)
                     break
                 users = response.json().get("users", [])
                 if not users:
@@ -81,16 +77,10 @@ class SupabaseAdminClient:
         """
         temp_password = secrets.token_urlsafe(12)
         if self._client is None:
-            raise ExternalServiceError(
-                "Supabase Admin API niedostępne w trybie lokalnym (brak SUPABASE_URL)."
-            )
-        response = await self._client.put(
-            f"/users/{user_id}", json={"password": temp_password}
-        )
+            raise ExternalServiceError("Supabase Admin API niedostępne w trybie lokalnym (brak SUPABASE_URL).")
+        response = await self._client.put(f"/users/{user_id}", json={"password": temp_password})
         if response.status_code >= 400:
-            raise ExternalServiceError(
-                f"Supabase Admin API zwróciło błąd {response.status_code} przy resecie hasła."
-            )
+            raise ExternalServiceError(f"Supabase Admin API zwróciło błąd {response.status_code} przy resecie hasła.")
         return temp_password
 
     async def aclose(self) -> None:

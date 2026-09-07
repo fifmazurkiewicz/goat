@@ -185,9 +185,7 @@ class ModerationService:
             )
 
         try:
-            verdict = await self._classify(
-                system_message=_PERSONA_CLASSIFIER_SYSTEM, content=user_prompt
-            )
+            verdict = await self._classify(system_message=_PERSONA_CLASSIFIER_SYSTEM, content=user_prompt)
         except Exception:
             # Fail-open on infrastructure failure of the classifier (don't block the
             # entire persona feature due to a transient OpenRouter outage) — flag for
@@ -246,15 +244,11 @@ class ModerationService:
             return ChatGuardResult(heuristic_hit=False, classifier_verdict=None, blocked=False)
 
         try:
-            verdict = await self._classify(
-                system_message=_CHAT_CLASSIFIER_SYSTEM, content=message
-            )
+            verdict = await self._classify(system_message=_CHAT_CLASSIFIER_SYSTEM, content=message)
         except Exception:
             # Classifier outage doesn't block the chat — the heuristic itself is only
             # a signal, not a hard barrier (security.md section 1).
-            return ChatGuardResult(
-                heuristic_hit=heuristic_hit, classifier_verdict=None, blocked=False
-            )
+            return ChatGuardResult(heuristic_hit=heuristic_hit, classifier_verdict=None, blocked=False)
 
         blocked = verdict in ("injection_attempt", "redefine_role")
         if blocked or heuristic_hit:
@@ -266,6 +260,4 @@ class ModerationService:
                 raw_snippet=message[:2000],
                 classifier_verdict=verdict,
             )
-        return ChatGuardResult(
-            heuristic_hit=heuristic_hit, classifier_verdict=verdict, blocked=blocked
-        )
+        return ChatGuardResult(heuristic_hit=heuristic_hit, classifier_verdict=verdict, blocked=blocked)

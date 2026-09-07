@@ -34,9 +34,7 @@ async def get_profile(auth: AuthContext = Depends(get_current_user)) -> UserProf
 
 @router.patch("", response_model=UserProfileOut)
 @router.patch("/", response_model=UserProfileOut, include_in_schema=False)
-async def update_profile(
-    payload: UserProfileUpdate, auth: AuthContext = Depends(get_current_user)
-) -> UserProfileOut:
+async def update_profile(payload: UserProfileUpdate, auth: AuthContext = Depends(get_current_user)) -> UserProfileOut:
     fields = payload.model_dump(exclude_unset=True)
     if not fields:
         raise ValidationError("PATCH wymaga przynajmniej jednego pola do aktualizacji.")

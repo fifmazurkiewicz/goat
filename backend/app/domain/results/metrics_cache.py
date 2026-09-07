@@ -22,8 +22,17 @@ def _today_warsaw() -> date:
     return datetime.now(_APP_TZ).date()
 
 
+class AllowedMetricLike(Protocol):
+    category: str
+    metric_key: str
+    unit: str | None
+    value_type: str
+    value_min: float | None
+    value_max: float | None
+
+
 class AllowedMetricsRepositoryProtocol(Protocol):
-    async def list_all(self) -> list[object]: ...
+    async def list_all(self) -> list[AllowedMetricLike]: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,16 +47,16 @@ class AllowedMetricsCache:
     """Does not know FastAPI/HTTP — testable with a list of fake rows passed to `load_rows`."""
 
     def __init__(self) -> None:
-        self._metrics: dict[tuple[str, str], object] = {}
+        self._metrics: dict[tuple[str, str], AllowedMetricLike] = {}
 
     async def load(self, repo: AllowedMetricsRepositoryProtocol) -> None:
         rows = await repo.list_all()
         self.load_rows(rows)
 
-    def load_rows(self, rows: list) -> None:  # noqa: ANN401 — AllowedMetricRow duck-typed
+    def load_rows(self, rows: list[AllowedMetricLike]) -> None:
         self._metrics = {(row.category, row.metric_key): row for row in rows}
 
-    def get(self, category: str, metric_key: str) -> object | None:
+    def get(self, category: str, metric_key: str) -> AllowedMetricLike | None:
         return self._metrics.get((category, metric_key))
 
     def validate_entry(
@@ -65,13 +74,9 @@ class AllowedMetricsCache:
         if not isinstance(value, int | float) or not math.isfinite(value):
             return MetricValidationResult(False, True, "Wartość musi być skończoną liczbą.", unit)
         if unit is not None and len(unit) > _MAX_UNIT_LENGTH:
-            return MetricValidationResult(
-                False, True, f"Jednostka może mieć maks. {_MAX_UNIT_LENGTH} znaków.", unit
-            )
+            return MetricValidationResult(False, True, f"Jednostka może mieć maks. {_MAX_UNIT_LENGTH} znaków.", unit)
         if notes is not None and len(notes) > _MAX_NOTES_LENGTH:
-            return MetricValidationResult(
-                False, True, f"Notatka może mieć maks. {_MAX_NOTES_LENGTH} znaków.", unit
-            )
+            return MetricValidationResult(False, True, f"Notatka może mieć maks. {_MAX_NOTES_LENGTH} znaków.", unit)
         if logged_date > _today_warsaw():
             return MetricValidationResult(False, True, "Data nie może być z przyszłości.", unit)
 
@@ -80,9 +85,7 @@ class AllowedMetricsCache:
             return MetricValidationResult(True, True, None, unit)
 
         if allowed.value_type == "integer" and float(value) != int(value):
-            return MetricValidationResult(
-                False, False, f"Metryka '{metric}' wymaga liczby całkowitej.", allowed.unit
-            )
+            return MetricValidationResult(False, False, f"Metryka '{metric}' wymaga liczby całkowitej.", allowed.unit)
         if allowed.value_min is not None and value < allowed.value_min:
             return MetricValidationResult(
                 False, False, f"Wartość poniżej minimum ({allowed.value_min}) dla '{metric}'.", allowed.unit

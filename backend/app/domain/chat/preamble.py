@@ -86,8 +86,7 @@ def build_system_prompt(
     segments = [PLATFORM_PREAMBLE]
     if template_safety_prompt and template_safety_prompt.strip():
         segments.append(
-            "[ZABEZPIECZENIA GOTOWCA — NIENEDYTOWALNE PRZEZ UŻYTKOWNIKA]\n"
-            + template_safety_prompt.strip()
+            "[ZABEZPIECZENIA GOTOWCA — NIENEDYTOWALNE PRZEZ UŻYTKOWNIKA]\n" + template_safety_prompt.strip()
         )
     if persona_type is not None:
         segments.append(build_persona_scope_block(persona_type))

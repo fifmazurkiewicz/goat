@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.repositories._row_utils import stringify_uuid
 
+
 @dataclass(frozen=True, slots=True)
 class ChatSessionRow:
     id: str
@@ -170,9 +171,7 @@ class ChatRepo:
 
     async def set_turn_in_progress(self, session_id: str, in_progress: bool) -> None:
         await self._conn.execute(
-            text(
-                "UPDATE chat_sessions SET turn_in_progress = :flag, updated_at = now() WHERE id = :id"
-            ),
+            text("UPDATE chat_sessions SET turn_in_progress = :flag, updated_at = now() WHERE id = :id"),
             {"id": session_id, "flag": in_progress},
         )
 
@@ -202,8 +201,7 @@ class ChatRepo:
         """FULL history (no windowing) — used by `GET /chat/sessions/{id}/messages`."""
         result = await self._conn.execute(
             text(
-                f"SELECT {_MESSAGE_COLUMNS} FROM chat_messages "
-                "WHERE session_id = :session_id ORDER BY created_at ASC"
+                f"SELECT {_MESSAGE_COLUMNS} FROM chat_messages WHERE session_id = :session_id ORDER BY created_at ASC"
             ),
             {"session_id": session_id},
         )

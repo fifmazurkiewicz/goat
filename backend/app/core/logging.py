@@ -30,11 +30,7 @@ def configure_logging(environment: str = "local") -> None:
         structlog.processors.StackInfoRenderer(),
     ]
 
-    renderer = (
-        structlog.processors.JSONRenderer()
-        if environment == "production"
-        else structlog.dev.ConsoleRenderer()
-    )
+    renderer = structlog.processors.JSONRenderer() if environment == "production" else structlog.dev.ConsoleRenderer()
 
     structlog.configure(
         processors=[
@@ -62,9 +58,7 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
     bound to structlog via `contextvars` for the duration of the request and returned
     in the response header (eases client <-> backend log correlation)."""
 
-    async def dispatch(
-        self, request: Request, call_next: Callable[[Request], Awaitable[Response]]
-    ) -> Response:
+    async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
         request_id = request.headers.get(REQUEST_ID_HEADER) or str(uuid.uuid4())
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(request_id=request_id)

@@ -74,9 +74,7 @@ async def test_ensure_inserts_unapproved_for_non_admin_email() -> None:
     calls: list[str] = []
     insert_params: dict[str, Any] = {}
     conn = AsyncMock()
-    conn.execute = AsyncMock(
-        side_effect=await _execute_with_insert(calls, insert_params, is_approved=False)
-    )
+    conn.execute = AsyncMock(side_effect=await _execute_with_insert(calls, insert_params, is_approved=False))
 
     repo = ProfilesRepo(conn)
     profile = await repo.ensure("u1", email="new.user@example.com")
@@ -93,9 +91,7 @@ async def test_ensure_inserts_approved_for_admin_email() -> None:
     calls: list[str] = []
     insert_params: dict[str, Any] = {}
     conn = AsyncMock()
-    conn.execute = AsyncMock(
-        side_effect=await _execute_with_insert(calls, insert_params, is_approved=True)
-    )
+    conn.execute = AsyncMock(side_effect=await _execute_with_insert(calls, insert_params, is_approved=True))
 
     repo = ProfilesRepo(conn)
     profile = await repo.ensure("u1", email="fmazurkiewicz@gmail.com")
@@ -110,9 +106,7 @@ async def test_ensure_inserts_approved_for_admin_email() -> None:
 async def test_ensure_does_not_update_is_approved_on_conflict() -> None:
     calls: list[str] = []
     conn = AsyncMock()
-    conn.execute = AsyncMock(
-        side_effect=await _execute_with_insert(calls, {}, is_approved=False)
-    )
+    conn.execute = AsyncMock(side_effect=await _execute_with_insert(calls, {}, is_approved=False))
 
     repo = ProfilesRepo(conn)
     await repo.ensure("u1", email="fmazurkiewicz@gmail.com")

@@ -62,6 +62,7 @@ def _to_out(row: ExerciseRow) -> ExerciseOut:
         photo_path_2=public_photo_url(row.photo_path_2),
     )
 
+
 router = APIRouter(
     prefix="/exercises",
     tags=["exercises"],
@@ -78,7 +79,5 @@ async def list_exercises(
     auth: AuthContext = Depends(get_current_user),
 ) -> list[ExerciseOut]:
     async with rls_connection(auth.claims) as conn:
-        rows = await ExercisesRepo(conn).list_all(
-            persona_type=persona_type, category=category, query=query
-        )
+        rows = await ExercisesRepo(conn).list_all(persona_type=persona_type, category=category, query=query)
     return [_to_out(row) for row in rows]

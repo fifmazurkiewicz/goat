@@ -42,9 +42,7 @@ def _consult_orch() -> ChatOrchestrator:
     return orch
 
 
-def _patch_handle(
-    monkeypatch: pytest.MonkeyPatch, orch: ChatOrchestrator, result: tuple[bool, str]
-) -> None:
+def _patch_handle(monkeypatch: pytest.MonkeyPatch, orch: ChatOrchestrator, result: tuple[bool, str]) -> None:
     async def _fake_handle(**kwargs: object) -> tuple[bool, str]:
         return result
 

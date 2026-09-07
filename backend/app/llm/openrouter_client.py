@@ -37,9 +37,7 @@ class OpenRouterClient:
         self._client = httpx.AsyncClient(
             base_url=base_url,
             headers={
-                "Authorization": (
-                    f"Bearer {api_key or settings.openrouter_api_key.get_secret_value()}"
-                ),
+                "Authorization": (f"Bearer {api_key or settings.openrouter_api_key.get_secret_value()}"),
             },
             timeout=httpx.Timeout(60.0, connect=10.0),
         )
@@ -80,14 +78,10 @@ class OpenRouterClient:
         for attempt in range(3):
             yielded_any = False
             try:
-                async with self._client.stream(
-                    "POST", "/chat/completions", json=payload
-                ) as response:
+                async with self._client.stream("POST", "/chat/completions", json=payload) as response:
                     if response.status_code >= 400:
                         body = await response.aread()
-                        raise ExternalServiceError(
-                            f"OpenRouter zwrócił błąd {response.status_code}: {body[:500]!r}"
-                        )
+                        raise ExternalServiceError(f"OpenRouter zwrócił błąd {response.status_code}: {body[:500]!r}")
                     async for line in response.aiter_lines():
                         chunk = parse_sse_chunk(line)
                         if chunk is None:
@@ -101,14 +95,10 @@ class OpenRouterClient:
                     # Some tokens already went to the SSE client — cannot safely
                     # retry; propagate the error directly (ai-pipeline.md §7).
                     raise
-                logger.warning(
-                    "openrouter_stream_retry", attempt=attempt + 1, error=str(exc)
-                )
+                logger.warning("openrouter_stream_retry", attempt=attempt + 1, error=str(exc))
                 continue
 
-        raise ExternalServiceError(
-            f"OpenRouter niedostępny po 3 próbach: {last_exc}"
-        ) from last_exc
+        raise ExternalServiceError(f"OpenRouter niedostępny po 3 próbach: {last_exc}") from last_exc
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.5, max=8))
     async def complete_json(
@@ -134,9 +124,7 @@ class OpenRouterClient:
         }
         response = await self._client.post("/chat/completions", json=payload)
         if response.status_code >= 400:
-            raise ExternalServiceError(
-                f"OpenRouter zwrócił błąd {response.status_code}: {response.text[:500]!r}"
-            )
+            raise ExternalServiceError(f"OpenRouter zwrócił błąd {response.status_code}: {response.text[:500]!r}")
         data = response.json()
         content = data["choices"][0]["message"]["content"]
         result: dict[str, Any] = json.loads(content)
@@ -148,9 +136,7 @@ class OpenRouterClient:
         `app/domain/usage/pricing.py`, NOT here (transport layer has no cache policy)."""
         response = await self._client.get("/models")
         if response.status_code >= 400:
-            raise ExternalServiceError(
-                f"OpenRouter /models zwrócił błąd {response.status_code}"
-            )
+            raise ExternalServiceError(f"OpenRouter /models zwrócił błąd {response.status_code}")
         data: list[dict[str, Any]] = response.json()["data"]
         return data
 

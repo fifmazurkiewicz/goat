@@ -5,6 +5,8 @@ from __future__ import annotations
 import pytest
 from httpx import AsyncClient
 
+from app.core.config import settings
+
 
 @pytest.mark.asyncio
 async def test_dev_login_wrong_password(client: AsyncClient) -> None:
@@ -17,7 +19,10 @@ async def test_dev_login_wrong_password(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_dev_login_disabled_in_production(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("app.api.routers.auth.settings", "environment", "production")
+    monkeypatch.setattr(
+        "app.api.routers.auth.settings",
+        settings.model_copy(update={"environment": "production"}),
+    )
     response = await client.post(
         "/api/v1/auth/dev-login",
         json={"email": "dev@example.com", "password": "dev-password"},

@@ -123,9 +123,7 @@ class PersonaService:
         await self.assert_can_activate_persona(user_id)
 
         # `persona_constraints` / `chat_model` never from the client (system / env).
-        safe_payload = {
-            k: v for k, v in payload.items() if k not in ("persona_constraints", "chat_model")
-        }
+        safe_payload = {k: v for k, v in payload.items() if k not in ("persona_constraints", "chat_model")}
 
         persona_type = safe_payload["type"]
         name = safe_payload["name"]
@@ -155,9 +153,7 @@ class PersonaService:
         }
         return await self._personas_repo.create(user_id, values)
 
-    async def update_persona(
-        self, persona_id: str, user_id: str, updates: dict[str, Any]
-    ) -> Any:
+    async def update_persona(self, persona_id: str, user_id: str, updates: dict[str, Any]) -> Any:
         """`updates` — `PersonaUpdate.model_dump(exclude_unset=True)` (router), only
         fields actually given in the PATCH."""
         existing = await self._personas_repo.get_own(persona_id, user_id)
@@ -165,9 +161,7 @@ class PersonaService:
             raise NotFoundError(f"Persona {persona_id!r} nie istnieje lub nie należy do usera.")
 
         # End-user cannot overwrite medical/system constraints.
-        values: dict[str, Any] = {
-            k: v for k, v in updates.items() if k not in ("persona_constraints", "chat_model")
-        }
+        values: dict[str, Any] = {k: v for k, v in updates.items() if k not in ("persona_constraints", "chat_model")}
 
         if "name" in updates and updates["name"] != existing.name:
             base_slug = generate_base_slug(existing.type, updates["name"])
@@ -251,9 +245,7 @@ class PersonaService:
         return await self._personas_repo.create(user_id, values)
 
 
-def resolve_persona_columns(
-    persona: dict[str, Any], plan_template: dict[str, Any] | None
-) -> list[str]:
+def resolve_persona_columns(persona: dict[str, Any], plan_template: dict[str, Any] | None) -> list[str]:
     """Merges persona columns with their base `plan_template`.
 
     Contract (docs/technical/database-schema.md): `plan_templates.default_columns`
