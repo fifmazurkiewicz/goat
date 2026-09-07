@@ -231,7 +231,8 @@ class AdminUserOut(BaseModel):
     """`GET /api/v1/admin/users` — admin view of a user account (don't confuse with `PersonaOut`).
 
     `cost_usd_used`/`usage_budget_usd` shown DIRECTLY as an amount, WITHOUT "Free"/"Pro"
-    labels (ADR-16) — `email` from `auth.users` (Supabase Admin API), not from `profiles`."""
+    labels (ADR-16) — `email` from `auth.users` (Postgres; Auth Admin API fills gaps),
+    not from `profiles`."""
 
     model_config = ConfigDict(from_attributes=True)
 

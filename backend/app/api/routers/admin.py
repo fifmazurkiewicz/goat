@@ -76,10 +76,14 @@ async def list_audit_log(auth: AuthContext = Depends(require_admin)) -> list[Aud
 async def list_users(auth: AuthContext = Depends(require_admin)) -> list[AdminUserOut]:
     period_start = current_period_start()
     async with service_role_connection() as conn:
-        profiles = await ProfilesRepo(conn).list_all()
+        profiles_repo = ProfilesRepo(conn)
+        profiles = await profiles_repo.list_all()
         usage_by_user = await UsageLimitsRepo(conn).list_for_period(period_start)
+        emails = await profiles_repo.list_emails()
 
-    emails = await get_supabase_admin_client().list_user_emails()
+    api_emails = await get_supabase_admin_client().list_user_emails()
+    for user_id, email in api_emails.items():
+        emails.setdefault(str(user_id), email)
 
     return [
         _admin_user_out(

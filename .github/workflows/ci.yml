@@ -94,6 +94,11 @@ jobs:
             id uuid primary key default gen_random_uuid(),
             email text
           );
+          do $$ begin
+            create role service_role nologin;
+          exception when duplicate_object then null;
+          end $$;
+          grant select, insert, update on table auth.users to service_role;
           -- Stub mirroring the real implementation of auth.uid() in Supabase,
           -- so that RLS policies from migrations can be created and tested in plain Postgres.
           create or replace function auth.uid() returns uuid as $$

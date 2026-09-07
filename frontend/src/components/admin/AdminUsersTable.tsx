@@ -102,8 +102,8 @@ export function AdminUsersTable({ users }: { users: AdminUser[] }) {
             return (
               <TableRow key={user.id}>
                 <TableCell className="sticky left-0 bg-background">
-                  <div className="font-medium">{user.nick ?? user.email}</div>
-                  <div className="text-xs text-muted-foreground">{user.email}</div>
+                  <div className="font-medium">{user.email || "—"}</div>
+                  {user.nick ? <div className="text-xs text-muted-foreground">{user.nick}</div> : null}
                   {user.is_admin ? <Badge variant="outline">Admin</Badge> : null}
                 </TableCell>
                 <TableCell>

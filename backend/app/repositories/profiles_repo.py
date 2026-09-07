@@ -14,12 +14,16 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+import structlog
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.core.approval import is_auto_approved_email
 from app.core.exceptions import NotFoundError
 from app.repositories._row_utils import as_float, stringify_uuid
+
+logger = structlog.get_logger(__name__)
 
 DEFAULT_MAX_ACTIVE_PERSONAS = 5
 DEFAULT_USAGE_BUDGET_USD = 10.00
@@ -62,6 +66,28 @@ class ProfilesRepo:
         a regular user visibility only to their own row, see security.md)."""
         result = await self._conn.execute(text(f"SELECT {_COLUMNS} FROM profiles ORDER BY created_at DESC"))
         return [_row_to_profile(row) for row in result]
+
+    async def list_emails(self) -> dict[str, str]:
+        """`user_id → email` from `auth.users` for `GET /admin/users`.
+
+        `profiles` does not store email. Auth Admin REST is optional and fail-open;
+        local Postgres and the same DATABASE_URL on Render both have `auth.users`.
+        Permission errors (hosted `auth.users` is not granted to `service_role`) also
+        fail-open so `/admin/users` still returns profiles.
+        """
+        try:
+            result = await self._conn.execute(text("SELECT id, email FROM auth.users"))
+        except SQLAlchemyError:
+            logger.warning("auth_users_email_query_failed", exc_info=True)
+            return {}
+        emails: dict[str, str] = {}
+        for row in result:
+            mapping = dict(row._mapping)
+            user_id = stringify_uuid(mapping["id"])
+            email = mapping.get("email")
+            if user_id and email:
+                emails[str(user_id)] = str(email)
+        return emails
 
     async def update_max_active_personas(self, user_id: str, value: int) -> ProfileRow:
         """`PATCH /admin/users/{user_id}/persona-limit` (ADR-12). Range 0-50 is also

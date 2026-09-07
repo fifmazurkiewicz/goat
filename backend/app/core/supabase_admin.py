@@ -2,8 +2,8 @@
 
 Separate transport from `service_role_connection` (Postgres) — this is the Supabase
 Auth REST API, not the database. Used for (1) fetching `email` per user for
-`GET /admin/users` (`profiles` doesn't duplicate `auth.users.email` — Auth is the
-single source of truth), (2) password reset.
+`GET /admin/users` when `auth.users` has a gap (`profiles` doesn't duplicate
+`auth.users.email` — Auth/Postgres is the single source of truth), (2) password reset.
 """
 
 from __future__ import annotations
@@ -33,8 +33,8 @@ class SupabaseAdminClient:
         )
 
     async def list_user_emails(self) -> dict[str, str]:
-        """`GET /auth/v1/admin/users` (paginated) -> `{user_id: email}` to enrich
-        `GET /admin/users` (ADR-16 requires email, which `profiles` doesn't have).
+        """`GET /auth/v1/admin/users` (paginated) -> `{user_id: email}` to fill gaps
+        in `GET /admin/users` after the `auth.users` SQL join.
 
         Fail-open: outage returns an empty dict instead of an exception — the account
         list with `profiles` (limits, budget) is more important than the email
@@ -47,17 +47,20 @@ class SupabaseAdminClient:
         page = 1
         try:
             while True:
-                response = await self._client.get("/users", params={"page": page, "per_page": 1000})
+                response = await self._client.get("/users", params={"page": page, "per_page": 200})
                 if response.status_code >= 400:
                     logger.warning("supabase_admin_list_users_failed", status=response.status_code)
                     break
-                users = response.json().get("users", [])
+                payload = response.json()
+                users = payload if isinstance(payload, list) else payload.get("users") or []
                 if not users:
                     break
                 for user in users:
-                    if user.get("id") and user.get("email"):
-                        emails[user["id"]] = user["email"]
-                if len(users) < 1000:
+                    user_id = user.get("id")
+                    email = user.get("email") or (user.get("user_metadata") or {}).get("email")
+                    if user_id and email:
+                        emails[str(user_id)] = str(email)
+                if len(users) < 200:
                     break
                 page += 1
         except httpx.HTTPError as exc:

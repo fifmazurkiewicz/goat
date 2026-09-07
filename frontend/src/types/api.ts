@@ -300,8 +300,8 @@ export interface AdminDeployInfo {
 
 export interface AdminUser {
   id: string;
-  email: string;
-  nick: string | null;
+  email?: string | null;
+  nick?: string | null;
   is_admin: boolean;
   is_approved: boolean;
   max_active_personas: number;

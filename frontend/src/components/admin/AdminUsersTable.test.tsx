@@ -62,4 +62,14 @@ describe("AdminUsersTable approval actions", () => {
 
     expect(screen.getByRole("button", { name: "Cofnij dostęp" })).toBeInTheDocument();
   });
+
+  it("shows the user's email in the user column", () => {
+    render(
+      <AdminUsersTable
+        users={[user({ id: "u2", nick: "Ada", email: "other@example.com", is_approved: true })]}
+      />
+    );
+
+    expect(screen.getByText("other@example.com")).toBeInTheDocument();
+  });
 });

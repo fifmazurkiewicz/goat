@@ -226,6 +226,7 @@ create table if not exists auth.users (
   id uuid primary key default gen_random_uuid(),
   email text
 );
+grant select, insert, update on table auth.users to service_role;
 -- Mirror auth.uid() from Supabase so RLS policies can be created locally.
 create or replace function auth.uid() returns uuid as $$
   select nullif(current_setting('request.jwt.claims', true)::json->>'sub', '')::uuid
