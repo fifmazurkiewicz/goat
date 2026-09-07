@@ -1,3 +1,5 @@
+import { useQueryClient } from "@tanstack/react-query";
+import { LogOut } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -7,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAccount, useUpdateAccount } from "@/hooks/useAccount";
 import { getErrorMessage } from "@/lib/api-client";
+import { signOut as signOutSupabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useThemeStore } from "@/store/useThemeStore";
@@ -17,18 +20,21 @@ const THEME_OPTIONS = [
 ] as const;
 
 /**
- * Nickname (input + explicit "Save nick") + theme (localStorage, ADR-15).
+ * Nickname (input + explicit "Save nick") + theme (localStorage, ADR-15) + logout.
  * docs/technical/frontend.md section 7a.
  */
 export function AccountSettingsCard() {
+  const queryClient = useQueryClient();
   const { data: account } = useAccount();
   const updateAccount = useUpdateAccount();
   const userEmail = useAuthStore((state) => state.user?.email);
+  const signOutLocal = useAuthStore((state) => state.signOut);
   const theme = useThemeStore((state) => state.theme);
   const setTheme = useThemeStore((state) => state.setTheme);
 
   const [nick, setNick] = useState("");
   const [syncedId, setSyncedId] = useState<string | null>(null);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   useEffect(() => {
     if (!account) return;
@@ -47,6 +53,18 @@ export function AccountSettingsCard() {
       toast.success("Zapisano nick");
     } catch (err) {
       toast.error(getErrorMessage(err, "Nie udało się zapisać nicka"));
+    }
+  }
+
+  async function handleSignOut() {
+    setIsSigningOut(true);
+    try {
+      await signOutSupabase();
+    } catch (err) {
+      toast.error(getErrorMessage(err, "Nie udało się wylogować"));
+    } finally {
+      signOutLocal();
+      queryClient.clear();
     }
   }
 
@@ -95,6 +113,18 @@ export function AccountSettingsCard() {
               </button>
             ))}
           </div>
+        </div>
+        <div className="border-t pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            className="min-h-11"
+            onClick={() => void handleSignOut()}
+            disabled={isSigningOut}
+          >
+            <LogOut className="mr-2 h-4 w-4" aria-hidden />
+            {isSigningOut ? "Wylogowywanie…" : "Wyloguj"}
+          </Button>
         </div>
       </CardContent>
     </Card>

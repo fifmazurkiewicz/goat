@@ -12,7 +12,7 @@ Vite + React + TypeScript + Tailwind + shadcn/ui, hosted on Vercel (Hobby — 2�
 /plans                → protected (auth)
 /results              → protected (auth)
 /profile              → protected (auth) — preview/edit `user_profile` (ADR-11); main filling path still via chat
-/settings             → protected (auth) — nickname (+ Save nickname), theme, exercise catalog (ADR-14, ADR-15)
+/settings             → protected (auth) — nickname (+ Save nickname), theme, logout, exercise catalog (ADR-14, ADR-15)
 /admin                → protected (auth + is_admin + is_approved); bootstrap: exclusively fmazurkiewicz@gmail.com
 …
 ```
@@ -159,12 +159,14 @@ React Hook Form + Zod (`zodResolver`). Sections: basic data / **"How it should b
 
 Column editor: UI keeps a `{ name }[]` list in the form; on save maps to the API contract `template_overrides: { columns: string[] }` (per `resolve_persona_columns` in the backend). List editable via `useFieldArray` (name + ↑/↓ + delete + "+ Add column"). Zod validation: min. 1 column, max ~8, unique names, `custom_result_category` required conditionally (`superRefine`) for `type==='custom'`. On validation errors — toast + messages next to fields (incl. submit button can't "go silent").
 
-## 7a. `/settings` — account, theme, exercise catalog (ADR-14, ADR-15; amended 2026-08-23)
+## 7a. `/settings` — account, theme, logout, exercise catalog (ADR-14, ADR-15; amended 2026-09-07)
 
 ```
 SettingsPage (smart)
 ├─ AccountSettingsCard (dumb) — nickname (input + "Save nickname" button, PATCH /api/v1/account)
 │  + light/dark theme toggle (`useThemeStore`, localStorage only, ADR-15);
+│  + "Wyloguj" (`supabase.auth.signOut` + `useAuthStore.signOut` + query cache clear;
+│    `ProtectedRoute` then sends the user to `/login`);
 │  `is_admin` from GET /account → `useAuthStore` (Admin tab in shell)
 └─ ExerciseCatalog (smart) — ~873 entries after free-exercise-db import (Unlicense),
    PL content (LLM translation when generating seed 0013), `name_en` for matchers.

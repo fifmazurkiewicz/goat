@@ -187,7 +187,7 @@
 
 **Decision:** new column `profiles.nick` (nullable, fallback to name from Google OAuth — schema consolidated in `0001_init.sql`), new separate endpoint `GET/PATCH /api/v1/account` (intentionally NOT an extension of `/api/v1/profile`, reserved for user biometrics — ADR-11, different responsibility). Light/dark theme: **without DB persistence** — purely `localStorage` on the frontend; with the scale of a few known users and typically one device, cross-device synchronization doesn't justify an API round-trip. Exercise catalog (ADR-14) shares this page in the UI but remains an independent API domain.
 
-**Consequences:** new route `/settings` (protected, auth) in `frontend.md` §1. If the theme should be persistent across devices in the future — trivial addition of `profiles.theme` without impacting the rest of the architecture.
+**Consequences:** new route `/settings` (protected, auth) in `frontend.md` §1. If the theme should be persistent across devices in the future — trivial addition of `profiles.theme` without impacting the rest of the architecture. Logout (2026-09-07) lives on the same account card, not in the shell nav: `signOut` already existed in `useAuthStore` / `lib/supabase` with no UI.
 
 ---
 
