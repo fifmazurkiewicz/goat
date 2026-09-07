@@ -257,6 +257,7 @@ npx @nanonets/graft build
 |---|---|
 | `.cursor/rules/graft.mdc` | yes (wiring) |
 | `.cursor/mcp.json` | yes (MCP, no secrets) |
+| `.cursorignore` | yes — secrets + `/graft/` (same patterns as `.gitignore`) |
 | `graft/` | **no** — cache; `graft build` adds `/graft/` to `.gitignore` |
 
 Restart Cursor so MCP loads.

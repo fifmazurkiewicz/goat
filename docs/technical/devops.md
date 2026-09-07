@@ -82,10 +82,13 @@ Supabase project: **`goat`** (one cloud at start; separate `goat-dev` only when 
 
 ## 8. CI/CD — `.github/workflows/ci.yml`
 
-Three parallel jobs (path-filtered):
+Jobs (path-filtered except secret-scan):
 - `backend-lint-test` — `ruff check`, `ruff format --check`, `mypy` (min. `domain/`, `llm/`), `pytest`.
-- `frontend-lint-build` — `eslint`, `vite build`.
+- `frontend-lint-build` — `eslint`, `npm test` (Vitest), `vite build`.
 - `migrations-check` — Postgres in a CI container, applying all migrations from scratch.
+- `secret-scan` — TruffleHog `--only-verified` on the git history.
+
+Dependabot (weekly): npm `/frontend`, pip `/backend`, Docker `/backend`, GitHub Actions `/`.
 
 Deploy to prod automatically via native Render/Vercel integrations after merge; prod migrations remain a manual step (section 6).
 

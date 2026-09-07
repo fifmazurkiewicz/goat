@@ -1,0 +1,13 @@
+﻿# Secrets — agents must not read these (see env-secrets.mdc)
+.env
+.env.*
+!.env.example
+!**/.env.example
+frontend/.env.local
+frontend/.env*.local
+backend/.env
+credentials.json
+secrets.toml
+
+# Graft cache — regenerable, not source of truth in git
+/graft/

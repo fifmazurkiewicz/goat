@@ -1,0 +1,14 @@
+---
+description: Chat language — user may write Polish; assistant replies and code in English
+alwaysApply: true
+---
+
+# Language (all repos)
+
+The user may write in **Polish**. The assistant always replies in **English**.
+
+- Chat, explanations, commit messages the agent drafts, and PR text: English.
+- Identifiers, comments, docstrings, UI copy in code, and commit/file content the agent writes: **English**.
+- Do not switch to Polish because the latest user message is Polish.
+- This overrides older preferences such as “prefer responses in Polish”.
+- Product UI already in Polish (labels, nav) is **preserve** unless the user asks to translate it.

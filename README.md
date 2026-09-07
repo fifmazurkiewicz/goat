@@ -1,4 +1,4 @@
-# Coach — Multi-Persona Coaching App
+# Goat — Multi-Persona Coaching App
 
 A web app where the user configures up to 5 trainer personas (dietitian, gym coach, badminton coach, sports psychologist, psychologist, motor-skills coach), chats with them with memory, and agents save results (gym, diet, pool, triathlon, badminton) to the database. Personas collaborate on generating a shared, synchronized week/month plan visible in the calendar.
 
@@ -22,6 +22,7 @@ Full technical specification, architectural decisions and implementation plan �
 - [`docs/technical/devops.md`](docs/technical/devops.md) — deploy, CI/CD, migrations, secrets, costs
 - [`docs/technical/cloud-setup.md`](docs/technical/cloud-setup.md) — cloud setup (Supabase / Render / Vercel / Cloudflare) — **current path**
 - [`docs/technical/local-setup.md`](docs/technical/local-setup.md) — local loop + Graft (§G, ADR-20)
+- [`docs/technical/configuration.md`](docs/technical/configuration.md) — env variable **names** (no secrets)
 - [`docs/adr/decisions.md`](docs/adr/decisions.md) — log of key architectural decisions (ADR)
 
 ## Status

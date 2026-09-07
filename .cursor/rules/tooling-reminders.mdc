@@ -1,0 +1,9 @@
+---
+description: Short reminder — Graft before explore; product Taste dials (MI 3/2/5)
+alwaysApply: true
+---
+
+# Tooling reminders
+
+- **Graft:** przed szeroką eksploracją kodu → `graft map` / `graft ask "<q>" --source` (albo MCP). Wiring w każdym repo: rule + `.cursor/mcp.json`; cache `/graft/` gitignored. Preferuj `npx -y @nanonets/graft`.
+- **Taste dials:** jeśli jest `.cursor/rules/taste-skill-dials.mdc` — użyj overlay, nie baseline 8/6/4. **Medical Intelligence (PubMedResearcher):** `VARIANCE 3` / `MOTION 2` / `DENSITY 5` (produkt kliniczny).

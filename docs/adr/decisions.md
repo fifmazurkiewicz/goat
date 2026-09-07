@@ -313,3 +313,19 @@
 - No notification emails or Slack.
 
 **Consequences:** a new signup is usable only after an admin clicks Accept. Revoke returns the same waiting screen. Cloud SQL: apply `supabase/migrations/0015_user_approval_gate.sql` in the SQL Editor before relying on the new column in production.
+
+---
+
+## ADR-23: In-repo agent constitution + health `service`
+
+**Status:** accepted (2026-09-07).
+
+**Context:** Global `~/.cursor/rules` applied constitution on this machine, but a clone of goat only had `.cursor/rules/graft.mdc`. `GET /api/health` omitted `service`. Frontend tests existed but CI ran only lint + build.
+
+**Decision:**
+
+- Commit the constitution rules in `.cursor/rules/` (plus `.cursorignore`, Taste dials overlay, Commands in `AGENTS.md` / nested `backend/` and `frontend/` AGENTS).
+- Liveness JSON is `{ "status": "ok", "service": "goat" }`. Keep ADR-19 wake-window lamp; do **not** add a keep-alive `ApiPulse` poll (Render Free should still sleep).
+- CI runs `npm test`, Dependabot, and TruffleHog `--only-verified`.
+
+**Consequences:** agents on a fresh clone get the same process/stack/secrets rules. Env names live in [`../technical/configuration.md`](../technical/configuration.md).

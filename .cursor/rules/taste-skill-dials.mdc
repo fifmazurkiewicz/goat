@@ -1,0 +1,14 @@
+---
+description: Taste dials for Goat — coaching product UI, not marketing
+alwaysApply: true
+---
+
+# Taste dials (Goat)
+
+Coaching dashboard / trust-first product. Override Taste baseline 8/6/4:
+
+- **VARIANCE:** 3
+- **MOTION:** 2
+- **DENSITY:** 6
+
+Existing shadcn/Tailwind tokens win. Polish UI copy is preserve. Landing/hero language stays off product screens.

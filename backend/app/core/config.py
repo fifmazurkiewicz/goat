@@ -1,4 +1,4 @@
-"""Application configuration from env — see `.env.example` and docs/technical/devops.md section 5."""
+"""Application configuration from env — see `.env.example` and docs/technical/configuration.md."""
 
 from __future__ import annotations
 

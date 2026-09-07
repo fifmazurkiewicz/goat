@@ -1,0 +1,62 @@
+---
+description: Taste Skill — SoT warstwy wizualnej (UI/UX frontend) we wszystkich repo
+alwaysApply: true
+---
+
+# Taste Skill (all repos)
+
+**SoT warstwy wizualnej** (layout, typografia, kolor, motion, spacing, anti-slop): skill **Taste Skill v2**, install name `design-taste-frontend`.
+
+## Obligation (non-negotiable)
+
+- Każde zadanie UI / layout / CSS / motion / redesign → **Read** `~/.cursor/skills/design-taste-frontend/SKILL.md` (lub projektowe `.cursor/skills/`) i ogłoś: `Using [design-taste-frontend] to [purpose]`.
+- **Jedyny** skill wizualny. Nie instaluj `frontend-design` ani innego skillu design obok.
+- Nie wymyślaj estetyki z głowy. Nie dodawaj równoległych rules o kolorach / fontach / CSS w `.cursorrules` ani `.cursor/rules/`.
+- Konflikt z ogólnymi User Rules o „frontend design” (hero full-bleed, expressive fonts, gradients): na **produkcie / dashboardzie / klinicznym** wygrywają **diale Taste** i tokeny w kodzie; leksykon landing tylko na marketingu (§13).
+- Brak skilla = zainstaluj albo powiedz, że matching padł — nie udawaj SoT.
+
+## Bootstrap (gdy skill nie jest zainstalowany)
+
+1. Instaluj **tylko**: `npx skills add https://github.com/Leonxlnx/taste-skill --skill "design-taste-frontend"` (globalnie: `-g --agent cursor`).
+2. Kanon CLI: `~/.agents/skills/design-taste-frontend/`. **Kopia Cursor:** `~/.cursor/skills/design-taste-frontend/` (+ `paths:`). Nie commituj SKILL.md.
+3. Frontmatter: `name: design-taste-frontend`. Po reinstalacji: przywróć `paths:`, przeczytaj upstream `CHANGELOG.md`. Nie mieszaj v1 z v2.
+
+## Kiedy ładować (kolejność)
+
+1. Superpowers (proces) pierwsze.
+2. **IA / nawigacja / flow** → `ux-ui-challenger` **zanim** kod.
+3. **Wizualny frontend** → Taste Skill (powyżej).
+4. Istniejący produkt → redesign §11 / `redesign-existing-projects`; greenfield marketing → od razu Taste.
+5. GPT/Codex → rozważ `gpt-taste`; długie multi-file → `full-output-enforcement`.
+
+## Założenia (nadpisują baseline 8/6/4)
+
+Ustaw diale w odpowiedzi (nie edytuj SKILL.md przy każdej sesji). Repo może mieć overlay (np. `taste-skill-dials.mdc`).
+
+| Charakter | VARIANCE | MOTION | DENSITY |
+|---|---|---|---|
+| Narzędzie / dashboard / kliniczne / trust-first | 2–4 | 2–3 | 5–7 |
+| Marketing / landing (greenfield) | 7–9 | 5–7 | 3–4 |
+| Redesign preserve | match | +1 max | match |
+| Redesign overhaul (za zgodą) | +2 | +2 | match |
+
+**Medyczne / a11y-first:** VARIANCE ≤ 4, MOTION ≤ 3; `prefers-reduced-motion` obowiązkowe. Landing (hero/bento/GSAP pin) tylko na marketingu.
+
+## Stack
+
+- Istniejący system stylów wygrywa; bez migracji na Tailwind bez zgody.
+- Motion: `motion/react` + GSAP tylko jako `'use client'` leafy; bez scroll listenerów w React state. Brak w `package.json` → zaproponuj install albo hover/CSS.
+- Ikony: jedna rodzina; nie rysuj SVG od zera.
+
+## Pre-flight
+
+Przy istotnym UI: checklista §14 (odhaczone) w odpowiedzi. Brak = skill nie zastosowany.
+
+## Konflikt i SoT
+
+| Źródło | Rola |
+|---|---|
+| Taste Skill | jedyny SoT wizualny |
+| `ux-ui-challenger` | sparring IA/UX, nie kolory/fonty |
+| Tokeny w kodzie | brand preserve (§11) |
+| Własne rules o kolorach | **nie dodawaj** |
