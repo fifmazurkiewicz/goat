@@ -15,7 +15,11 @@ import {
 import { pl } from "date-fns/locale";
 
 import { Badge } from "@/components/ui/badge";
-import { CalendarViewSwitcher, type CalendarView } from "@/components/plans/CalendarViewSwitcher";
+import {
+  CalendarViewSwitcher,
+  resolveCalendarView,
+  type CalendarView,
+} from "@/components/plans/CalendarViewSwitcher";
 import { GeneratePlanCta } from "@/components/plans/GeneratePlanCta";
 import { PlanGenerationPersonaProgress } from "@/components/plans/PlanGenerationPersonaProgress";
 import { PlanGenerationBanner } from "@/components/plans/PlanGenerationBanner";
@@ -35,9 +39,9 @@ const DATE_FORMAT = "yyyy-MM-dd";
 export default function PlansPage() {
   const isMobile = useIsMobile();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [manualView, setManualView] = useState<CalendarView>("month");
+  const [manualView, setManualView] = useState<CalendarView | null>(null);
 
-  const view: CalendarView = isMobile ? "week" : manualView;
+  const view = resolveCalendarView(isMobile, manualView);
 
   const selectedDate = useMemo(() => {
     const raw = searchParams.get("date");

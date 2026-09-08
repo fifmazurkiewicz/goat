@@ -23,7 +23,7 @@ function makeDayButton(items: PlanItem[]) {
         type="button"
         className={cn(
           buttonVariants({ variant: "ghost" }),
-          "relative h-11 w-11 p-0 font-normal aria-selected:opacity-100",
+          "relative h-11 w-full min-w-0 p-0 font-normal aria-selected:opacity-100",
           modifiers.selected && "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground",
           modifiers.today && !modifiers.selected && "bg-accent text-accent-foreground",
           modifiers.outside && "text-muted-foreground opacity-50",
@@ -47,9 +47,9 @@ function makeDayButton(items: PlanItem[]) {
 }
 
 /**
- * Desktop option — `react-day-picker` / shadcn `Calendar` ONLY for `MonthGridView`
- * (docs/technical/frontend.md section 5). A dot under the day signals that a
- * `plan_item` exists without opening a panel.
+ * Month grid — `react-day-picker` / shadcn `Calendar` ONLY for `MonthGridView`
+ * (docs/technical/frontend.md section 5). Used on phone and desktop. A dot under
+ * the day signals that a `plan_item` exists without opening a panel.
  */
 export function MonthGridView({ month, selectedDate, onSelectDate, onMonthChange, items }: MonthGridViewProps) {
   return (
@@ -72,9 +72,9 @@ export function MonthGridView({ month, selectedDate, onSelectDate, onMonthChange
         button_next: cn(buttonVariants({ variant: "outline" }), "h-7 w-7 bg-transparent p-0 opacity-70 hover:opacity-100"),
         month_grid: "w-full border-collapse",
         weekdays: "flex",
-        weekday: "text-muted-foreground w-11 font-normal text-[0.8rem] capitalize",
+        weekday: "text-muted-foreground flex-1 font-normal text-[0.8rem] capitalize",
         week: "flex w-full mt-1",
-        day: "text-center text-sm p-0 relative",
+        day: "text-center text-sm p-0 relative flex-1",
       }}
       components={{
         Chevron: ({ orientation, ...rest }) =>

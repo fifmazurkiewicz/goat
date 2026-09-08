@@ -132,9 +132,9 @@ selecting a specific persona from the list of active ones (1:1, as before) — `
 
 ```
 PlansPage (smart) — activeMonth/activeDate from URL search params (linkable)
-├─ CalendarViewSwitcher (smart) — Week/Month by breakpoint (matchMedia) + manual override desktop
-│  ├─ WeekAgendaView (dumb) — <768px DEFAULT, custom (date-fns), not grid
-│  └─ MonthGridView (dumb) — desktop option, react-day-picker / shadcn Calendar
+├─ CalendarViewSwitcher (smart) — Week/Month toggle on every breakpoint; default week on phone / month on desktop
+│  ├─ WeekAgendaView (dumb) — phone default, custom (date-fns), not grid
+│  └─ MonthGridView (dumb) — available on phone and desktop, react-day-picker / shadcn Calendar
 ├─ DayPanel (smart, responsive) — Sheet (bottom mobile / side desktop) from shadcn, one component, different `side`
 │  ├─ PlanItemTable (dumb) — generic {title, columns, rows, notes} renderer
 │  └─ ActualResultsPanel (dumb) — NEW: "Completed" — results logged that day next to "Planned"
@@ -143,7 +143,7 @@ PlansPage (smart) — activeMonth/activeDate from URL search params (linkable)
 └─ PlanGenerationBanner (dumb) — reads global usePlanGenerationStore, does NOT do its own polling
 ```
 
-`react-day-picker`/shadcn `Calendar` **only** for `MonthGridView` — there's no built-in week/agenda view, so `WeekAgendaView` (default on mobile) is custom-built with `date-fns` independently of the month-library choice. `FullCalendar`/`react-big-calendar` — overkill, not recommended.
+`react-day-picker`/shadcn `Calendar` **only** for `MonthGridView` — there's no built-in week/agenda view, so `WeekAgendaView` (default on mobile) is custom-built with `date-fns` independently of the month-library choice. The Tydzień/Miesiąc switcher is visible on phones; `resolveCalendarView` keeps week as the mobile default until the user picks a view. `FullCalendar`/`react-big-calendar` — overkill, not recommended.
 
 `PlansPage` **does not** initiate generation-status polling — it reads the result from `usePlanGenerationStore` (app shell) and renders success/partial/error for the selected day/month.
 
@@ -230,7 +230,7 @@ Sections 4–5 address mobile for `/chat` and `/plans` explicitly. For other pag
   phone, `md:py-10`). Touch target min. 44px (`min-h-11`) in nav, composer, tabs,
   catalog chips and plan buttons. Input/textarea: `text-base md:text-sm` (no iOS zoom
   on focus). `useIsMobile`: `(max-width: 767px), (max-height: 500px)` — iPhone
-  landscape gets Sheet and week plan, not a centered Dialog / month grid.
+  landscape gets Sheet (not a centered Dialog). Plan week/month is a user toggle; default remains week.
   `ResponsiveDialog`: single scroll, footer `shrink-0` + safe area.
 - **Navigation:** horizontal scroll of the top bar (6 positions) stays in MVP; bottom nav (Chat /
   Plan / Results) — consciously deferred (variant B of UX audit 2026-08-16).

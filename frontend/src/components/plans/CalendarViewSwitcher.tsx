@@ -5,11 +5,18 @@ import { Button } from "@/components/ui/button";
 import { DayPlanDetail } from "@/components/plans/DayPlanDetail";
 import { MonthGridView } from "@/components/plans/MonthGridView";
 import { WeekAgendaView } from "@/components/plans/WeekAgendaView";
-import { useIsMobile } from "@/hooks/useMediaQuery";
 import { cn } from "@/lib/utils";
 import type { Persona, PlanItem } from "@/types/api";
 
 export type CalendarView = "week" | "month";
+
+/** Week by default on phones; month on desktop. A manual pick wins on every breakpoint. */
+export function resolveCalendarView(
+  isMobile: boolean,
+  manualView: CalendarView | null
+): CalendarView {
+  return manualView ?? (isMobile ? "week" : "month");
+}
 
 interface CalendarViewSwitcherProps {
   view: CalendarView;
@@ -26,8 +33,8 @@ interface CalendarViewSwitcherProps {
 }
 
 /**
- * Week<768px (default) / Month on desktop, chosen by breakpoint (`matchMedia`) plus
- * a manual override on desktop (docs/technical/frontend.md section 5).
+ * Week/Month toggle on every breakpoint. Default is week on phones and month on
+ * desktop (`resolveCalendarView`); the user can override (docs/technical/frontend.md §5).
  */
 export function CalendarViewSwitcher({
   view,
@@ -42,35 +49,29 @@ export function CalendarViewSwitcher({
   onPrev,
   onNext,
 }: CalendarViewSwitcherProps) {
-  const isMobile = useIsMobile();
-
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        {!isMobile ? (
-          <div className="inline-flex rounded-md border p-1">
-            {(["week", "month"] as const).map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => onViewChange(option)}
-                className={cn(
-                  "rounded-sm px-3 py-1 text-sm transition-colors",
-                  view === option ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent"
-                )}
-              >
-                {option === "week" ? "Tydzień" : "Miesiąc"}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <div />
-        )}
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+        <div className="inline-flex w-full rounded-md border p-1 sm:w-auto">
+          {(["week", "month"] as const).map((option) => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => onViewChange(option)}
+              className={cn(
+                "min-h-11 flex-1 rounded-sm px-3 py-1 text-sm transition-colors sm:flex-none",
+                view === option ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent"
+              )}
+            >
+              {option === "week" ? "Tydzień" : "Miesiąc"}
+            </button>
+          ))}
+        </div>
         <div className="flex gap-2">
-          <Button type="button" variant="secondary" className="min-h-11" onClick={onPrev}>
+          <Button type="button" variant="secondary" className="min-h-11 flex-1 sm:flex-none" onClick={onPrev}>
             <ChevronLeft className="mr-1 h-4 w-4" /> Poprzedni
           </Button>
-          <Button type="button" variant="secondary" className="min-h-11" onClick={onNext}>
+          <Button type="button" variant="secondary" className="min-h-11 flex-1 sm:flex-none" onClick={onNext}>
             Następny <ChevronRight className="ml-1 h-4 w-4" />
           </Button>
         </div>
