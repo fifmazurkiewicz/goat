@@ -70,6 +70,18 @@ async def service_role_connection() -> AsyncIterator[AsyncConnection]:
 
 
 @asynccontextmanager
+async def login_role_connection() -> AsyncIterator[AsyncConnection]:
+    """DATABASE_URL login role (typically `postgres`) — can `SELECT auth.users`.
+
+    Hosted Supabase does not grant `auth.users` to `service_role`. After
+    `SET LOCAL ROLE service_role`, that query fail-opens to `{}` and the admin
+    Users column renders "—". Do not SET ROLE here.
+    """
+    async with engine.connect() as conn, conn.begin():
+        yield conn
+
+
+@asynccontextmanager
 async def rls_connection(claims: dict[str, Any] | None) -> AsyncIterator[AsyncConnection]:
     """Opens a connection with the RLS context set from the logged-in user's JWT claims.
 

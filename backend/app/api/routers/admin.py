@@ -11,7 +11,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends
 
 from app.core.config import settings
-from app.core.db import service_role_connection
+from app.core.db import login_role_connection, service_role_connection
 from app.core.exceptions import ForbiddenError
 from app.core.security import AuthContext, require_admin
 from app.core.supabase_admin import get_supabase_admin_client
@@ -76,10 +76,12 @@ async def list_audit_log(auth: AuthContext = Depends(require_admin)) -> list[Aud
 async def list_users(auth: AuthContext = Depends(require_admin)) -> list[AdminUserOut]:
     period_start = current_period_start()
     async with service_role_connection() as conn:
-        profiles_repo = ProfilesRepo(conn)
-        profiles = await profiles_repo.list_all()
+        profiles = await ProfilesRepo(conn).list_all()
         usage_by_user = await UsageLimitsRepo(conn).list_for_period(period_start)
-        emails = await profiles_repo.list_emails()
+
+    # `auth.users` is readable as the login role, not as `service_role`.
+    async with login_role_connection() as conn:
+        emails = await ProfilesRepo(conn).list_emails()
 
     api_emails = await get_supabase_admin_client().list_user_emails()
     for user_id, email in api_emails.items():

@@ -70,10 +70,9 @@ class ProfilesRepo:
     async def list_emails(self) -> dict[str, str]:
         """`user_id → email` from `auth.users` for `GET /admin/users`.
 
-        `profiles` does not store email. Auth Admin REST is optional and fail-open;
-        local Postgres and the same DATABASE_URL on Render both have `auth.users`.
-        Permission errors (hosted `auth.users` is not granted to `service_role`) also
-        fail-open so `/admin/users` still returns profiles.
+        `profiles` does not store email. Call this on `login_role_connection`
+        (DATABASE_URL login role). Hosted `auth.users` is not granted to
+        `service_role`. Auth Admin REST remains an optional fail-open fill-in.
         """
         try:
             result = await self._conn.execute(text("SELECT id, email FROM auth.users"))

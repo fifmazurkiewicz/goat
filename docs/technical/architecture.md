@@ -210,8 +210,9 @@ users), `UsageLimitService` enforces **an explicit dollar budget per account**
   used / limit, period renewal date) — `frontend.md` section 10.
 - Admin panel (`GET /admin/users`) shows `cost_usd_used`/`usage_budget_usd` directly as an amount,
   **without** "Free"/"Pro" labels (rejected as misleading — suggesting a subscription MVP doesn't have).
-  The Users column is the account **email** from `auth.users` (Postgres; Auth Admin REST only fills
-  gaps). `profiles` does not store email.
+  The Users column is the account **email** from `auth.users` (Postgres login role, not
+  `service_role` — hosted Auth denies that grant; Auth Admin REST only fills gaps).
+  `profiles` does not store email.
 
 ## 10. Graft — outside runtime (ADR-20)
 
