@@ -7,7 +7,7 @@ import { useGrantPrivacyConsent, usePrivacyConsent } from "@/hooks/usePrivacy";
 import { getErrorMessage } from "@/lib/api-client";
 
 export function PrivacyConsentGate({ children }: PropsWithChildren) {
-  const { data, isPending, isError, refetch } = usePrivacyConsent();
+  const { data, error, isPending, isError, refetch } = usePrivacyConsent();
   const grant = useGrantPrivacyConsent();
   const [confirmed, setConfirmed] = useState(false);
   const [aiConfirmed, setAiConfirmed] = useState(false);
@@ -20,6 +20,23 @@ export function PrivacyConsentGate({ children }: PropsWithChildren) {
   if (!sensitivePath) return children;
   if (isPending) return <div className="flex min-h-dvh items-center justify-center text-sm text-muted-foreground">Sprawdzanie zgód…</div>;
   if (data?.health_data.active) return children;
+  if (isError) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-muted/30 p-4">
+        <Card className="w-full max-w-xl">
+          <CardHeader>
+            <CardTitle>Nie udało się sprawdzić zgód</CardTitle>
+            <CardDescription>{getErrorMessage(error, "Usługa zgód jest chwilowo niedostępna.")}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            <Button onClick={() => void refetch()}>Spróbuj ponownie</Button>
+            <Button asChild variant="outline"><Link to="/settings">Ustawienia</Link></Button>
+            <Button asChild variant="ghost"><Link to="/personas">Wróć do person</Link></Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-muted/30 p-4">
@@ -41,10 +58,9 @@ export function PrivacyConsentGate({ children }: PropsWithChildren) {
             <span>Rozumiem, że rozmawiam z systemem AI, którego odpowiedzi i plany mogą zawierać błędy i nie zastępują porady medycznej.</span>
           </label>
           <p className="text-muted-foreground">Zgodę możesz wycofać w Ustawieniach. Po wycofaniu czat, profil, wyniki i generowanie planów przestaną działać do czasu ponownego udzielenia zgody.</p>
-          {isError || grant.isError ? <p className="text-destructive">{getErrorMessage(grant.error, "Nie udało się sprawdzić lub zapisać zgody.")}</p> : null}
+          {grant.isError ? <p className="text-destructive">{getErrorMessage(grant.error, "Nie udało się zapisać zgody.")}</p> : null}
           <div className="flex flex-wrap gap-2">
             <Button disabled={!confirmed || !aiConfirmed || grant.isPending} onClick={() => void grant.mutateAsync()}>{grant.isPending ? "Zapisywanie…" : "Wyrażam zgodę i przechodzę dalej"}</Button>
-            {isError ? <Button variant="outline" onClick={() => void refetch()}>Spróbuj ponownie</Button> : null}
             <Button asChild variant="outline"><Link to="/settings">Ustawienia prywatności</Link></Button>
             <Button asChild variant="ghost"><Link to="/personas">Wróć do person</Link></Button>
           </div>

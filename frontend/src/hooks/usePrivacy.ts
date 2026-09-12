@@ -9,6 +9,9 @@ export function usePrivacyConsent() {
   return useQuery({
     queryKey: PRIVACY_CONSENT_KEY,
     queryFn: () => apiFetch<PrivacyConsent>("/api/v1/privacy/consent"),
+    // A failed consent check must settle into a stable error state. Global
+    // wake-window invalidation can retry it once the API is healthy.
+    retry: false,
   });
 }
 
