@@ -11,6 +11,7 @@ import type { Persona, PlanItem } from "@/types/api";
 export type CalendarView = "week" | "month";
 
 /** Week by default on phones; month on desktop. A manual pick wins on every breakpoint. */
+// eslint-disable-next-line react-refresh/only-export-components -- pure helper is shared with the page and its tests
 export function resolveCalendarView(
   isMobile: boolean,
   manualView: CalendarView | null

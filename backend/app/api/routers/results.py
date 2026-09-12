@@ -12,7 +12,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, Query
 
 from app.core.db import rls_connection
-from app.core.security import AuthContext, get_current_user, require_approved
+from app.core.security import AuthContext, get_current_user, require_health_consent
 from app.domain.results.metrics_cache import allowed_metrics_cache
 from app.domain.results.service import ResultsService
 from app.models.schemas import ResultCategory, ResultCreate, ResultOut, ResultUpdate
@@ -21,7 +21,7 @@ from app.repositories.results_repo import ResultsRepo
 router = APIRouter(
     prefix="/results",
     tags=["results"],
-    dependencies=[Depends(require_approved)],
+    dependencies=[Depends(require_health_consent)],
 )
 
 

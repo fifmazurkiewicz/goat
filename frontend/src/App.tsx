@@ -19,6 +19,8 @@ import PlansPage from "@/pages/PlansPage";
 import ProfilePage from "@/pages/ProfilePage";
 import ResultsPage from "@/pages/ResultsPage";
 import SettingsPage from "@/pages/SettingsPage";
+import PrivacyPage from "@/pages/PrivacyPage";
+import TermsPage from "@/pages/TermsPage";
 
 /**
  * Routing per docs/technical/frontend.md section 1. "Min. 1 active persona" guard on
@@ -27,6 +29,8 @@ import SettingsPage from "@/pages/SettingsPage";
 const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/personas" replace /> },
   { path: "/login", element: <LoginPage /> },
+  { path: "/privacy", element: <PrivacyPage /> },
+  { path: "/terms", element: <TermsPage /> },
   {
     element: (
       <ProtectedRoute>

@@ -320,7 +320,7 @@ export type AdminAuditAction =
 
 export interface AdminAuditLogEntry {
   id: string;
-  admin_user_id: string;
+  admin_user_id: string | null;
   action: AdminAuditAction;
   target_user_id: string;
   details: Record<string, unknown> | null;
@@ -360,6 +360,22 @@ export interface Account {
 }
 
 export type AccountUpdateInput = Partial<Pick<Account, "nick">>;
+
+export interface PrivacyConsent {
+  health_data: {
+    active: boolean;
+    required_version: string;
+    version?: string;
+    granted_at?: string;
+  };
+  ai_disclosure: {
+    acknowledged: boolean;
+    required_version: string;
+    version?: string;
+    granted_at?: string;
+  };
+  withdrawn_at?: string | null;
+}
 
 // ADR-14: exercise catalog, static reference content seeded by a migration.
 export type ExerciseLevel = "beginner" | "intermediate" | "advanced";

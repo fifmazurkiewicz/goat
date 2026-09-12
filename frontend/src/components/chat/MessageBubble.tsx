@@ -62,6 +62,7 @@ export function MessageBubble({ message, personaLabel }: MessageBubbleProps) {
           </div>
         )}
       </div>
+      {!isUser ? <div className="px-1 text-[10px] text-muted-foreground">Wygenerowane przez AI</div> : null}
     </div>
   );
 }

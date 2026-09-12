@@ -142,6 +142,9 @@ export function ChatInput({
           Wywołanie persony jako komendy — model rozpozna ją i odpowie w jej imieniu.
         </p>
       ) : null}
+      <p className="mt-2 text-[11px] leading-4 text-muted-foreground/80">
+        Rozmawiasz z AI — odpowiedzi mogą zawierać błędy. Nie podawaj danych innych osób ani zbędnych danych identyfikujących. Goat nie zastępuje lekarza.
+      </p>
     </div>
   );
 }

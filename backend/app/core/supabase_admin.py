@@ -86,6 +86,14 @@ class SupabaseAdminClient:
             raise ExternalServiceError(f"Supabase Admin API zwróciło błąd {response.status_code} przy resecie hasła.")
         return temp_password
 
+    async def delete_user(self, user_id: str) -> None:
+        """Delete the Auth identity; database ON DELETE CASCADE removes owned data."""
+        if self._client is None:
+            raise ExternalServiceError("Usunięcie konta wymaga skonfigurowanego Supabase Admin API.")
+        response = await self._client.delete(f"/users/{user_id}")
+        if response.status_code >= 400:
+            raise ExternalServiceError(f"Supabase Admin API zwróciło błąd {response.status_code} przy usuwaniu konta.")
+
     async def aclose(self) -> None:
         if self._client is not None:
             await self._client.aclose()

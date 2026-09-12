@@ -23,6 +23,7 @@ from app.api.routers import (
     health,
     personas,
     plans,
+    privacy,
     profile,
     results,
     templates,
@@ -39,6 +40,7 @@ from app.domain.jobs.runner import (
 )
 from app.domain.results.metrics_cache import allowed_metrics_cache
 from app.repositories.allowed_metrics_repo import AllowedMetricsRepo
+from app.repositories.privacy_repo import PrivacyRepo
 
 configure_logging(settings.environment)
 logger = structlog.get_logger(__name__)
@@ -54,6 +56,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # `allowed_metrics` — in-memory cache, hot path during `log_result` on the SSE
         # stream (we don't want an SQL query per tool call).
         await allowed_metrics_cache.load(AllowedMetricsRepo(conn))
+        # Bounded, idempotent startup cleanup. Render restarts regularly; an external
+        # scheduler may also call the operator endpoint for stricter timing.
+        await PrivacyRepo(conn).purge_expired(
+            chat_days=settings.privacy_chat_retention_days,
+            job_days=settings.privacy_completed_job_retention_days,
+            moderation_days=settings.privacy_moderation_snippet_retention_days,
+        )
 
     await clear_orphaned_turns_on_startup()
     # Pending background_jobs first — then orphans without a bg row. Reverse order
@@ -104,5 +113,6 @@ app.include_router(account.router, prefix="/api/v1")
 app.include_router(usage.router, prefix="/api/v1")
 app.include_router(results.router, prefix="/api/v1")
 app.include_router(plans.router, prefix="/api/v1")
+app.include_router(privacy.router, prefix="/api/v1")
 app.include_router(exercises.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")

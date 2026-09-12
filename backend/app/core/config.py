@@ -68,6 +68,11 @@ class Settings(BaseSettings):
     # randomly (defense in depth) at this probability even without a hit.
     moderation_random_sample_rate: float = 0.02
 
+    # Application-record retention. Provider backups follow each provider's policy.
+    privacy_chat_retention_days: int = 365
+    privacy_completed_job_retention_days: int = 30
+    privacy_moderation_snippet_retention_days: int = 90
+
     @property
     def openrouter_plan_model(self) -> str:
         """Planner model — by default identical to chat (single model across the whole app)."""

@@ -11,14 +11,14 @@ from fastapi import APIRouter, Depends
 
 from app.core.db import rls_connection
 from app.core.exceptions import ValidationError
-from app.core.security import AuthContext, get_current_user, require_approved
+from app.core.security import AuthContext, get_current_user, require_health_consent
 from app.models.schemas import UserProfileOut, UserProfileUpdate
 from app.repositories.user_profile_repo import UserProfileRepo
 
 router = APIRouter(
     prefix="/profile",
     tags=["profile"],
-    dependencies=[Depends(require_approved)],
+    dependencies=[Depends(require_health_consent)],
 )
 
 

@@ -271,7 +271,7 @@ class AuditLogEntryOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
-    admin_user_id: str
+    admin_user_id: str | None
     action: str
     target_user_id: str | None = None
     details: dict[str, Any] | None = None

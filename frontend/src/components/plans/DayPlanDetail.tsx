@@ -66,6 +66,7 @@ export function DayPlanDetail({ date, items, personas, showHeader = true }: DayP
                     {item.item_type}
                   </div>
                   <div className="text-lg font-semibold">{item.content.title}</div>
+                  <div className="text-[10px] text-muted-foreground">Wygenerowane przez AI</div>
                   {persona ? (
                     <div className="text-xs text-muted-foreground">
                       {persona.name} · {PERSONA_TYPE_LABELS[persona.type]}

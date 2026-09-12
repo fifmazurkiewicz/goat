@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -103,6 +103,9 @@ export default function LoginPage() {
               Zaloguj się przez Google
             </Button>
           )}
+          <p className="text-center text-xs leading-5 text-muted-foreground">
+            Logując się, korzystasz z usługi opisanej w <Link className="underline" to="/terms">Warunkach</Link> i <Link className="underline" to="/privacy">Polityce prywatności</Link>. Kontakt: <a className="underline" href="mailto:fmazurkiewicz@gmail.com">fmazurkiewicz@gmail.com</a>
+          </p>
         </CardContent>
       </Card>
     </div>

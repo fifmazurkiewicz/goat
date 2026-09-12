@@ -1,6 +1,7 @@
 import { Separator } from "@/components/ui/separator";
 import { AccountSettingsCard } from "@/components/settings/AccountSettingsCard";
 import { ExerciseCatalog } from "@/components/settings/ExerciseCatalog";
+import { PrivacyDataCard } from "@/components/settings/PrivacyDataCard";
 import { PAGE_SHELL_CLASS, PAGE_TITLE_CLASS } from "@/lib/layout";
 
 /**
@@ -16,6 +17,8 @@ export default function SettingsPage() {
       <div className="mt-6">
         <AccountSettingsCard />
       </div>
+
+      <div className="mt-6"><PrivacyDataCard /></div>
 
       <Separator className="my-10" />
 

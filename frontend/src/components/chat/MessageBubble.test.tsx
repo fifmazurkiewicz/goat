@@ -16,6 +16,7 @@ describe("MessageBubble", () => {
     expect(screen.getByText("Waga bieżąca").tagName).toBe("STRONG");
     expect(screen.getByText("kursywą").tagName).toBe("EM");
     expect(screen.queryByText(/\*\*/)).toBeNull();
+    expect(screen.getByText("Wygenerowane przez AI")).toBeInTheDocument();
   });
 
   it("keeps user messages as plain text", () => {
@@ -28,6 +29,7 @@ describe("MessageBubble", () => {
       />
     );
     expect(screen.getByText("**nie renderuj**")).toBeInTheDocument();
+    expect(screen.queryByText("Wygenerowane przez AI")).not.toBeInTheDocument();
   });
 
   it("renders Goat's header above the assistant reply", () => {

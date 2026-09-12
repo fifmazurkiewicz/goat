@@ -19,7 +19,7 @@ _COLUMNS = "id, admin_user_id, action, target_user_id, details, created_at"
 @dataclass(frozen=True, slots=True)
 class AuditLogRow:
     id: str
-    admin_user_id: str
+    admin_user_id: str | None
     action: str
     target_user_id: str | None
     details: dict[str, Any] | None

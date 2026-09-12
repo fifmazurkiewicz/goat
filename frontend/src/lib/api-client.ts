@@ -93,3 +93,15 @@ export async function apiFetch<TResponse = unknown>(
 }
 
 export { API_BASE_URL };
+
+/** Authenticated download helper for non-JSON API responses (privacy export). */
+export async function apiDownload(path: string): Promise<{ blob: Blob; filename: string }> {
+  const token = getAccessToken();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+  if (!res.ok) throw await toApiError(res);
+  const disposition = res.headers.get("content-disposition") ?? "";
+  const filename = /filename="?([^";]+)"?/i.exec(disposition)?.[1] ?? "goat-dane.json";
+  return { blob: await res.blob(), filename };
+}

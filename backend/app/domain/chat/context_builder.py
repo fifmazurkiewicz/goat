@@ -80,8 +80,11 @@ def build_temporal_context_block(*, today: date | None = None) -> str:
 
 
 def build_user_profile_block(profile: UserProfileOut | None) -> str | None:
-    """Deterministic block (no LLM) appended to EVERY message (architecture.md §5) —
-    `None` when there's no data at all (instead of an empty section in the prompt)."""
+    """Minimal coaching context sent to the model.
+
+    Exact birth date, sex and free-form notes stay in Goat's database. Age is derived
+    locally and only the compact fields needed by most coaching turns are disclosed.
+    """
     if profile is None:
         return None
 
@@ -93,14 +96,10 @@ def build_user_profile_block(profile: UserProfileOut | None) -> str | None:
     age = _age_years(profile.date_of_birth)
     if age is not None:
         parts.append(f"wiek: {age} lat")
-    if profile.sex:
-        parts.append(f"płeć: {profile.sex}")
     if profile.activity_level:
         parts.append(f"poziom aktywności: {_ACTIVITY_LABELS.get(profile.activity_level, profile.activity_level)}")
     if profile.primary_goal:
         parts.append(f"główny cel: {_GOAL_LABELS.get(profile.primary_goal, profile.primary_goal)}")
-    if profile.notes:
-        parts.append(f"notatki: {profile.notes}")
 
     if not parts:
         return None
@@ -112,7 +111,7 @@ def build_recent_results_block(results: list[Any]) -> str | None:
     if not results:
         return None
     lines: list[str] = []
-    for row in results[:12]:
+    for row in results[:6]:
         logged = getattr(row, "logged_date", None)
         date_str = logged.isoformat() if logged is not None else "?"
         category = getattr(row, "category", "")

@@ -55,3 +55,25 @@ def test_context_builder_omits_empty_optional_blocks() -> None:
     assert "[PROFIL UŻYTKOWNIKA]" not in out
     assert "[ZAKRES ROLI" in out
     assert "[ZACHOWANIE PERSONY]" in out
+
+
+def test_context_builder_does_not_disclose_exact_birth_date_sex_or_notes() -> None:
+    builder = ContextBuilder(_NoopChatRepo(), history_window_messages=10)
+    out = builder.build_system_prompt(
+        persona_type="personal_trainer",
+        persona_system_prompt="Zachowanie.",
+        persona_constraints=None,
+        user_profile=UserProfileOut(
+            user_id="u1",
+            date_of_birth="1990-02-03",
+            sex="female",
+            notes="Poufna diagnoza ABC-123",
+            primary_goal="general_health",
+            updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+        ),
+    )
+    assert "1990-02-03" not in out
+    assert "female" not in out
+    assert "Poufna diagnoza" not in out
+    assert "wiek:" in out
+    assert "ogólne zdrowie" in out

@@ -21,7 +21,13 @@ from app.core.approval import email_from_claims
 from app.core.config import settings
 from app.core.db import service_role_connection
 from app.core.dev_auth import decode_local_access_token
-from app.core.exceptions import AccountPendingApprovalError, ForbiddenError, UnauthorizedError
+from app.core.exceptions import (
+    AccountPendingApprovalError,
+    ForbiddenError,
+    HealthConsentRequiredError,
+    UnauthorizedError,
+)
+from app.repositories.privacy_repo import HEALTH_CONSENT_VERSION, PrivacyRepo
 from app.repositories.profiles_repo import ProfilesRepo
 
 logger = structlog.get_logger(__name__)
@@ -130,4 +136,13 @@ async def require_admin(auth: AuthContext = Depends(get_current_user)) -> AuthCo
     if not profile.is_admin:
         raise ForbiddenError("Administrator permissions required.")
 
+    return auth
+
+
+async def require_health_consent(auth: AuthContext = Depends(require_approved)) -> AuthContext:
+    """Gate profile, results, chat and plans at the API boundary."""
+    async with service_role_connection() as conn:
+        active = await PrivacyRepo(conn).active_consents(auth.user_id)
+    if active.get("health_data", {}).get("version") != HEALTH_CONSENT_VERSION:
+        raise HealthConsentRequiredError("Ta funkcja wymaga zgody na przetwarzanie danych zdrowotnych.")
     return auth

@@ -21,6 +21,7 @@ import { useApiHealthStore } from "@/store/useApiHealthStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useThemeStore } from "@/store/useThemeStore";
 import { useUsageLimitsStore } from "@/store/useUsageLimitsStore";
+import { PrivacyConsentGate } from "@/components/privacy/PrivacyConsentGate";
 
 const NAV_ITEMS = [
   { to: "/personas", label: "Persony" },
@@ -97,7 +98,7 @@ export function AppShell() {
     );
   }
 
-  return <ApprovedAppShell />;
+  return <PrivacyConsentGate><ApprovedAppShell /></PrivacyConsentGate>;
 }
 
 function ApprovedAppShell() {

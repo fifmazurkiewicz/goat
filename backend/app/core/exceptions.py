@@ -49,6 +49,12 @@ class AccountPendingApprovalError(ForbiddenError):
     code = "account_pending_approval"
 
 
+class HealthConsentRequiredError(ForbiddenError):
+    """Sensitive coaching features require an active, versioned consent."""
+
+    code = "health_consent_required"
+
+
 class PersonaLimitExceededError(AppError):
     """Active persona limit reached — per account (`profiles.max_active_personas`,
     default 5, editable by admin), see database-schema.md and ADR-12."""
