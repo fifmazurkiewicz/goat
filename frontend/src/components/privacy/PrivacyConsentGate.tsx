@@ -16,8 +16,10 @@ export function PrivacyConsentGate({ children }: PropsWithChildren) {
     (path) => location.pathname === path || location.pathname.startsWith(`${path}/`)
   );
 
+  // Non-sensitive areas must never wait for the consent API.
+  if (!sensitivePath) return children;
   if (isPending) return <div className="flex min-h-dvh items-center justify-center text-sm text-muted-foreground">Sprawdzanie zgód…</div>;
-  if (data?.health_data.active || !sensitivePath) return children;
+  if (data?.health_data.active) return children;
 
   return (
     <div className="flex min-h-dvh items-center justify-center bg-muted/30 p-4">
