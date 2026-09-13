@@ -72,10 +72,12 @@ class OpenRouterClient:
         if max_tokens:
             payload["max_tokens"] = max_tokens
         if fallback_models:
-            # `model` is the primary; OpenRouter defines `models` here as the
-            # ordered fallback list. Repeating the primary can retry the same slow
-            # model before reaching the actual fallback.
-            payload["models"] = fallback_models
+            # OpenRouter's multi-model contract uses one ordered `models` list;
+            # its first entry is the primary model and the remaining entries are
+            # fallbacks. Do not send the mutually ambiguous `model` + `models`
+            # combination.
+            payload.pop("model")
+            payload["models"] = list(dict.fromkeys([model, *fallback_models]))
         if settings.openrouter_provider_sort:
             payload["provider"] = {"sort": settings.openrouter_provider_sort}
 

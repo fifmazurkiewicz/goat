@@ -9,7 +9,7 @@ from app.llm.openrouter_client import OpenRouterClient
 
 
 @pytest.mark.asyncio
-async def test_stream_payload_prioritizes_throughput_and_does_not_duplicate_primary() -> None:
+async def test_stream_payload_uses_ordered_models_contract_and_prioritizes_throughput() -> None:
     captured: dict = {}
 
     async def handler(request: httpx.Request) -> httpx.Response:
@@ -31,13 +31,13 @@ async def test_stream_payload_prioritizes_throughput_and_does_not_duplicate_prim
             async for chunk in client.stream_chat(
                 model="primary/model",
                 messages=[{"role": "user", "content": "hi"}],
-                fallback_models=["fallback/model"],
+                fallback_models=["primary/model", "fallback/model"],
             )
         ]
     finally:
         await client.aclose()
 
     assert chunks
-    assert captured["model"] == "primary/model"
-    assert captured["models"] == ["fallback/model"]
+    assert "model" not in captured
+    assert captured["models"] == ["primary/model", "fallback/model"]
     assert captured["provider"] == {"sort": "throughput"}
