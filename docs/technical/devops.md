@@ -50,7 +50,9 @@ Full checklist in [`local-setup.md`](local-setup.md). Rule: the project must run
 | `SUPABASE_SERVICE_ROLE_KEY` | **only** Render (secret) | Backend-only, Admin API. Never in repo/frontend |
 | `OPENROUTER_API_KEY` | Render (secret) | |
 | `OPENROUTER_CHAT_MODEL` / `OPENROUTER_PLANNER_MODEL` | Render + `.env.example` | env-driven, not hardcoded |
+| `OPENROUTER_PROVIDER_SORT` | Render + `.env.example` | `throughput` prioritizes faster interactive responses |
 | `CHAT_HARD_TIMEOUT_S` / `CHAT_ROUND_TIMEOUT_S` | Render + `.env.example` | SSE whole-turn (default 210) / per LLM round (default 90) |
+| `CHAT_MODERATION_TIMEOUT_S` | Render + `.env.example` | Fail-open runtime classifier budget (default 5s) |
 | `CORS_ORIGINS` | Render | `https://goat.fmazurkiewicz.dev` (+ `http://localhost:3000` when testing API locally) + regex `*.vercel.app` for preview |
 | `ADMIN_EMAILS` | local / Render | Comma-separated extras auto-approved on `profiles` INSERT only (ADR-22). Sole admin `fmazurkiewicz@gmail.com` is always included. |
 | `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_BASE_URL` | Vercel + `frontend/.env.local` | Public, safe in bundle (protected by RLS) |

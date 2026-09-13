@@ -82,4 +82,23 @@ describe("MessageList", () => {
     expect(screen.getByText(TEAM_LEAD_DISPLAY_LABEL)).toBeInTheDocument();
     expect(screen.getByText("Generuję plan…")).toBeInTheDocument();
   });
+
+  it("keeps tool progress visible after the model emitted preliminary text", () => {
+    render(
+      <MessageList
+        messages={[]}
+        personaLabelFor={() => null}
+        streaming={{
+          content: "Zapisuję trening…",
+          personaId: null,
+          personaLabel: TEAM_LEAD_DISPLAY_LABEL,
+          statusLabel: "Goat zapisuje wynik…",
+          toolResults: [],
+          consultDetails: [],
+        }}
+      />
+    );
+    expect(screen.getByText("Zapisuję trening…")).toBeInTheDocument();
+    expect(screen.getByText("Goat zapisuje wynik…")).toBeInTheDocument();
+  });
 });

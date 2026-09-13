@@ -95,9 +95,10 @@ Every OpenRouter response in the SSE stream must include the final `usage` chunk
 OpenRouter doesn't include `usage` in streamed responses). Turn cost counted as
 `prompt_tokens * input_price + completion_tokens * output_price` per model pricing.
 
-**Model pricing** fetched from OpenRouter's `GET /api/v1/models` on app startup and cached
-in-memory (refreshed periodically, e.g. hourly) — model prices on OpenRouter change, so
-they are NOT hardcoded. Fallback: if the model isn't in the current pricing cache (e.g.
+**Model pricing** is fetched from OpenRouter's `GET /api/v1/models` in the background and cached
+in-memory (refreshed periodically, e.g. hourly). The foreground chat never waits for this metadata —
+model prices change, so they are not hardcoded, while an empty/stale cache uses the conservative
+fallback immediately. Fallback: if the model isn't in the current pricing cache (e.g.
 temporary `/models` endpoint outage), use the last known value from the cache; if cache is empty (cold
 start) — conservative upper-bound estimate, so the limit isn't bypassed when data is missing.
 
@@ -139,11 +140,13 @@ In addition to `persona_turn_start` / `token` / `tool_*` the backend emits:
 | `persona_turn_end` | End of one persona's turn |
 | `turn_complete` | Whole team finished |
 
-FE shows **a single status line** (replace), disappears at first tokens of the response.
+FE shows a live status line throughout the turn, including after preliminary text when a tool is still running.
 
 ### Conversation title (LLM)
 
-First user message → `chat_title` job in `background_jobs` (`CHAT_LLM_TITLE_ENABLED=true`). LLM returns a short title in English; fallback: message truncation when flag is off.
+With `CHAT_LLM_TITLE_ENABLED=true`, the first user message enqueues a `chat_title` job in
+`background_jobs`. The default is `false`: immediate deterministic truncation avoids making a
+background title compete with the foreground answer.
 
 ### Task queue in Postgres (`background_jobs`, migration 0008)
 

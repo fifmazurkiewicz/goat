@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     # Fallback providers for chat_model (ai-pipeline.md §1) — one provider outage
     # must not take down chat. Passed as `extra_body={"models": [...]}` to OpenRouter.
     openrouter_chat_model_fallbacks: str = "openai/gpt-5-mini"
+    # Prefer providers with the best recent generation throughput. OpenRouter's
+    # default routing is price-oriented, which is a poor fit for interactive chat.
+    openrouter_provider_sort: str = "throughput"
 
     # Comma-separated string (env var format) — see cors_origins_list below.
     cors_origins: str = "http://localhost:3000"
@@ -45,11 +48,13 @@ class Settings(BaseSettings):
     # Whole SSE turn (Goat + sequential consults). Per-round cap is chat_round_timeout_s.
     chat_hard_timeout_s: int = 210
     chat_round_timeout_s: int = 90
+    # Runtime moderation is fail-open and must not consume the foreground answer SLA.
+    chat_moderation_timeout_s: int = 5
     chat_max_input_tokens: int = 8000
     chat_history_window_messages: int = 20
     chat_max_message_length: int = 4000
     chat_max_output_tokens: int = 1500
-    chat_llm_title_enabled: bool = True
+    chat_llm_title_enabled: bool = False
 
     # --- Plan generation (architecture.md §4, ADR-1/2) ---
     plan_reaper_stale_minutes: int = 5

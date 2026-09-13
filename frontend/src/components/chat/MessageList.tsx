@@ -46,20 +46,22 @@ export function MessageList({ messages, personaLabelFor, streaming }: MessageLis
       event,
     }));
 
-    const showStatus = Boolean(streaming.statusLabel) && !streaming.content;
-    if (showStatus && streaming.statusLabel) {
-      streamingRows.push({
-        kind: "streaming-status",
-        key: "streaming-status",
-        label: streaming.statusLabel,
-      });
-    } else if (streaming.content || streaming.personaLabel) {
+    if (streaming.content || streaming.personaLabel) {
       streamingRows.push({
         kind: "streaming-text",
         key: "streaming-text",
         content: streaming.content,
         personaLabel: streaming.personaLabel,
         consultDetails: streaming.consultDetails,
+      });
+    }
+    // A model may emit a short pre-tool sentence ("Zapisuję…") before a slow
+    // operation. Keep the live phase visible instead of making the UI look frozen.
+    if (streaming.statusLabel) {
+      streamingRows.push({
+        kind: "streaming-status",
+        key: "streaming-status",
+        label: streaming.statusLabel,
       });
     }
 

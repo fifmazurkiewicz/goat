@@ -2,8 +2,8 @@
 
 Model prices on OpenRouter change over time, so they are NOT hardcoded — fetched from
 `GET /api/v1/models` (`pricing.prompt`/`pricing.completion`, USD per token) and kept
-in process memory with TTL. Lazy refresh (on first use after TTL expiry), not a separate
-scheduler/thread — simpler and sufficient at this app's scale.
+in process memory with TTL. Refresh is scheduled in the background: pricing metadata
+must never delay the foreground chat model request.
 """
 
 from __future__ import annotations
@@ -36,7 +36,25 @@ class ModelPricingCache:
         self._fallback = fallback_usd_per_token
         self._prices: dict[str, tuple[float, float]] = {}
         self._last_refresh: float = 0.0
+        self._last_refresh_attempt: float = 0.0
         self._lock = asyncio.Lock()
+        self._refresh_task: asyncio.Task[None] | None = None
+
+    def _refresh_due(self, now: float) -> bool:
+        if self._prices:
+            return (now - self._last_refresh) >= self._refresh_seconds
+        # An OpenRouter outage must not start another /models request on every
+        # cost estimate/round. Retry once a minute while the cache is empty.
+        return (now - self._last_refresh_attempt) >= min(self._refresh_seconds, 60)
+
+    def _schedule_refresh(self) -> None:
+        now = time.monotonic()
+        if not self._refresh_due(now):
+            return
+        if self._refresh_task is not None and not self._refresh_task.done():
+            return
+        self._last_refresh_attempt = now
+        self._refresh_task = asyncio.create_task(self.refresh(force=True))
 
     async def refresh(self, *, force: bool = False) -> None:
         now = time.monotonic()
@@ -72,7 +90,7 @@ class ModelPricingCache:
         """`(prompt_usd_per_token, completion_usd_per_token)`. Conservative fallback
         (upper bound) when the model is unknown in cache or cache is empty (cold start) —
         deliberately does NOT allow free usage when price data is missing."""
-        await self.refresh()
+        self._schedule_refresh()
         if model in self._prices:
             return self._prices[model]
         logger.warning("model_pricing_unknown_model", model=model)

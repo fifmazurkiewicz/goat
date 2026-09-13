@@ -4,7 +4,7 @@ import { reportApiNetworkError } from "@/store/useApiHealthStore";
 import type { ChatStreamEvent, SendMessageBody } from "@/types/chat-stream";
 
 /**
- * Parses one SSE "chunk" (text between `\n\n` separators) into a domain event.
+ * Parses one SSE frame (text between blank-line separators) into a domain event.
  * The input format is the standard SSE fields: `event: <name>` and (one or more) `data: <json>`
  * lines — `sse-starlette` (`architecture.md` section 3) serializes `EventSourceResponse` like this.
  * Comment lines (`:` at the start, e.g. a heartbeat ping every 15s) are ignored and we return `null`
@@ -31,8 +31,14 @@ export function parseSseEvents(chunk: string): ChatStreamEvent[] {
   return events;
 }
 
+/** Extract complete SSE frames while retaining a possibly fragmented final frame. */
+export function extractSseFrames(buffer: string): { frames: string[]; remainder: string } {
+  const parts = buffer.split(/\r?\n\r?\n/);
+  return { frames: parts.slice(0, -1), remainder: parts.at(-1) ?? "" };
+}
+
 function parseSingleSseEvent(chunk: string): ChatStreamEvent | null {
-  const lines = chunk.split("\n").filter((line) => line.length > 0 && !line.startsWith(":"));
+  const lines = chunk.split(/\r?\n/).filter((line) => line.length > 0 && !line.startsWith(":"));
   if (lines.length === 0) return null;
 
   let eventName: string | undefined;
@@ -110,9 +116,13 @@ export async function* streamChatMessage({
     const { value, done } = await reader.read();
     if (done) break;
     buffer += value;
-    const chunks = buffer.split("\n\n");
-    buffer = chunks.pop() ?? "";
-    for (const chunk of chunks) {
+    // sse-starlette uses CRLF on the wire by default. Accept both legal styles,
+    // including delimiters split across network reads, so tokens are not buffered
+    // until EOF (or until the server's whole-turn timeout).
+    const extracted = extractSseFrames(buffer);
+    buffer = extracted.remainder;
+    const { frames } = extracted;
+    for (const chunk of frames) {
       for (const event of parseSseEvents(chunk)) {
         yield event;
       }

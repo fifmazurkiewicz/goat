@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseSseEvent, parseSseEvents } from "@/lib/sse";
+import { extractSseFrames, parseSseEvent, parseSseEvents } from "@/lib/sse";
 
 describe("parseSseEvent", () => {
   it("parses a token event with a single data line", () => {
@@ -62,6 +62,20 @@ describe("parseSseEvent", () => {
   it("joins multiline data fields per the SSE specification", () => {
     const chunk = 'event: token\ndata: {"text":"linia1\\nlinia2"}';
     expect(parseSseEvent(chunk)).toEqual({ type: "token", text: "linia1\nlinia2" });
+  });
+
+  it("parses CRLF frames emitted by sse-starlette", () => {
+    const chunk = 'event: token\r\ndata: {"text":"od razu"}';
+    expect(parseSseEvent(chunk)).toEqual({ type: "token", text: "od razu" });
+  });
+
+  it("extracts CRLF frames and retains a delimiter fragmented across reads", () => {
+    const first = extractSseFrames('event: token\r\ndata: {"text":"a"}\r');
+    expect(first.frames).toEqual([]);
+
+    const second = extractSseFrames(`${first.remainder}\n\r\nevent: done\r\ndata: {}`);
+    expect(second.frames).toEqual(['event: token\r\ndata: {"text":"a"}']);
+    expect(second.remainder).toBe("event: done\r\ndata: {}");
   });
 
   it("ignores comment lines (heartbeat ping) and returns null", () => {

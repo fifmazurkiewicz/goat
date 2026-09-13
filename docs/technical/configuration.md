@@ -25,12 +25,14 @@ Setup: [`local-setup.md`](local-setup.md). Hosting: [`devops.md`](devops.md) §5
 | `OPENROUTER_CHAT_MODEL` | Chat + default planner |
 | `OPENROUTER_PLANNER_MODEL` | Empty = same as chat |
 | `OPENROUTER_CHAT_MODEL_FALLBACKS` | OpenRouter fallback list (optional; has a code default) |
+| `OPENROUTER_PROVIDER_SORT` | Provider priority (`throughput` by default for interactive chat) |
 | `CORS_ORIGINS` | Comma-separated; local default `http://localhost:3000` |
 | `ADMIN_EMAILS` | Extra auto-approve emails on profile INSERT (ADR-22); sole admin is always included |
-| `CHAT_LLM_TITLE_ENABLED` | Conversation auto-title |
+| `CHAT_LLM_TITLE_ENABLED` | LLM conversation auto-title (default `false`; deterministic title avoids foreground contention) |
 | `PLAN_AUTO_HARMONIZE_ON_UPSERT` | Harmonize after upsert |
 | `CHAT_HARD_TIMEOUT_S` | Whole SSE turn (default 210) |
 | `CHAT_ROUND_TIMEOUT_S` | Per LLM round (default 90) |
+| `CHAT_MODERATION_TIMEOUT_S` | Fail-open runtime classifier budget (default 5 seconds) |
 | `PRIVACY_CHAT_RETENTION_DAYS` | Inactive chat-session retention (default 365 days) |
 | `PRIVACY_COMPLETED_JOB_RETENTION_DAYS` | Completed background and plan-job retention (default 30 days) |
 | `PRIVACY_MODERATION_SNIPPET_RETENTION_DAYS` | Raw moderation-snippet retention before redaction (default 90 days) |

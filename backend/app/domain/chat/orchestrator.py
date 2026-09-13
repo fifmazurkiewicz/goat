@@ -298,6 +298,15 @@ class ChatOrchestrator:
         consult_roster: list[Any] | None = None,
         consult_read_only: bool = False,
     ) -> tuple[bool, str | None]:
+        if emit_sse:
+            # Give the browser an immediate frame before optional moderation and
+            # remote DB context reads. This also makes proxy/SSE buffering visible.
+            await _emit_persona_status(
+                queue,
+                persona=persona,
+                phase="thinking",
+                label=status_label,
+            )
         if consult_roster is not None:
             self._consult_roster = consult_roster
             self._consult_session_id = session_id
@@ -309,7 +318,15 @@ class ChatOrchestrator:
         # alone would carry too much false-positive risk (a normal question about "training
         # rules" contains the word "rules") and hurt UX. If hard blocking is needed later,
         # this is the only place to add it.
-        await get_moderation_service().check_chat_message(user_id=user_id, message=user_message, session_id=session_id)
+        try:
+            async with asyncio.timeout(settings.chat_moderation_timeout_s):
+                await get_moderation_service().check_chat_message(
+                    user_id=user_id, message=user_message, session_id=session_id
+                )
+        except TimeoutError:
+            # Runtime chat moderation is intentionally fail-open; a classifier or
+            # provider stall must not delay the actual coaching response.
+            logger.warning("chat_moderation_timeout", session_id=session_id)
 
         template_safety: str | None = None
         if persona.type == "team_lead":
@@ -360,13 +377,6 @@ class ChatOrchestrator:
         fallback_models = [m.strip() for m in settings.openrouter_chat_model_fallbacks.split(",") if m.strip()]
         chat_model = settings.openrouter_chat_model
 
-        if emit_sse:
-            await _emit_persona_status(
-                queue,
-                persona=persona,
-                phase="thinking",
-                label=status_label,
-            )
         emitted_writing_status = False
 
         for round_index in range(settings.chat_max_tool_rounds):

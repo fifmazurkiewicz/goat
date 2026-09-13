@@ -72,7 +72,12 @@ class OpenRouterClient:
         if max_tokens:
             payload["max_tokens"] = max_tokens
         if fallback_models:
-            payload["models"] = [model, *fallback_models]
+            # `model` is the primary; OpenRouter defines `models` here as the
+            # ordered fallback list. Repeating the primary can retry the same slow
+            # model before reaching the actual fallback.
+            payload["models"] = fallback_models
+        if settings.openrouter_provider_sort:
+            payload["provider"] = {"sort": settings.openrouter_provider_sort}
 
         last_exc: Exception | None = None
         for attempt in range(3):
