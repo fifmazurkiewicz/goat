@@ -7,6 +7,7 @@ Default models configured via env (`OPENROUTER_CHAT_MODEL`/`OPENROUTER_PLANNER_M
 from __future__ import annotations
 
 import json
+import time
 from collections.abc import AsyncIterator
 from functools import lru_cache
 from typing import Any
@@ -129,10 +130,19 @@ class OpenRouterClient:
             "response_format": {"type": "json_schema", "json_schema": json_schema},
             "provider": {"require_parameters": True},
         }
+        started_at = time.perf_counter()
         response = await self._client.post("/chat/completions", json=payload)
         if response.status_code >= 400:
             raise ExternalServiceError(f"OpenRouter zwrócił błąd {response.status_code}: {response.text[:500]!r}")
         data = response.json()
+        usage = data.get("usage") or {}
+        logger.info(
+            "openrouter_json_completed",
+            model=model,
+            duration_ms=round((time.perf_counter() - started_at) * 1000),
+            prompt_tokens=usage.get("prompt_tokens"),
+            completion_tokens=usage.get("completion_tokens"),
+        )
         content = data["choices"][0]["message"]["content"]
         result: dict[str, Any] = json.loads(content)
         return result

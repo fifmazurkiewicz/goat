@@ -59,7 +59,13 @@ class Settings(BaseSettings):
     # --- Plan generation (architecture.md §4, ADR-1/2) ---
     plan_reaper_stale_minutes: int = 5
     plan_persona_concurrency_limit: int = 3
-    plan_max_output_tokens: int = 4000
+    # Output budgets are deliberately stage-specific. A full 4k completion for every
+    # persona made a five-person plan feel stalled even when the draft was concise.
+    plan_week_persona_max_output_tokens: int = 1800
+    plan_month_persona_max_output_tokens: int = 3000
+    plan_week_coordinator_max_output_tokens: int = 500
+    plan_month_coordinator_max_output_tokens: int = 1000
+    plan_harmonization_max_output_tokens: int = 800
     plan_auto_harmonize_on_upsert: bool = True
 
     # --- OpenRouter model pricing (ai-pipeline.md §1b, ADR-16) ---

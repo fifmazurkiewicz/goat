@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { PlanGenerationJobPersonaBreakdown } from "@/types/api";
+import type { PlanGenerationJobPersonaBreakdown, PlanGenerationPhase } from "@/types/api";
 
 export type PlanGenerationStatus =
   | "idle"
@@ -12,10 +12,12 @@ interface PlanGenerationState {
   status: PlanGenerationStatus;
   jobId: string | null;
   startedAt: string | null;
+  phase: PlanGenerationPhase | null;
   breakdown: PlanGenerationJobPersonaBreakdown[];
   startJob: (jobId: string) => void;
   setStatus: (status: PlanGenerationStatus, breakdown?: PlanGenerationJobPersonaBreakdown[]) => void;
   updateProgress: (breakdown: PlanGenerationJobPersonaBreakdown[]) => void;
+  setPhase: (phase: PlanGenerationPhase | null) => void;
   reset: () => void;
 }
 
@@ -52,20 +54,22 @@ export const usePlanGenerationStore = create<PlanGenerationState>((set) => ({
   status: readPersistedJobId() ? "generating" : "idle",
   jobId: readPersistedJobId(),
   startedAt: null,
+  phase: readPersistedJobId() ? "preparing" : null,
   breakdown: [],
   startJob: (jobId) => {
     persistJobId(jobId);
-    set({ status: "generating", jobId, startedAt: new Date().toISOString(), breakdown: [] });
+    set({ status: "generating", jobId, startedAt: new Date().toISOString(), phase: "preparing", breakdown: [] });
   },
   setStatus: (status, breakdown) => {
     if (status === "ready" || status === "partial_ready" || status === "error" || status === "idle") {
       persistJobId(null);
     }
-    set((state) => ({ status, breakdown: breakdown ?? state.breakdown }));
+    set((state) => ({ status, phase: status === "generating" ? state.phase : "finished", breakdown: breakdown ?? state.breakdown }));
   },
   updateProgress: (breakdown) => set({ breakdown }),
+  setPhase: (phase) => set({ phase }),
   reset: () => {
     persistJobId(null);
-    set({ status: "idle", jobId: null, startedAt: null, breakdown: [] });
+    set({ status: "idle", jobId: null, startedAt: null, phase: null, breakdown: [] });
   },
 }));

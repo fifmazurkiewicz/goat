@@ -2,6 +2,7 @@ import { API_BASE_URL, toApiError } from "@/lib/api-client";
 import { useAuthStore } from "@/store/useAuthStore";
 import { reportApiNetworkError } from "@/store/useApiHealthStore";
 import type { ChatStreamEvent, SendMessageBody } from "@/types/chat-stream";
+import type { PlanGenerationProgressEvent } from "@/types/api";
 
 /**
  * Parses one SSE frame (text between blank-line separators) into a domain event.
@@ -76,6 +77,45 @@ export interface StreamChatMessageOptions {
   sessionId: string;
   body: SendMessageBody;
   signal: AbortSignal;
+}
+
+export async function* streamPlanJobEvents({
+  jobId,
+  signal,
+}: {
+  jobId: string;
+  signal: AbortSignal;
+}): AsyncGenerator<PlanGenerationProgressEvent> {
+  const token = useAuthStore.getState().getAccessToken();
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE_URL}/api/v1/plans/jobs/${jobId}/events`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      signal,
+    });
+  } catch (err) {
+    reportApiNetworkError(err);
+    throw err;
+  }
+  if (!res.ok || !res.body) throw await toApiError(res);
+
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += value;
+    const { frames, remainder } = extractSseFrames(buffer);
+    buffer = remainder;
+    for (const frame of frames) {
+      for (const event of parseSseEvents(frame)) {
+        const eventType = (event as { type: string }).type;
+        if (eventType === "plan_progress" || eventType === "done") {
+          yield event as unknown as PlanGenerationProgressEvent;
+        }
+      }
+    }
+  }
 }
 
 /**

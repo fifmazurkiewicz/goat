@@ -38,7 +38,12 @@ Zasady consult_persona (gdy już wołasz):
 - Po tool response odpowiedz SAM — zwięźle; nie wklejaj odpowiedzi trenera w całości.
 
 Plan:
-- tygodnia/miesiąca / przebudowa / „zaktualizuj plan” → TYLKO rebuild_plan (zakładka Plany).
+- Prośba o trening/plan na KONKRETNY dzień („dzisiaj”, „jutro”, dzień tygodnia lub data) →
+  obsłuż TYLKO ten dzień. Najpierw get_plan z start_date=end_date tą datą; jeśli user chce
+  zapisu/zmiany, użyj upsert_plan_items wyłącznie dla tej daty. NIGDY nie wołaj rebuild_plan.
+- Ogólne „ułóż/zaplanuj mi trening” bez dnia, tygodnia ani miesiąca → najpierw zapytaj po polsku:
+  „Na który dzień, tydzień czy miesiąc mam przygotować plan?” Nie wołaj żadnego narzędzia.
+- Tygodnia/miesiąca / przebudowa / pełna aktualizacja planu → TYLKO rebuild_plan (zakładka Plany).
 - NIE uruchamiaj pełnej przebudowy po cichu: pierwsze rebuild_plan (user zobaczy
   „Potwierdź przebudowę planu”). Enqueue dopiero gdy user napisze „tak” — parametr
   confirmed w narzędziu jest ignorowany.
@@ -175,7 +180,26 @@ def build_goat_turn_prompt(*, active_personas: list[PersonaLike], user_message: 
             if prompt_head:
                 extra = f" | zachowanie: {prompt_head}"
         lines.append(f"- slug=`{p.slug}` | {persona_display_label(p)} | zakres: {scope}{extra}")
-    if is_plan_coordination_only(user_message):
+    if user_requests_single_day_plan(user_message):
+        lines.extend(
+            [
+                "",
+                "User prosi o konkretny dzień. Użyj get_plan WYŁĄCZNIE dla tej daty "
+                "(data startu = data końca z KONTEKSTU CZASOWEGO), a jeśli chce zmiany "
+                "zapisu — upsert_plan_items WYŁĄCZNIE dla tej daty. "
+                "NIE wołaj rebuild_plan ani consult_persona.",
+            ]
+        )
+    elif user_requests_vague_plan(user_message):
+        lines.extend(
+            [
+                "",
+                "User chce plan, ale nie podał okresu. Zadaj dokładnie pytanie: "
+                "„Na który dzień, tydzień czy miesiąc mam przygotować plan?” "
+                "NIE wołaj żadnego narzędzia ani consult_persona.",
+            ]
+        )
+    elif is_plan_coordination_only(user_message):
         lines.extend(
             [
                 "",
@@ -247,11 +271,10 @@ def user_requests_all_trainers(message: str) -> bool:
 
 def user_requests_plan_rebuild(message: str) -> bool:
     lower = message.lower()
+    if user_requests_single_day_plan(lower):
+        return False
     needles = (
         "plan na",
-        "ułóż plan",
-        "ulóż plan",
-        "ułóz plan",
         "zharmonizowany plan",
         "przebuduj plan",
         "przebudow",
@@ -259,7 +282,6 @@ def user_requests_plan_rebuild(message: str) -> bool:
         "plan miesiąca",
         "generuj plan",
         "stwórz plan",
-        "zaplanuj mi",
         "zaktualizuj plan",
         "aktualizuj plan",
         "w aktualnym planie",
@@ -268,6 +290,50 @@ def user_requests_plan_rebuild(message: str) -> bool:
         "w zakładce plany",
     )
     return any(n in lower for n in needles)
+
+
+def user_requests_single_day_plan(message: str) -> bool:
+    """A plan request with an explicit single-day anchor, never a full regeneration."""
+    lower = message.lower()
+    if not any(word in lower for word in ("plan", "trening", "trenow", "ćwiczen", "cwiczen", "siłown", "silown")):
+        return False
+    day_needles = (
+        "dzisiaj",
+        "dziś",
+        "dzis",
+        "jutro",
+        "pojutrze",
+        "poniedział",
+        "poniedzial",
+        "wtorek",
+        "środ",
+        "srod",
+        "czwartek",
+        "piątek",
+        "piatek",
+        "sobot",
+        "niedziel",
+    )
+    return any(needle in lower for needle in day_needles)
+
+
+def user_requests_vague_plan(message: str) -> bool:
+    """A creation request without an explicit planning period or a particular day."""
+    lower = message.lower()
+    if user_requests_single_day_plan(lower) or user_requests_plan_rebuild(lower):
+        return False
+    needles = (
+        "ułóż plan",
+        "ulóż plan",
+        "ułóz plan",
+        "ułóż mi",
+        "ulóż mi",
+        "ułóz mi",
+        "zaplanuj mi",
+        "stwórz plan",
+        "generuj plan",
+    )
+    return any(needle in lower for needle in needles)
 
 
 def user_confirms_rebuild(message: str) -> bool:

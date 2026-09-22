@@ -23,6 +23,7 @@ A list of string lists is schema-safe and the backend zips it back with columns 
 from __future__ import annotations
 
 import asyncio
+import time
 from datetime import date, timedelta
 from typing import Any, Protocol
 
@@ -198,6 +199,22 @@ class PlanOrchestrator:
         self._llm_client = llm_client
         self._planner_model = planner_model or settings.openrouter_plan_model
         self._chat_model = chat_model or settings.openrouter_chat_model
+
+    @staticmethod
+    def _persona_output_budget(period_type: str) -> int:
+        return (
+            settings.plan_month_persona_max_output_tokens
+            if period_type == "month"
+            else settings.plan_week_persona_max_output_tokens
+        )
+
+    @staticmethod
+    def _coordinator_output_budget(period_type: str) -> int:
+        return (
+            settings.plan_month_coordinator_max_output_tokens
+            if period_type == "month"
+            else settings.plan_week_coordinator_max_output_tokens
+        )
 
     async def generate_plan(
         self,
@@ -411,7 +428,11 @@ class PlanOrchestrator:
             estimated = await usage_service.estimate_turn_cost_usd(
                 model=self._planner_model,
                 prompt_text_length_chars=3000,
-                max_output_tokens=settings.plan_max_output_tokens * (persona_count + 1),
+                max_output_tokens=(
+                    settings.plan_month_persona_max_output_tokens * persona_count
+                    + settings.plan_harmonization_max_output_tokens
+                    + settings.plan_month_coordinator_max_output_tokens
+                ),
             )
             period_start = await usage_service.reserve_plan_generation(user_id=user_id, estimated_cost_usd=estimated)
             return period_start, estimated
@@ -457,6 +478,7 @@ class PlanOrchestrator:
             f"{_format_user_brief_block(user_brief)}"
         )
         user_message = f"Ostatnie wyniki użytkownika:\n{results_summary}"
+        started_at = time.perf_counter()
         try:
             result = await self._llm_client.complete_json(
                 model=self._chat_model,
@@ -465,11 +487,20 @@ class PlanOrchestrator:
                     {"role": "user", "content": user_message},
                 ],
                 json_schema=_COORDINATOR_SCHEMA,
-                max_tokens=1200,
+                max_tokens=self._coordinator_output_budget(plan.period_type),
+            )
+            logger.info(
+                "plan_stage_completed",
+                stage="coordinator",
+                duration_ms=round((time.perf_counter() - started_at) * 1000),
             )
             return result
         except Exception as exc:  # noqa: BLE001 — fallback: szkielet pusty, per-persona i tak generują
-            logger.warning("plan_coordinator_pass_failed", error=str(exc))
+            logger.warning(
+                "plan_coordinator_pass_failed",
+                error=str(exc),
+                duration_ms=round((time.perf_counter() - started_at) * 1000),
+            )
             return {"days": [], "notes": ""}
 
     async def _generate_and_persist_persona(
@@ -492,6 +523,7 @@ class PlanOrchestrator:
                 plans_repo = PlansRepo(conn)
                 await plans_repo.update_job_persona_status(job_id, persona.id, "running")
                 await plans_repo.delete_items_for_persona(plan_id, persona.id)
+            started_at = time.perf_counter()
             try:
                 items = await self._generate_for_persona(
                     persona=persona,
@@ -508,8 +540,20 @@ class PlanOrchestrator:
                     await plans_repo.insert_items_batch(plan_id, items)
                     await plans_repo.update_job_persona_status(job_id, persona.id, "done")
                     await plans_repo.update_plan_status(plan_id, "generating")
+                logger.info(
+                    "plan_stage_completed",
+                    stage="persona",
+                    persona_id=persona.id,
+                    duration_ms=round((time.perf_counter() - started_at) * 1000),
+                    items_count=len(items),
+                )
             except Exception as exc:
-                logger.error("plan_persona_generation_failed", persona_id=persona.id, error=str(exc))
+                logger.error(
+                    "plan_persona_generation_failed",
+                    persona_id=persona.id,
+                    error=str(exc),
+                    duration_ms=round((time.perf_counter() - started_at) * 1000),
+                )
                 async with rls_connection(claims) as conn:
                     await PlansRepo(conn).update_job_persona_status(
                         job_id, persona.id, "failed", last_error=str(exc)[:500]
@@ -586,7 +630,7 @@ class PlanOrchestrator:
                 {"role": "user", "content": user_message},
             ],
             json_schema=_persona_items_schema(),
-            max_tokens=settings.plan_max_output_tokens,
+            max_tokens=self._persona_output_budget(plan.period_type),
         )
         items = []
         for raw_item in result.get("items", []):
@@ -657,6 +701,7 @@ class PlanOrchestrator:
         )
         user_message = f"Draft planu:\n{draft_summary}"
 
+        started_at = time.perf_counter()
         result = await self._llm_client.complete_json(
             model=self._planner_model,
             messages=[
@@ -664,7 +709,13 @@ class PlanOrchestrator:
                 {"role": "user", "content": user_message},
             ],
             json_schema=_harmonization_schema(persona_ids),
-            max_tokens=settings.plan_max_output_tokens,
+            max_tokens=settings.plan_harmonization_max_output_tokens,
+        )
+        logger.info(
+            "plan_stage_completed",
+            stage="harmonization",
+            duration_ms=round((time.perf_counter() - started_at) * 1000),
+            draft_item_count=len(item_lookup),
         )
 
         patches = result.get("patches", [])

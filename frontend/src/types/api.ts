@@ -240,6 +240,12 @@ export interface PlanGenerationJob {
   breakdown?: PlanGenerationJobPersonaBreakdown[];
 }
 
+export type PlanGenerationPhase = "preparing" | "coordinating" | "generating_personas" | "harmonizing" | "finished";
+
+export interface PlanGenerationProgressEvent extends PlanGenerationJob {
+  phase: PlanGenerationPhase;
+}
+
 // ADR-16: the limit is an explicit budget in USD per account (profiles.usage_budget_usd),
 // NOT a subscription plan — the `tier` column was removed from usage_limits.
 // `usage_budget_usd` physically lives in `profiles` (persistent independently of the period),

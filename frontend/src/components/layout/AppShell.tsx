@@ -14,6 +14,7 @@ import { useUsage } from "@/hooks/useUsage";
 import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
 import { ChatTurnBanner } from "@/components/chat/ChatTurnBanner";
 import { ApiStatusLamp } from "@/components/layout/ApiStatusLamp";
+import { PlanGenerationStatus } from "@/components/layout/PlanGenerationStatus";
 import { signOut as signOutSupabase } from "@/lib/supabase";
 import { isChatPath } from "@/lib/layout";
 import { cn } from "@/lib/utils";
@@ -186,6 +187,7 @@ function ApprovedAppShell() {
       </header>
       <div className="shrink-0">
         <ChatTurnBanner />
+        <PlanGenerationStatus />
       </div>
       <main
         className={cn(

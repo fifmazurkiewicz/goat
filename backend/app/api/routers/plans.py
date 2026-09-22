@@ -7,12 +7,15 @@ docs/adr/decisions.md ADR-1/ADR-2. Orchestration in
 
 from __future__ import annotations
 
+import asyncio
 import calendar
+import json
 from datetime import date, timedelta
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncConnection
+from sse_starlette.sse import EventSourceResponse
 
 from app.core.db import rls_connection, service_role_connection
 from app.core.security import AuthContext, get_current_user, require_health_consent
@@ -30,6 +33,31 @@ from app.models.schemas import (
 from app.repositories.plans_repo import PlanJobRow, PlanRow, PlansRepo
 
 router = APIRouter(prefix="/plans", tags=["plans"], dependencies=[Depends(require_health_consent)])
+
+
+def _job_phase(job: PlanJobRow, personas: list[PlanGenerationJobPersonaOut]) -> str:
+    """Derive a useful live phase without adding transient state to the database."""
+    if job.status == "pending":
+        return "preparing"
+    if job.status in ("success", "partial_success", "error"):
+        return "finished"
+    if not personas:
+        return "coordinating"
+    if any(persona.status == "running" for persona in personas):
+        return "generating_personas"
+    if any(persona.status in ("done", "failed") for persona in personas) and any(
+        persona.status == "pending" for persona in personas
+    ):
+        return "generating_personas"
+    if all(persona.status == "pending" for persona in personas):
+        return "coordinating"
+    return "harmonizing"
+
+
+def _job_progress_event(job: PlanJobRow, personas: list[PlanGenerationJobPersonaOut]) -> dict[str, object]:
+    body = _job_row_to_out(job, personas).model_dump(mode="json")
+    body["phase"] = _job_phase(job, personas)
+    return body
 
 
 def _period_end_date(period_type: str, start_date: date) -> date:
@@ -170,6 +198,45 @@ async def get_plan_job(job_id: str, auth: AuthContext = Depends(get_current_user
         job = await plans_repo.get_job_or_raise(job_id)
         personas = await plans_repo.list_job_personas(job_id)
     return _job_row_to_out(job, [PlanGenerationJobPersonaOut.model_validate(p) for p in personas])
+
+
+@router.get("/jobs/{job_id}/events")
+async def stream_plan_job_events(
+    job_id: str,
+    request: Request,
+    auth: AuthContext = Depends(get_current_user),
+) -> EventSourceResponse:
+    """SSE status stream for a single plan job.
+
+    Job state is deliberately read from Postgres rather than process memory: this works
+    after a Render restart and when the request and worker land on different instances.
+    The UI keeps REST polling as a fallback for networks that do not support SSE.
+    """
+
+    async with rls_connection(auth.claims) as conn:
+        await PlansRepo(conn).get_job_or_raise(job_id)
+
+    async def event_generator():
+        previous: str | None = None
+        while not await request.is_disconnected():
+            async with rls_connection(auth.claims) as conn:
+                repo = PlansRepo(conn)
+                job = await repo.get_job_or_raise(job_id)
+                personas = [
+                    PlanGenerationJobPersonaOut.model_validate(persona)
+                    for persona in await repo.list_job_personas(job_id)
+                ]
+            payload = _job_progress_event(job, personas)
+            serialized = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+            if serialized != previous:
+                previous = serialized
+                yield {"event": "plan_progress", "data": serialized}
+            if job.status not in ("pending", "running"):
+                yield {"event": "done", "data": serialized}
+                return
+            await asyncio.sleep(1)
+
+    return EventSourceResponse(event_generator(), ping=15)
 
 
 @router.get("/{target_date}", response_model=PlanOut | None)

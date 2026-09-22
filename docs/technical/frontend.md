@@ -26,7 +26,7 @@ Unapproved accounts (`GET /account` → `is_approved=false`) stay inside the aut
 **Zustand — client/UI state, global:**
 - `useAuthStore` — `user`, `session` (Supabase), `isAdmin`.
 - `usePersonaStore` — persona list, `activePersonaId`, computed `hasActivePersona`.
-- `usePlanGenerationStore` — **mounted in the app shell/root layout**, not in `/plans`. State `{status: 'idle'|'generating'|'ready'|'partial_ready'|'error', jobId, startedAt, breakdown}`. Restores state from `localStorage` (`jobId`) on app start so polling survives closing the tab. Itself triggers a toast on status change (side-effect in the place where polling lives, not in the component).
+- `usePlanGenerationStore` — **mounted in the app shell/root layout**, not in `/plans`. State `{status: 'idle'|'generating'|'ready'|'partial_ready'|'error', jobId, startedAt, phase, breakdown}`. Restores state from `localStorage` (`jobId`) on app start so a job survives closing the tab. It consumes authenticated plan-job SSE and falls back to REST after a stream failure; a compact app-wide indicator remains visible while the user navigates to Results or another screen.
 - `useUsageLimitsStore` — refreshed on 429 or on usage headers in API responses. Powers the proactive "90% of limit" badge.
 
 **TanStack Query — server state:** persona CRUD, results, message history, plans. Don't mix with zustand — server state has its own needs (cache, invalidation, refetch, loading/error states) that TanStack Query solves for free.

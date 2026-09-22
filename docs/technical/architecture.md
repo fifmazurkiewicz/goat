@@ -155,7 +155,7 @@ State model (handling partial success — 4/5 personas ok, 1 failed even after r
 - `plan_generation_job_personas(job_id, persona_id, status, retry_count, last_error)` — per-persona granularity.
 - Retrying a single persona **reuses the same `job_id`** (does not create a new one) — otherwise the invariant "max 1 active job per user" (partial unique index in the DB, see [`database-schema.md`](database-schema.md)) breaks on the first partial failure.
 - **Reaper** on app startup (`startup` event): `running` jobs older than 5 min → mark as `error` (protects against hanging after Render restart). In MVP reaper **does not** auto-resume — user clicks "regenerate" manually.
-- Frontend polls `GET /plans/jobs/{id}` with per-persona breakdown; UI handles `partial_success` as a separate state (not binary success/error) — shows partial plan + banner with the list of personas that failed, with retry action.
+- Frontend subscribes to `GET /plans/jobs/{id}/events` (SSE) for phase and per-persona progress, with `GET /plans/jobs/{id}` as a fallback; UI handles `partial_success` as a separate state (not binary success/error) — shows partial plan + banner with the list of personas that failed, with retry action.
 
 ### Concurrency — asyncio traps
 

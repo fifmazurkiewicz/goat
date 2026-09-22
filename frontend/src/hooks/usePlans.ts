@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { apiFetch, ApiError } from "@/lib/api-client";
+import { streamPlanJobEvents } from "@/lib/sse";
 import { useAuthStore } from "@/store/useAuthStore";
 import { usePlanGenerationStore } from "@/store/usePlanGenerationStore";
 import type { GeneratePlanInput, GeneratePlanResponse, PlanGenerationJob, PlanRangeResponse } from "@/types/api";
@@ -95,53 +96,86 @@ export function usePlanGenerationPolling() {
   const status = usePlanGenerationStore((state) => state.status);
   const setStatus = usePlanGenerationStore((state) => state.setStatus);
   const updateProgress = usePlanGenerationStore((state) => state.updateProgress);
+  const setPhase = usePlanGenerationStore((state) => state.setPhase);
   const queryClient = useQueryClient();
   const lastNotifiedStatus = useRef(status);
   const lastDoneCount = useRef(0);
 
   useEffect(() => {
     if (!jobId || status !== "generating") return;
+    const activeJobId = jobId;
 
-    let cancelled = false;
+    const controller = new AbortController();
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    let retrying = false;
 
-    async function pollOnce() {
-      try {
-        const job = await apiFetch<PlanGenerationJob>(`/api/v1/plans/jobs/${jobId}`);
-        if (cancelled) return;
-
-        const breakdown = job.personas ?? job.breakdown;
-        if (breakdown?.length) {
-          updateProgress(breakdown);
-          const doneCount = breakdown.filter((p) => p.status === "done" || p.status === "failed").length;
-          if (doneCount > lastDoneCount.current) {
-            lastDoneCount.current = doneCount;
-            void queryClient.invalidateQueries({ queryKey: ["plans"] });
-          }
+    function applyJob(job: PlanGenerationJob) {
+      const breakdown = job.personas ?? job.breakdown;
+      if (breakdown?.length) {
+        updateProgress(breakdown);
+        const doneCount = breakdown.filter((p) => p.status === "done" || p.status === "failed").length;
+        if (doneCount > lastDoneCount.current) {
+          lastDoneCount.current = doneCount;
+          void queryClient.invalidateQueries({ queryKey: ["plans"] });
         }
+      }
+      if (job.status === "pending" || job.status === "running") return;
 
-        if (job.status === "pending" || job.status === "running") return;
+      const nextStatus =
+        job.status === "success" ? "ready" : job.status === "partial_success" ? "partial_ready" : "error";
+      setStatus(nextStatus, breakdown);
+      void queryClient.invalidateQueries({ queryKey: ["plans"] });
+    }
 
-        const nextStatus =
-          job.status === "success" ? "ready" : job.status === "partial_success" ? "partial_ready" : "error";
-        setStatus(nextStatus, breakdown);
-        void queryClient.invalidateQueries({ queryKey: ["plans"] });
+    async function pollFallback() {
+      if (retrying || controller.signal.aborted) return;
+      retrying = true;
+      try {
+        const job = await apiFetch<PlanGenerationJob>(`/api/v1/plans/jobs/${activeJobId}`);
+        if (!controller.signal.aborted) applyJob(job);
       } catch (err) {
-        if (cancelled) return;
+        if (controller.signal.aborted) return;
         if (err instanceof ApiError && err.status === 404) {
           setStatus("error");
+        }
+      } finally {
+        retrying = false;
+      }
+    }
+
+    async function consumeEvents() {
+      try {
+        for await (const event of streamPlanJobEvents({ jobId: activeJobId, signal: controller.signal })) {
+          if (controller.signal.aborted) return;
+          setPhase(event.phase);
+          applyJob(event);
+        }
+        if (!controller.signal.aborted && usePlanGenerationStore.getState().status === "generating") {
+          retryTimer = setTimeout(() => void consumeEvents(), POLL_INTERVAL_MS);
+        }
+      } catch {
+        if (!controller.signal.aborted) {
+          await pollFallback();
+          if (!controller.signal.aborted && usePlanGenerationStore.getState().status === "generating") {
+            retryTimer = setTimeout(() => void consumeEvents(), POLL_INTERVAL_MS);
+          }
         }
       }
     }
 
     lastDoneCount.current = 0;
-    void pollOnce();
-    const interval = setInterval(() => void pollOnce(), POLL_INTERVAL_MS);
+    void consumeEvents();
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void pollFallback();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
 
     return () => {
-      cancelled = true;
-      clearInterval(interval);
+      controller.abort();
+      if (retryTimer) clearTimeout(retryTimer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [jobId, status, setStatus, updateProgress, queryClient]);
+  }, [jobId, status, setStatus, updateProgress, setPhase, queryClient]);
 
   useEffect(() => {
     if (lastNotifiedStatus.current === status) return;

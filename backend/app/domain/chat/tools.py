@@ -152,6 +152,7 @@ UPSERT_PLAN_ITEMS_TOOL_SCHEMA: dict[str, Any] = {
         "description": (
             "Dopisz lub zaktualizuj pozycje dnia w zakładce Plany. Wołaj TYLKO gdy user "
             "jawnie prosi o zapisanie treningu/diety w planie (nie gdy dostajesz samą radę). "
+            "Przy prośbie o konkretny dzień zapisuj WYŁĄCZNIE tę datę — nie przebudowuj tygodnia/miesiąca. "
             "Bez item_id = insert; z item_id = update własnej pozycji. Daty ISO wg "
             "[KONTEKST CZASOWY]. Jako Goat (kierownik): w każdej pozycji PODAJ persona_id "
             "aktywnej persony z rosteru — masz ostateczny głos i możesz poprawiać cudze karty."
@@ -200,7 +201,8 @@ REBUILD_PLAN_TOOL_SCHEMA: dict[str, Any] = {
         "description": (
             "Uruchom pełną przebudowę planu (aktywne persony + harmonizacja). "
             "Kosztowne — gdy user jawnie prosi o wygenerowanie/przebudowę/aktualizację "
-            "planu na tydzień lub miesiąc. Przekaż user_brief z twardymi ograniczeniami "
+            "planu na tydzień lub miesiąc. NIGDY dla pytania o jeden konkretny dzień. "
+            "Przekaż user_brief z twardymi ograniczeniami "
             "(np. „bez badmintona — tylko siłownia i bieganie”)."
         ),
         "parameters": {

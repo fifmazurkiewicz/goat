@@ -15,6 +15,8 @@ from app.domain.chat.team_lead import (
     resolve_persona_by_slug,
     user_requests_all_trainers,
     user_requests_plan_rebuild,
+    user_requests_single_day_plan,
+    user_requests_vague_plan,
 )
 
 
@@ -105,6 +107,26 @@ def test_user_requests_plan_rebuild_negative_cases() -> None:
     assert not user_requests_plan_rebuild("Jaka jest harmonia w muzyce?")
     assert not user_requests_plan_rebuild("Opowiedz o planie marketingowym firmy")
     assert not user_requests_plan_rebuild("Cześć, jak się masz?")
+
+
+def test_single_day_request_never_triggers_full_plan_rebuild() -> None:
+    message = "Zaplanuj mi trening na dzisiaj"
+    assert user_requests_single_day_plan(message)
+    assert not user_requests_plan_rebuild(message)
+    assert not user_requests_vague_plan(message)
+
+
+def test_vague_plan_request_asks_for_a_period_before_tools() -> None:
+    assert user_requests_vague_plan("Ułóż mi plan treningowy")
+
+    prompt = build_goat_turn_prompt(active_personas=[], user_message="Ułóż mi plan treningowy")
+    assert "Na który dzień, tydzień czy miesiąc" in prompt
+
+
+def test_single_day_prompt_requires_day_scoped_tools() -> None:
+    prompt = build_goat_turn_prompt(active_personas=[], user_message="Co mam trenować jutro?")
+    assert "WYŁĄCZNIE dla tej daty" in prompt
+    assert "NIE wołaj rebuild_plan" in prompt
 
 
 def test_build_goat_turn_prompt_prefers_no_consult_on_simple_greeting() -> None:

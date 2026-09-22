@@ -74,7 +74,8 @@ Production: **one `TeamLeadSpeaker` turn** in `general` without slashes + `consu
 |------|-------------|
 | Without slash | Only Goat (`persona_id=null`); expert via `consult_persona` (backstage) |
 | Slash / multi-slash | Persona directly — Goat does not start |
-| Plan | Goat calls `rebuild_plan` in its turn |
+| One explicit day | Goat uses `get_plan` / `upsert_plan_items` for that date only; no rebuild |
+| Weekly/monthly plan | Goat calls `rebuild_plan` in its turn |
 | Goat's tools | `get_plan`, `rebuild_plan`, `update_user_profile`, `consult_persona` (max 5) |
 | Trainers | `get_trainer_chat_tools()` — **without** `rebuild_plan` / `consult_persona` |
 

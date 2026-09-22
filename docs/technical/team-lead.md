@@ -12,6 +12,7 @@
 |------|------------------------|
 | General conversation **without** `/slug` | **Goat · Team Lead** — the only voice; consults an expert via the `consult_persona` tool |
 | `/slug` or multi-slash | **Selected persona** — directly (Goat does not start) |
+| Request for one explicit day | **Goat** — reads and, if requested, updates only that calendar day |
 | Request for a weekly/monthly plan | **Goat** — `rebuild_plan` in its turn |
 
 The session in the UI is still called **General conversation**.
@@ -55,6 +56,8 @@ One SSE turn: `persona_turn_start` only for Goat (`persona_id: null`). A nested 
 | Function | Purpose |
 |----------|---------|
 | `user_requests_plan_rebuild(message)` | Hint: call `rebuild_plan` |
+| `user_requests_single_day_plan(message)` | Hint: `get_plan` / `upsert_plan_items` scoped to one date, never `rebuild_plan` |
+| `user_requests_vague_plan(message)` | Ask the user to choose a day, week, or month before a plan action |
 | `user_requests_all_trainers(message)` | Hint: consult all from the roster |
 | `consult_scope_hint(...)` | Hint of slugs from **this user's roster** (including `custom`) |
 
@@ -91,6 +94,11 @@ trainers continue to save with their own UUID.
 - Personas draft; harmonization stage 3 = **Goat · Team Lead** (prompt + `user_brief` + deterministic removal of excluded roles + `update`/`delete` patches).
 - In the UI for job progress: a Goat row (Pending / Harmonizing… / Done), not an anonymous pill.
 - In chat, Goat can `upsert_plan_items` on any active persona — final correction without a full rebuild.
+
+**ADDED 2026-09-23 — day-first planning**
+
+- A request anchored to a single day (for example “dzisiaj”, “jutro”, a weekday) is read and edited only for that date; Goat never starts the costly multi-persona rebuild.
+- For an unscoped request such as “ułóż mi plan treningowy”, Goat asks: “Na który dzień, tydzień czy miesiąc mam przygotować plan?” before calling a plan tool.
 
 ### Slash (unchanged)
 
