@@ -1,3 +1,5 @@
+> Cross-agent baseline: follow [`AGENT_STANDARD.md`](AGENT_STANDARD.md) for Codex, Cursor, and Claude Code.
+
 ## Commands
 
 Root is a monorepo (`backend/`, `frontend/`, `supabase/migrations/`). Nested command lists: `backend/AGENTS.md`, `frontend/AGENTS.md`.
