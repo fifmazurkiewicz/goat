@@ -31,8 +31,11 @@ export function useCreateChatSession() {
   return useMutation({
     mutationFn: (input: CreateChatSessionInput) =>
       apiFetch<ChatSession>("/api/v1/chat/sessions", { method: "POST", body: input }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: SESSIONS_KEY });
+    onSuccess: (session) => {
+      queryClient.setQueryData<ChatSession[]>(SESSIONS_KEY, (old) => [
+        session,
+        ...(old ?? []).filter((existing) => existing.id !== session.id),
+      ]);
     },
   });
 }

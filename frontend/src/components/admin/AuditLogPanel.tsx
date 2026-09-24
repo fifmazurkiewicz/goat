@@ -3,6 +3,7 @@ import { pl } from "date-fns/locale";
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useAdminAuditLog } from "@/hooks/useAdmin";
+import { getErrorMessage } from "@/lib/api-client";
 import type { AdminAuditAction } from "@/types/api";
 
 const ACTION_LABELS: Record<AdminAuditAction, string> = {
@@ -15,9 +16,10 @@ const ACTION_LABELS: Record<AdminAuditAction, string> = {
 
 /** Admin audit log (`admin_audit_log`) — who, what, to whom, when. */
 export function AuditLogPanel() {
-  const { data: entries, isLoading } = useAdminAuditLog();
+  const { data: entries, error, isError, isLoading, refetch } = useAdminAuditLog();
 
   if (isLoading) return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
+  if (isError) return <div className="space-y-2 text-sm"><p className="text-destructive">{getErrorMessage(error, "Nie udało się wczytać logu audytowego.")}</p><button className="underline" onClick={() => void refetch()}>Spróbuj ponownie</button></div>;
 
   return (
     <div className="overflow-x-auto rounded-md border">

@@ -15,12 +15,18 @@ from datetime import datetime
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from app.repositories._row_utils import normalize_row_mapping
+
 
 @dataclass(frozen=True, slots=True)
 class ModerationEventRow:
     id: str
     user_id: str
+    persona_id: str | None
+    session_id: str | None
+    message_id: str | None
     trigger_type: str
+    raw_snippet: str | None
     classifier_verdict: str | None
     reviewed: bool
     created_at: datetime
@@ -69,7 +75,8 @@ class ModerationEventsRepo:
         result = await self._conn.execute(
             text(
                 """
-                SELECT id, user_id, trigger_type, classifier_verdict, reviewed, created_at
+                SELECT id, user_id, persona_id, session_id, message_id, trigger_type,
+                       raw_snippet, classifier_verdict, reviewed, created_at
                 FROM moderation_events
                 ORDER BY created_at DESC
                 LIMIT :limit
@@ -77,4 +84,12 @@ class ModerationEventsRepo:
             ),
             {"limit": limit},
         )
-        return [ModerationEventRow(**row._mapping) for row in result]
+        return [
+            ModerationEventRow(
+                **normalize_row_mapping(
+                    dict(row._mapping),
+                    uuid_keys=("id", "user_id", "persona_id", "session_id", "message_id"),
+                )
+            )
+            for row in result
+        ]

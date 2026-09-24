@@ -13,6 +13,8 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from app.repositories._row_utils import stringify_uuid
+
 _COLUMNS = "id, admin_user_id, action, target_user_id, details, created_at"
 
 
@@ -28,6 +30,9 @@ class AuditLogRow:
 
 def _row_to_entry(row: Any) -> AuditLogRow:
     mapping = dict(row._mapping)
+    for key in ("id", "admin_user_id", "target_user_id"):
+        if key in mapping:
+            mapping[key] = stringify_uuid(mapping[key])
     if isinstance(mapping.get("details"), str):
         mapping["details"] = json.loads(mapping["details"])
     return AuditLogRow(**mapping)

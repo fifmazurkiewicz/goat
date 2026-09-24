@@ -4,6 +4,7 @@ import { pl } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useModerationEvents } from "@/hooks/useAdmin";
+import { getErrorMessage } from "@/lib/api-client";
 
 const VERDICT_VARIANT: Record<string, "default" | "destructive" | "secondary" | "outline"> = {
   clean: "secondary",
@@ -14,9 +15,10 @@ const VERDICT_VARIANT: Record<string, "default" | "destructive" | "secondary" | 
 
 /** Overview of `moderation_events` (docs/technical/database-schema.md) — no access for regular users, admin only. */
 export function ModerationEventsPanel() {
-  const { data: events, isLoading } = useModerationEvents();
+  const { data: events, error, isError, isLoading, refetch } = useModerationEvents();
 
   if (isLoading) return <p className="text-sm text-muted-foreground">Ładowanie…</p>;
+  if (isError) return <div className="space-y-2 text-sm"><p className="text-destructive">{getErrorMessage(error, "Nie udało się wczytać zdarzeń moderacji.")}</p><button className="underline" onClick={() => void refetch()}>Spróbuj ponownie</button></div>;
 
   return (
     <div className="overflow-x-auto rounded-md border">
@@ -37,11 +39,11 @@ export function ModerationEventsPanel() {
               </TableCell>
               <TableCell>{event.trigger_type}</TableCell>
               <TableCell>
-                <Badge variant={VERDICT_VARIANT[event.classifier_verdict] ?? "outline"}>
+                <Badge variant={VERDICT_VARIANT[event.classifier_verdict ?? ""] ?? "outline"}>
                   {event.classifier_verdict}
                 </Badge>
               </TableCell>
-              <TableCell className="max-w-sm truncate text-muted-foreground" title={event.raw_snippet}>
+              <TableCell className="max-w-sm truncate text-muted-foreground" title={event.raw_snippet ?? undefined}>
                 {event.raw_snippet}
               </TableCell>
             </TableRow>

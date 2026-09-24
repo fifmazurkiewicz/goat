@@ -349,8 +349,8 @@ export interface ModerationEvent {
   session_id: string | null;
   message_id: string | null;
   trigger_type: ModerationTriggerType;
-  raw_snippet: string;
-  classifier_verdict: ModerationVerdict;
+  raw_snippet: string | null;
+  classifier_verdict: ModerationVerdict | null;
   reviewed: boolean;
   created_at: string;
 }

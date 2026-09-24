@@ -22,11 +22,13 @@ from app.models.schemas import (
     ApprovalUpdate,
     AuditLogEntryOut,
     DeployInfoOut,
+    ModerationEventOut,
     PasswordResetOut,
     PersonaLimitUpdate,
     UsageBudgetUpdate,
 )
 from app.repositories.admin_audit_repo import AdminAuditRepo
+from app.repositories.moderation_repo import ModerationEventsRepo
 from app.repositories.profiles_repo import ProfileRow, ProfilesRepo
 from app.repositories.usage_limits_repo import UsageLimitsRepo
 
@@ -70,6 +72,13 @@ async def list_audit_log(auth: AuthContext = Depends(require_admin)) -> list[Aud
     async with service_role_connection() as conn:
         rows = await AdminAuditRepo(conn).list_all()
     return [AuditLogEntryOut.model_validate(row) for row in rows]
+
+
+@router.get("/moderation-events", response_model=list[ModerationEventOut])
+async def list_moderation_events(_auth: AuthContext = Depends(require_admin)) -> list[ModerationEventOut]:
+    async with service_role_connection() as conn:
+        rows = await ModerationEventsRepo(conn).list_all()
+    return [ModerationEventOut.model_validate(row) for row in rows]
 
 
 @router.get("/users", response_model=list[AdminUserOut])

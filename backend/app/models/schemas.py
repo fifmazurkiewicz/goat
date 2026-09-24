@@ -278,6 +278,21 @@ class AuditLogEntryOut(BaseModel):
     created_at: datetime
 
 
+class ModerationEventOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    user_id: str
+    persona_id: str | None = None
+    session_id: str | None = None
+    message_id: str | None = None
+    trigger_type: str
+    raw_snippet: str | None = None
+    classifier_verdict: str | None = None
+    reviewed: bool
+    created_at: datetime
+
+
 # ============ Auth (local dev) ============
 
 
