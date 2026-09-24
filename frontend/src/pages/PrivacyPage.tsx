@@ -6,7 +6,7 @@ const Section = ({ title, children }: { title: string; children: React.ReactNode
 
 export default function PrivacyPage() {
   return (
-    <main className="mx-auto min-h-dvh max-w-3xl space-y-8 px-4 py-10 sm:py-16">
+    <main className="mx-auto h-dvh max-w-3xl space-y-8 overflow-y-auto px-4 py-10 sm:py-16">
       <div><Link to="/login" className="text-sm underline">← Wróć do logowania</Link><h1 className="mt-5 text-3xl font-bold">Polityka prywatności</h1><p className="mt-2 text-sm text-muted-foreground">Ostatnia aktualizacja: 24 września 2026 r.</p></div>
       <Section title="Administrator i kontakt"><p>Administratorem danych w aplikacji Goat jest operator aplikacji. W sprawach dotyczących prywatności napisz na <a className="underline" href="mailto:fmazurkiewicz@gmail.com">fmazurkiewicz@gmail.com</a>.</p></Section>
       <Section title="Jakie dane przetwarzamy"><p>Przetwarzamy dane konta, nick, profil coachingowy, wiadomości i konsultacje w czacie, persony, wyniki, plany, ustawienia zgód oraz techniczne dane bezpieczeństwa. Profil i rozmowy mogą zawierać dane dotyczące zdrowia, jeżeli je podasz.</p><p>Podawaj tylko dane potrzebne do coachingu. Nie wpisuj danych innych osób ani zbędnych informacji identyfikujących.</p></Section>

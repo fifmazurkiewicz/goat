@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 
 export default function TermsPage() {
   return (
-    <main className="mx-auto min-h-dvh max-w-3xl space-y-6 px-4 py-10 sm:py-16">
+    <main className="mx-auto h-dvh max-w-3xl space-y-6 overflow-y-auto px-4 py-10 sm:py-16">
       <Link to="/login" className="text-sm underline">← Wróć do logowania</Link>
       <h1 className="text-3xl font-bold">Warunki korzystania z Goat</h1>
       <p className="text-sm text-muted-foreground">Ostatnia aktualizacja: 12 września 2026 r.</p>

@@ -15,7 +15,7 @@ export function PendingApprovalScreen({
   isChecking: boolean;
 }) {
   return (
-    <div className="flex min-h-dvh items-start justify-center bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))] sm:items-center">
+    <div className="flex h-dvh items-start justify-center overflow-y-auto bg-background p-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))] sm:items-center">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-xl">Konto oczekuje na akceptację</CardTitle>

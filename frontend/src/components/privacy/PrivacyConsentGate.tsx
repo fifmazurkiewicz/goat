@@ -18,11 +18,11 @@ export function PrivacyConsentGate({ children }: PropsWithChildren) {
 
   // Non-sensitive areas must never wait for the consent API.
   if (!sensitivePath) return children;
-  if (isPending) return <div className="flex min-h-dvh items-center justify-center text-sm text-muted-foreground">Sprawdzanie zgód…</div>;
+  if (isPending) return <div className="flex h-dvh items-center justify-center overflow-y-auto text-sm text-muted-foreground">Sprawdzanie zgód…</div>;
   if (data?.health_data.active) return children;
   if (isError) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-muted/30 p-4">
+      <div className="flex h-dvh items-start justify-center overflow-y-auto bg-muted/30 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))] sm:items-center">
         <Card className="w-full max-w-xl">
           <CardHeader>
             <CardTitle>Nie udało się sprawdzić zgód</CardTitle>
@@ -39,7 +39,7 @@ export function PrivacyConsentGate({ children }: PropsWithChildren) {
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-muted/30 p-4">
+    <div className="flex h-dvh items-start justify-center overflow-y-auto bg-muted/30 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-[max(2rem,env(safe-area-inset-top))] sm:items-center">
       <Card className="w-full max-w-xl">
         <CardHeader>
           <CardTitle>Zgoda na przetwarzanie danych zdrowotnych</CardTitle>
