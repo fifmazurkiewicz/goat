@@ -93,6 +93,8 @@ class ModelPricingCache:
         self._schedule_refresh()
         if model in self._prices:
             return self._prices[model]
+        if self._refresh_task is not None and not self._refresh_task.done():
+            return (self._fallback, self._fallback)
         logger.warning("model_pricing_unknown_model", model=model)
         return (self._fallback, self._fallback)
 
