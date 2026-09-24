@@ -14,6 +14,7 @@ from app.domain.chat.team_lead import (
     persona_display_label,
     resolve_persona_by_slug,
     user_requests_all_trainers,
+    user_requests_multiple_specific_days_plan,
     user_requests_plan_rebuild,
     user_requests_single_day_plan,
     user_requests_vague_plan,
@@ -114,6 +115,16 @@ def test_single_day_request_never_triggers_full_plan_rebuild() -> None:
     assert user_requests_single_day_plan(message)
     assert not user_requests_plan_rebuild(message)
     assert not user_requests_vague_plan(message)
+
+
+def test_multiple_specific_days_plan_does_not_rebuild_the_full_plan() -> None:
+    message = "Zaplanuj trening na piątek, sobotę i poniedziałek"
+    assert user_requests_multiple_specific_days_plan(message)
+    assert not user_requests_single_day_plan(message)
+    assert not user_requests_plan_rebuild(message)
+    prompt = build_goat_turn_prompt(active_personas=[], user_message=message)
+    assert "kilka konkretnych dni" in prompt
+    assert "NIE wołaj rebuild_plan" in prompt
 
 
 def test_vague_plan_request_asks_for_a_period_before_tools() -> None:

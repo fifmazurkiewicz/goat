@@ -38,6 +38,9 @@ Zasady consult_persona (gdy już wołasz):
 - Po tool response odpowiedz SAM — zwięźle; nie wklejaj odpowiedzi trenera w całości.
 
 Plan:
+- Prośba o trening/plan na KILKA konkretnych dni (np. „piątek, sobota i poniedziałek") →
+  obsłuż WYŁĄCZNIE wymienione dni. Jeśli user chce zapisu/zmiany, użyj upsert_plan_items
+  tylko dla tych dat. NIGDY nie wołaj rebuild_plan.
 - Prośba o trening/plan na KONKRETNY dzień („dzisiaj”, „jutro”, dzień tygodnia lub data) →
   obsłuż TYLKO ten dzień. Najpierw get_plan z start_date=end_date tą datą; jeśli user chce
   zapisu/zmiany, użyj upsert_plan_items wyłącznie dla tej daty. NIGDY nie wołaj rebuild_plan.
@@ -180,7 +183,16 @@ def build_goat_turn_prompt(*, active_personas: list[PersonaLike], user_message: 
             if prompt_head:
                 extra = f" | zachowanie: {prompt_head}"
         lines.append(f"- slug=`{p.slug}` | {persona_display_label(p)} | zakres: {scope}{extra}")
-    if user_requests_single_day_plan(user_message):
+    if user_requests_multiple_specific_days_plan(user_message):
+        lines.extend(
+            [
+                "",
+                "User prosi o kilka konkretnych dni. Obsłuż WYŁĄCZNIE wymienione daty; "
+                "jeśli chce zapisu, użyj upsert_plan_items tylko dla tych dat. "
+                "NIE wołaj rebuild_plan ani consult_persona.",
+            ]
+        )
+    elif user_requests_single_day_plan(user_message):
         lines.extend(
             [
                 "",
@@ -271,7 +283,7 @@ def user_requests_all_trainers(message: str) -> bool:
 
 def user_requests_plan_rebuild(message: str) -> bool:
     lower = message.lower()
-    if user_requests_single_day_plan(lower):
+    if user_requests_single_day_plan(lower) or user_requests_multiple_specific_days_plan(lower):
         return False
     needles = (
         "plan na",
@@ -292,9 +304,31 @@ def user_requests_plan_rebuild(message: str) -> bool:
     return any(n in lower for n in needles)
 
 
+def user_requests_multiple_specific_days_plan(message: str) -> bool:
+    """A request naming several weekdays, handled without rebuilding the full plan."""
+    lower = message.lower()
+    if not any(word in lower for word in ("plan", "trening", "trenow", "ćwiczen", "cwiczen", "siłown", "silown")):
+        return False
+    weekdays = (
+        "poniedział",
+        "poniedzial",
+        "wtorek",
+        "środ",
+        "srod",
+        "czwartek",
+        "piątek",
+        "piatek",
+        "sobot",
+        "niedziel",
+    )
+    return sum(weekday in lower for weekday in weekdays) >= 2
+
+
 def user_requests_single_day_plan(message: str) -> bool:
     """A plan request with an explicit single-day anchor, never a full regeneration."""
     lower = message.lower()
+    if user_requests_multiple_specific_days_plan(lower):
+        return False
     if not any(word in lower for word in ("plan", "trening", "trenow", "ćwiczen", "cwiczen", "siłown", "silown")):
         return False
     day_needles = (

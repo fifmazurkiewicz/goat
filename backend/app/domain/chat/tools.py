@@ -152,7 +152,8 @@ UPSERT_PLAN_ITEMS_TOOL_SCHEMA: dict[str, Any] = {
         "description": (
             "Dopisz lub zaktualizuj pozycje dnia w zakładce Plany. Wołaj TYLKO gdy user "
             "jawnie prosi o zapisanie treningu/diety w planie (nie gdy dostajesz samą radę). "
-            "Przy prośbie o konkretny dzień zapisuj WYŁĄCZNIE tę datę — nie przebudowuj tygodnia/miesiąca. "
+            "Przy prośbie o konkretny dzień lub kilka wskazanych dni zapisuj WYŁĄCZNIE te daty — "
+            "nie przebudowuj tygodnia/miesiąca. "
             "Bez item_id = insert; z item_id = update własnej pozycji. Daty ISO wg "
             "[KONTEKST CZASOWY]. Jako Goat (kierownik): w każdej pozycji PODAJ persona_id "
             "aktywnej persony z rosteru — masz ostateczny głos i możesz poprawiać cudze karty."

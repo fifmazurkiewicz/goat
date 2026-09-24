@@ -484,6 +484,20 @@ class ChatOrchestrator:
 
             assistant_content = "".join(content_buffer) or None
 
+            if assistant_content is None and not tool_buffers:
+                logger.warning("chat_empty_model_response", model=chat_model, round=round_index)
+                if emit_sse:
+                    await _emit(
+                        queue,
+                        "error",
+                        {
+                            "code": "empty_response",
+                            "message": "Coach nie wygenerował odpowiedzi. Spróbuj ponownie.",
+                        },
+                    )
+                    await queue.put({"event": "done", "data": "{}"})
+                return False, None
+
             if finish_reason == "tool_calls" and tool_buffers:
                 tool_calls_payload = [
                     {
