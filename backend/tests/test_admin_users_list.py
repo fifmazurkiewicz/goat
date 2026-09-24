@@ -1,9 +1,4 @@
-"""Contract for `GET /api/v1/admin/users` — email must come from `auth.users`.
-
-The Users column in `/admin` renders `email`. Enrichment used to call only the
-Supabase Auth Admin REST API and fail-open to `{}` (local Postgres, Auth outage),
-so the cell was empty even though `auth.users.email` exists.
-"""
+"""Contract for `GET /api/v1/admin/users` — email must come from `auth.users`."""
 
 from __future__ import annotations
 
@@ -37,7 +32,7 @@ async def _fake_conn(_claims: object = None):
 
 
 @pytest.mark.asyncio
-async def test_list_users_includes_email_from_auth_users_when_admin_api_empty(
+async def test_list_users_includes_email_from_auth_users(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     profile = _profile()
@@ -59,18 +54,10 @@ async def test_list_users_includes_email_from_auth_users_when_admin_api_empty(
         async def list_for_period(self, _period: object) -> dict:
             return {}
 
-    class FakeAdminClient:
-        async def list_user_emails(self) -> dict[str, str]:
-            return {}
-
     monkeypatch.setattr("app.api.routers.admin.service_role_connection", _fake_conn)
     monkeypatch.setattr("app.api.routers.admin.login_role_connection", _fake_conn)
     monkeypatch.setattr("app.api.routers.admin.ProfilesRepo", FakeRepo)
     monkeypatch.setattr("app.api.routers.admin.UsageLimitsRepo", FakeUsage)
-    monkeypatch.setattr(
-        "app.api.routers.admin.get_supabase_admin_client",
-        lambda: FakeAdminClient(),
-    )
 
     async def fake_admin() -> AuthContext:
         return AuthContext(
@@ -128,18 +115,10 @@ async def test_list_users_reads_emails_as_login_role_not_service_role(
         async def list_for_period(self, _period: object) -> dict:
             return {}
 
-    class FakeAdminClient:
-        async def list_user_emails(self) -> dict[str, str]:
-            return {}
-
     monkeypatch.setattr("app.api.routers.admin.service_role_connection", fake_service)
     monkeypatch.setattr("app.api.routers.admin.login_role_connection", fake_login, raising=False)
     monkeypatch.setattr("app.api.routers.admin.ProfilesRepo", FakeRepo)
     monkeypatch.setattr("app.api.routers.admin.UsageLimitsRepo", FakeUsage)
-    monkeypatch.setattr(
-        "app.api.routers.admin.get_supabase_admin_client",
-        lambda: FakeAdminClient(),
-    )
 
     async def fake_admin() -> AuthContext:
         return AuthContext(

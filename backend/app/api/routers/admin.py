@@ -92,10 +92,6 @@ async def list_users(auth: AuthContext = Depends(require_admin)) -> list[AdminUs
     async with login_role_connection() as conn:
         emails = await ProfilesRepo(conn).list_emails()
 
-    api_emails = await get_supabase_admin_client().list_user_emails()
-    for user_id, email in api_emails.items():
-        emails.setdefault(str(user_id), email)
-
     return [
         _admin_user_out(
             profile,

@@ -12,12 +12,9 @@ import secrets
 from functools import lru_cache
 
 import httpx
-import structlog
 
 from app.core.config import settings
 from app.core.exceptions import ExternalServiceError
-
-logger = structlog.get_logger(__name__)
 
 
 class SupabaseAdminClient:
@@ -31,41 +28,6 @@ class SupabaseAdminClient:
             headers={"apikey": key, "Authorization": f"Bearer {key}"},
             timeout=httpx.Timeout(15.0, connect=5.0),
         )
-
-    async def list_user_emails(self) -> dict[str, str]:
-        """`GET /auth/v1/admin/users` (paginated) -> `{user_id: email}` to fill gaps
-        in `GET /admin/users` after the `auth.users` SQL join.
-
-        Fail-open: outage returns an empty dict instead of an exception — the account
-        list with `profiles` (limits, budget) is more important than the email
-        enrichment; we don't want to crash the whole `/admin/users` on a transient
-        Auth API outage.
-        """
-        emails: dict[str, str] = {}
-        if self._client is None:
-            return emails
-        page = 1
-        try:
-            while True:
-                response = await self._client.get("/users", params={"page": page, "per_page": 200})
-                if response.status_code >= 400:
-                    logger.warning("supabase_admin_list_users_failed", status=response.status_code)
-                    break
-                payload = response.json()
-                users = payload if isinstance(payload, list) else payload.get("users") or []
-                if not users:
-                    break
-                for user in users:
-                    user_id = user.get("id")
-                    email = user.get("email") or (user.get("user_metadata") or {}).get("email")
-                    if user_id and email:
-                        emails[str(user_id)] = str(email)
-                if len(users) < 200:
-                    break
-                page += 1
-        except httpx.HTTPError as exc:
-            logger.warning("supabase_admin_list_users_error", error=str(exc))
-        return emails
 
     async def reset_password(self, user_id: str) -> str:
         """Sets a NEW, random temporary password (`PUT /admin/users/{id}`) and returns
