@@ -39,6 +39,7 @@ from app.domain.jobs.runner import (
     resume_pending_jobs_on_startup,
 )
 from app.domain.results.metrics_cache import allowed_metrics_cache
+from app.observability.langfuse import flush as flush_langfuse
 from app.repositories.allowed_metrics_repo import AllowedMetricsRepo
 from app.repositories.privacy_repo import PrivacyRepo
 
@@ -71,6 +72,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await resume_orphaned_plan_jobs_on_startup()
 
     yield
+    flush_langfuse()
     logger.info("shutting_down")
 
 

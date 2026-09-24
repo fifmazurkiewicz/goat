@@ -36,6 +36,8 @@ from app.domain.chat.preamble import build_system_prompt
 from app.domain.chat.team_lead import plan_brief_excludes_persona_type
 from app.domain.personas.service import resolve_persona_columns
 from app.domain.usage.service import UsageLimitService
+from app.observability.langfuse import observe
+from app.observability.langfuse import update as update_observation
 from app.repositories.personas_repo import PersonasRepo
 from app.repositories.plans_repo import PlanItemRow, PlansRepo
 from app.repositories.profiles_repo import ProfilesRepo
@@ -226,27 +228,38 @@ class PlanOrchestrator:
         user_brief: str | None = None,
     ) -> None:
         structlog.contextvars.bind_contextvars(job_id=job_id, plan_id=plan_id)
-        try:
-            await self._run(
-                plan_id=plan_id,
-                job_id=job_id,
-                user_id=user_id,
-                claims=claims,
-                user_brief=user_brief,
-            )
-        except asyncio.CancelledError:
-            await self._persist_cancelled(job_id=job_id, plan_id=plan_id, claims=claims)
-            raise
-        except Exception as exc:  # noqa: BLE001 — top-level safety net dla background taska
-            logger.error("plan_generation_unexpected_error", error=str(exc), exc_info=exc)
+        with observe(
+            name="plan_generation",
+            as_type="chain",
+            input={"user_brief": user_brief},
+            metadata={"job_id": job_id, "plan_id": plan_id, "user_id": user_id},
+        ) as observation:
             try:
-                async with rls_connection(claims) as conn:
-                    repo = PlansRepo(conn)
-                    marked = await repo.update_job_status(job_id, "error", error_message=str(exc)[:500])
-                    if marked:
-                        await repo.update_plan_status(plan_id, "error")
-            except Exception:  # noqa: BLE001 — nie eskalujemy błędu przy zapisie błędu
-                logger.error("plan_generation_failed_to_persist_error_state")
+                await self._run(
+                    plan_id=plan_id,
+                    job_id=job_id,
+                    user_id=user_id,
+                    claims=claims,
+                    user_brief=user_brief,
+                )
+                update_observation(observation, output={"status": "success"})
+            except asyncio.CancelledError:
+                update_observation(observation, output={"status": "cancelled"})
+                await self._persist_cancelled(job_id=job_id, plan_id=plan_id, claims=claims)
+                raise
+            except Exception as exc:  # noqa: BLE001 — top-level safety net dla background taska
+                update_observation(
+                    observation, output={"status": "error"}, level="ERROR", status_message=str(exc)[:500]
+                )
+                logger.error("plan_generation_unexpected_error", error=str(exc), exc_info=exc)
+                try:
+                    async with rls_connection(claims) as conn:
+                        repo = PlansRepo(conn)
+                        marked = await repo.update_job_status(job_id, "error", error_message=str(exc)[:500])
+                        if marked:
+                            await repo.update_plan_status(plan_id, "error")
+                except Exception:  # noqa: BLE001 — nie eskalujemy błędu przy zapisie błędu
+                    logger.error("plan_generation_failed_to_persist_error_state")
 
     async def _persist_cancelled(self, *, job_id: str, plan_id: str, claims: dict) -> None:
         try:

@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import UTC, datetime
 
 from app.domain.chat.context_builder import ContextBuilder, build_temporal_context_block
 
 
 def test_temporal_context_includes_iso_date_and_warsaw() -> None:
-    block = build_temporal_context_block(today=date(2026, 8, 4))
+    block = build_temporal_context_block(now=datetime(2026, 8, 4, 14, 35, tzinfo=UTC))
     assert "2026-08-04" in block
     assert "wtorek" in block
     assert "Europe/Warsaw" in block
+    assert "16:35" in block
     assert "log_result" in block
 
 

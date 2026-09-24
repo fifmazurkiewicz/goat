@@ -51,6 +51,8 @@ Full checklist in [`local-setup.md`](local-setup.md). Rule: the project must run
 | `OPENROUTER_API_KEY` | Render (secret) | |
 | `OPENROUTER_CHAT_MODEL` / `OPENROUTER_PLANNER_MODEL` | Render + `.env.example` | env-driven, not hardcoded |
 | `OPENROUTER_PROVIDER_SORT` | Render + `.env.example` | `throughput` prioritizes faster interactive responses |
+| `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | Render (secret) | both are required to enable full Langfuse Cloud traces |
+| `LANGFUSE_BASE_URL` | Render | `https://cloud.langfuse.com` |
 | `CHAT_HARD_TIMEOUT_S` / `CHAT_ROUND_TIMEOUT_S` | Render + `.env.example` | SSE whole-turn (default 210) / per LLM round (default 90) |
 | `CHAT_MODERATION_TIMEOUT_S` | Render + `.env.example` | Fail-open runtime classifier budget (default 5s) |
 | `CORS_ORIGINS` | Render | `https://goat.fmazurkiewicz.dev` (+ `http://localhost:3000` when testing API locally) + regex `*.vercel.app` for preview |

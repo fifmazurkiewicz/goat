@@ -26,6 +26,9 @@ Setup: [`local-setup.md`](local-setup.md). Hosting: [`devops.md`](devops.md) §5
 | `OPENROUTER_PLANNER_MODEL` | Empty = same as chat |
 | `OPENROUTER_CHAT_MODEL_FALLBACKS` | OpenRouter fallback list (optional; has a code default) |
 | `OPENROUTER_PROVIDER_SORT` | Provider priority (`throughput` by default for interactive chat) |
+| `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | Optional Langfuse Cloud tracing; both keys enable full coaching traces |
+| `LANGFUSE_BASE_URL` | `https://cloud.langfuse.com` (EU Cloud) |
+| `LANGFUSE_ENVIRONMENT` / `LANGFUSE_RELEASE` | Optional trace labels; environment defaults to `ENVIRONMENT` |
 | `CORS_ORIGINS` | Comma-separated; local default `http://localhost:3000` |
 | `ADMIN_EMAILS` | Extra auto-approve emails on profile INSERT (ADR-22); sole admin is always included |
 | `CHAT_LLM_TITLE_ENABLED` | LLM conversation auto-title (default `false`; deterministic title avoids foreground contention) |

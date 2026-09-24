@@ -51,6 +51,8 @@ from app.domain.usage.service import UsageLimitService
 from app.llm.openrouter_client import get_openrouter_client
 from app.llm.tool_calling import ToolCallBuffer
 from app.models.schemas import LogResultArgs, UserProfileOut, UserProfileUpdate
+from app.observability.langfuse import observe
+from app.observability.langfuse import update as update_observation
 from app.repositories.chat_repo import ChatRepo
 from app.repositories.personas_repo import PersonasRepo
 from app.repositories.plans_repo import PlansRepo
@@ -245,40 +247,48 @@ class ChatOrchestrator:
         consult_read_only: bool = False,
     ) -> tuple[bool, str | None]:
         """Handle one persona turn. Returns `(success, assistant reply content)`."""
-        try:
-            return await self._handle_message_inner(
-                user_id=user_id,
-                session_id=session_id,
-                session_type=session_type,
-                persona=persona,
-                user_message=user_message,
-                queue=queue,
-                emit_done=emit_done,
-                allowed_persona_ids=allowed_persona_ids,
-                client_visible=client_visible,
-                status_label=status_label,
-                emit_sse=emit_sse,
-                persist_messages=persist_messages,
-                consult_roster=consult_roster,
-                consult_read_only=consult_read_only,
-            )
-        except asyncio.CancelledError:
-            raise
-        except AppError as exc:
-            if emit_sse:
-                await _emit(queue, "error", {"code": exc.code, "message": exc.message})
-                await queue.put({"event": "done", "data": "{}"})
-            return False, None
-        except Exception as exc:  # noqa: BLE001 — top-level safety net dla producer taska
-            logger.error("chat_orchestrator_unexpected_error", error=str(exc), exc_info=exc)
-            if emit_sse:
-                await _emit(
-                    queue,
-                    "error",
-                    {"code": "internal_error", "message": "Wystąpił nieoczekiwany błąd czatu."},
+        with observe(
+            name="chat_turn",
+            as_type="chain",
+            input={"message": user_message},
+            metadata={"session_id": session_id, "user_id": user_id, "persona_id": persona.id},
+        ) as observation:
+            try:
+                result = await self._handle_message_inner(
+                    user_id=user_id,
+                    session_id=session_id,
+                    session_type=session_type,
+                    persona=persona,
+                    user_message=user_message,
+                    queue=queue,
+                    emit_done=emit_done,
+                    allowed_persona_ids=allowed_persona_ids,
+                    client_visible=client_visible,
+                    status_label=status_label,
+                    emit_sse=emit_sse,
+                    persist_messages=persist_messages,
+                    consult_roster=consult_roster,
+                    consult_read_only=consult_read_only,
                 )
-                await queue.put({"event": "done", "data": "{}"})
-            return False, None
+                update_observation(observation, output={"success": result[0], "response": result[1]})
+                return result
+            except asyncio.CancelledError:
+                raise
+            except AppError as exc:
+                if emit_sse:
+                    await _emit(queue, "error", {"code": exc.code, "message": exc.message})
+                    await queue.put({"event": "done", "data": "{}"})
+                return False, None
+            except Exception as exc:  # noqa: BLE001 — top-level safety net dla producer taska
+                logger.error("chat_orchestrator_unexpected_error", error=str(exc), exc_info=exc)
+                if emit_sse:
+                    await _emit(
+                        queue,
+                        "error",
+                        {"code": "internal_error", "message": "Wystąpił nieoczekiwany błąd czatu."},
+                    )
+                    await queue.put({"event": "done", "data": "{}"})
+                return False, None
 
     async def _handle_message_inner(
         self,
@@ -604,38 +614,40 @@ class ChatOrchestrator:
             raw_arguments = call["function"]["arguments"]
             tool_call_id = call["id"]
 
-            if name == "consult_persona":
-                # Nested LLM (30–90s) must not hold the parent RLS transaction.
-                response_content = await self._run_single_tool(
-                    name=name,
-                    raw_arguments=raw_arguments,
-                    user_id=user_id,
-                    persona=persona,
-                    results_service=None,
-                    user_profile_repo=None,
-                    plan_tools=None,
-                    allowed_persona_ids=allowed_persona_ids,
-                    consult_read_only=consult_read_only,
-                    user_message=user_message,
-                    session_id=session_id,
-                )
-            else:
-                prior_tool_contents = [str(msg.get("content") or "") for msg in tool_response_messages]
-                async with rls_connection(self._claims) as conn:
+            with observe(name=f"tool.{name}", as_type="tool", input={"arguments": raw_arguments}) as observation:
+                if name == "consult_persona":
+                    # Nested LLM (30–90s) must not hold the parent RLS transaction.
                     response_content = await self._run_single_tool(
                         name=name,
                         raw_arguments=raw_arguments,
                         user_id=user_id,
                         persona=persona,
-                        results_service=ResultsService(ResultsRepo(conn), allowed_metrics_cache),
-                        user_profile_repo=UserProfileRepo(conn),
-                        plan_tools=ChatPlanToolsService(conn, claims=self._claims),
+                        results_service=None,
+                        user_profile_repo=None,
+                        plan_tools=None,
                         allowed_persona_ids=allowed_persona_ids,
                         consult_read_only=consult_read_only,
                         user_message=user_message,
                         session_id=session_id,
-                        prior_tool_contents=prior_tool_contents,
                     )
+                else:
+                    prior_tool_contents = [str(msg.get("content") or "") for msg in tool_response_messages]
+                    async with rls_connection(self._claims) as conn:
+                        response_content = await self._run_single_tool(
+                            name=name,
+                            raw_arguments=raw_arguments,
+                            user_id=user_id,
+                            persona=persona,
+                            results_service=ResultsService(ResultsRepo(conn), allowed_metrics_cache),
+                            user_profile_repo=UserProfileRepo(conn),
+                            plan_tools=ChatPlanToolsService(conn, claims=self._claims),
+                            allowed_persona_ids=allowed_persona_ids,
+                            consult_read_only=consult_read_only,
+                            user_message=user_message,
+                            session_id=session_id,
+                            prior_tool_contents=prior_tool_contents,
+                        )
+                update_observation(observation, output=response_content)
 
             if emit_sse:
                 await _emit(

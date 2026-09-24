@@ -65,14 +65,17 @@ def _age_years(date_of_birth: date | None) -> int | None:
     return years
 
 
-def build_temporal_context_block(*, today: date | None = None) -> str:
+def build_temporal_context_block(*, now: datetime | None = None, today: date | None = None) -> str:
     """Today's date (Europe/Warsaw) — the model doesn't know the calendar from training;
     without this "yesterday" / ISO `date` in `log_result` is guessed."""
-    day = today or _today_warsaw()
+    current = now.astimezone(_APP_TZ) if now else datetime.now(_APP_TZ)
+    if today is not None:
+        current = current.replace(year=today.year, month=today.month, day=today.day)
+    day = current.date()
     weekday = _WEEKDAY_PL[day.weekday()]
     return (
         "[KONTEKST CZASOWY]\n"
-        f"Dzisiaj jest {weekday}, {day.isoformat()} (strefa Europe/Warsaw). "
+        f"Teraz jest {weekday}, {day.isoformat()}, {current.strftime('%H:%M')} (strefa Europe/Warsaw). "
         "Względne daty usera („wczoraj”, „w poniedziałek”) przeliczaj na ISO YYYY-MM-DD "
         "względem tej daty. Przy log_result pole date MUSI być konkretną datą ISO, "
         "nigdy słowem „wczoraj”."

@@ -9,12 +9,13 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-HEALTH_CONSENT_VERSION = "health-v1-2026-09-12"
+HEALTH_CONSENT_VERSION = "health-v2-2026-09-24"
 AI_DISCLOSURE_VERSION = "ai-v1-2026-09-12"
 HEALTH_CONSENT_NOTICE = (
     "Wyrażam dobrowolną zgodę na przetwarzanie danych dotyczących zdrowia i sprawności "
-    "w celu personalizacji coachingu, wyników i planów oraz na przekazywanie niezbędnego "
-    "minimum treści dostawcy modelu AI. Zgodę mogę wycofać w każdej chwili."
+    "w celu personalizacji coachingu, wyników i planów oraz na przekazywanie pełnej treści "
+    "coachingu dostawcy modelu AI i Langfuse Cloud do obserwowalności, diagnostyki i poprawy "
+    "niezawodności. Zgodę mogę wycofać w każdej chwili."
 )
 AI_DISCLOSURE_NOTICE = (
     "Rozumiem, że rozmawiam z systemem AI, którego odpowiedzi mogą zawierać błędy i nie zastępują porady medycznej."

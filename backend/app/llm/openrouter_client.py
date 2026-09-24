@@ -19,6 +19,8 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from app.core.config import settings
 from app.core.exceptions import ExternalServiceError
 from app.llm.streaming import parse_sse_chunk
+from app.observability.langfuse import observe
+from app.observability.langfuse import update as update_observation
 
 logger = structlog.get_logger(__name__)
 
@@ -83,30 +85,45 @@ class OpenRouterClient:
             payload["provider"] = {"sort": settings.openrouter_provider_sort}
 
         last_exc: Exception | None = None
-        for attempt in range(3):
-            yielded_any = False
-            try:
-                async with self._client.stream("POST", "/chat/completions", json=payload) as response:
-                    if response.status_code >= 400:
-                        body = await response.aread()
-                        raise ExternalServiceError(f"OpenRouter zwrócił błąd {response.status_code}: {body[:500]!r}")
-                    async for line in response.aiter_lines():
-                        chunk = parse_sse_chunk(line)
-                        if chunk is None:
-                            continue
-                        yielded_any = True
-                        yield chunk
-                return
-            except (httpx.HTTPError, ExternalServiceError) as exc:
-                last_exc = exc
-                if yielded_any:
-                    # Some tokens already went to the SSE client — cannot safely
-                    # retry; propagate the error directly (ai-pipeline.md §7).
-                    raise
-                logger.warning("openrouter_stream_retry", attempt=attempt + 1, error=str(exc))
-                continue
+        completion: list[str] = []
+        usage: dict[str, Any] = {}
+        with observe(
+            name="openrouter.stream_chat",
+            as_type="generation",
+            input=messages,
+            metadata={"tools": tools, "max_tokens": max_tokens, "fallback_models": fallback_models},
+            model=model,
+        ) as observation:
+            for attempt in range(3):
+                yielded_any = False
+                try:
+                    async with self._client.stream("POST", "/chat/completions", json=payload) as response:
+                        if response.status_code >= 400:
+                            body = await response.aread()
+                            raise ExternalServiceError(
+                                f"OpenRouter zwrócił błąd {response.status_code}: {body[:500]!r}"
+                            )
+                        async for line in response.aiter_lines():
+                            chunk = parse_sse_chunk(line)
+                            if chunk is None:
+                                continue
+                            usage = chunk.get("usage") or usage
+                            for choice in chunk.get("choices") or []:
+                                completion.append((choice.get("delta") or {}).get("content") or "")
+                            yielded_any = True
+                            yield chunk
+                    update_observation(observation, output="".join(completion), usage_details=usage or None)
+                    return
+                except (httpx.HTTPError, ExternalServiceError) as exc:
+                    last_exc = exc
+                    if yielded_any:
+                        # Some tokens already went to the SSE client — cannot safely
+                        # retry; propagate the error directly (ai-pipeline.md §7).
+                        raise
+                    logger.warning("openrouter_stream_retry", attempt=attempt + 1, error=str(exc))
+                    continue
 
-        raise ExternalServiceError(f"OpenRouter niedostępny po 3 próbach: {last_exc}") from last_exc
+            raise ExternalServiceError(f"OpenRouter niedostępny po 3 próbach: {last_exc}") from last_exc
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.5, max=8))
     async def complete_json(
@@ -131,10 +148,17 @@ class OpenRouterClient:
             "provider": {"require_parameters": True},
         }
         started_at = time.perf_counter()
-        response = await self._client.post("/chat/completions", json=payload)
-        if response.status_code >= 400:
-            raise ExternalServiceError(f"OpenRouter zwrócił błąd {response.status_code}: {response.text[:500]!r}")
-        data = response.json()
+        with observe(
+            name="openrouter.complete_json",
+            as_type="generation",
+            input=messages,
+            metadata={"json_schema": json_schema, "max_tokens": max_tokens},
+            model=model,
+        ) as observation:
+            response = await self._client.post("/chat/completions", json=payload)
+            if response.status_code >= 400:
+                raise ExternalServiceError(f"OpenRouter zwrócił błąd {response.status_code}: {response.text[:500]!r}")
+            data = response.json()
         usage = data.get("usage") or {}
         logger.info(
             "openrouter_json_completed",
@@ -144,6 +168,7 @@ class OpenRouterClient:
             completion_tokens=usage.get("completion_tokens"),
         )
         content = data["choices"][0]["message"]["content"]
+        update_observation(observation, output=content, usage_details=usage or None)
         result: dict[str, Any] = json.loads(content)
         return result
 

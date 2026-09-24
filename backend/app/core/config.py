@@ -36,6 +36,17 @@ class Settings(BaseSettings):
     # default routing is price-oriented, which is a poor fit for interactive chat.
     openrouter_provider_sort: str = "throughput"
 
+    # Optional Langfuse Cloud observability. Missing keys leave tracing fully disabled.
+    langfuse_public_key: str | None = None
+    langfuse_secret_key: SecretStr | None = None
+    langfuse_base_url: str = "https://cloud.langfuse.com"
+    langfuse_environment: str | None = None
+    langfuse_release: str | None = None
+
+    @property
+    def langfuse_enabled(self) -> bool:
+        return bool(self.langfuse_public_key and self.langfuse_secret_key)
+
     # Comma-separated string (env var format) — see cors_origins_list below.
     cors_origins: str = "http://localhost:3000"
 
