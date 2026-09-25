@@ -84,7 +84,6 @@ class OpenRouterClient:
         if settings.openrouter_provider_sort:
             payload["provider"] = {"sort": settings.openrouter_provider_sort}
 
-        last_exc: Exception | None = None
         completion: list[str] = []
         usage: dict[str, Any] = {}
         with observe(
@@ -94,36 +93,51 @@ class OpenRouterClient:
             metadata={"tools": tools, "max_tokens": max_tokens, "fallback_models": fallback_models},
             model=model,
         ) as observation:
-            for attempt in range(3):
-                yielded_any = False
-                try:
-                    async with self._client.stream("POST", "/chat/completions", json=payload) as response:
-                        if response.status_code >= 400:
-                            body = await response.aread()
-                            raise ExternalServiceError(
-                                f"OpenRouter zwrócił błąd {response.status_code}: {body[:500]!r}"
-                            )
-                        async for line in response.aiter_lines():
-                            chunk = parse_sse_chunk(line)
-                            if chunk is None:
-                                continue
-                            usage = chunk.get("usage") or usage
-                            for choice in chunk.get("choices") or []:
-                                completion.append((choice.get("delta") or {}).get("content") or "")
-                            yielded_any = True
-                            yield chunk
-                    update_observation(observation, output="".join(completion), usage_details=usage or None)
-                    return
-                except (httpx.HTTPError, ExternalServiceError) as exc:
-                    last_exc = exc
-                    if yielded_any:
-                        # Some tokens already went to the SSE client — cannot safely
-                        # retry; propagate the error directly (ai-pipeline.md §7).
-                        raise
-                    logger.warning("openrouter_stream_retry", attempt=attempt + 1, error=str(exc))
-                    continue
+            retry_payloads = [payload]
+            for fallback_model in dict.fromkeys(fallback_models or []):
+                retry_payload = {**payload, "model": fallback_model}
+                retry_payload.pop("models", None)
+                retry_payloads.append(retry_payload)
 
-            raise ExternalServiceError(f"OpenRouter niedostępny po 3 próbach: {last_exc}") from last_exc
+            for request_payload in retry_payloads:
+                last_exc: Exception | None = None
+                for attempt in range(3):
+                    yielded_any = False
+                    yielded_meaningful = False
+                    try:
+                        async with self._client.stream("POST", "/chat/completions", json=request_payload) as response:
+                            if response.status_code >= 400:
+                                body = await response.aread()
+                                raise ExternalServiceError(
+                                    f"OpenRouter zwrócił błąd {response.status_code}: {body[:500]!r}"
+                                )
+                            async for line in response.aiter_lines():
+                                chunk = parse_sse_chunk(line)
+                                if chunk is None:
+                                    continue
+                                usage = chunk.get("usage") or usage
+                                for choice in chunk.get("choices") or []:
+                                    delta = choice.get("delta") or {}
+                                    completion.append(delta.get("content") or "")
+                                    yielded_meaningful |= bool(delta.get("content") or delta.get("tool_calls"))
+                                yielded_any = True
+                                yield chunk
+                        if yielded_meaningful:
+                            update_observation(observation, output="".join(completion), usage_details=usage or None)
+                            return
+                        logger.warning("openrouter_empty_stream_retry", model=request_payload.get("model", model))
+                        break
+                    except (httpx.HTTPError, ExternalServiceError) as exc:
+                        last_exc = exc
+                        if yielded_any:
+                            # Some tokens already went to the SSE client — cannot safely
+                            # retry; propagate the error directly (ai-pipeline.md §7).
+                            raise
+                        logger.warning("openrouter_stream_retry", attempt=attempt + 1, error=str(exc))
+                else:
+                    raise ExternalServiceError(f"OpenRouter niedostępny po 3 próbach: {last_exc}") from last_exc
+
+            update_observation(observation, output="", usage_details=usage or None)
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.5, max=8))
     async def complete_json(
