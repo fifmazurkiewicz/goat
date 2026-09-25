@@ -72,7 +72,7 @@ export function reportApiNetworkError(err: unknown): void {
  */
 export function watchSlowApiRequest(): (ok: boolean) => void {
   const timeoutId = window.setTimeout(() => {
-    useApiHealthStore.getState().startWakeWindow({ force: true });
+    useApiHealthStore.getState().startWakeWindow();
   }, API_HEALTH_WAKING_AFTER_MS);
 
   return (ok: boolean) => {
