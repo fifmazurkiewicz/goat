@@ -5,7 +5,6 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { ActualResultsPanel } from "@/components/plans/ActualResultsPanel";
 import { PlanItemTable } from "@/components/plans/PlanItemTable";
 import { useCreateChatSession } from "@/hooks/useChatSessions";
 import { getErrorMessage } from "@/lib/api-client";
@@ -87,11 +86,6 @@ export function DayPlanDetail({ date, items, personas, showHeader = true }: DayP
       )}
 
       <Separator />
-
-      <div>
-        <div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">Zrealizowane</div>
-        <ActualResultsPanel date={format(date, "yyyy-MM-dd")} />
-      </div>
     </div>
   );
 }

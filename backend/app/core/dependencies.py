@@ -12,22 +12,16 @@ from __future__ import annotations
 from functools import lru_cache
 
 from app.core.config import settings
-from app.core.db import service_role_connection
 from app.domain.moderation.service import ModerationService
 from app.domain.usage.pricing import ModelPricingCache
 from app.llm.openrouter_client import get_openrouter_client
-from app.repositories.moderation_repo import ModerationEventsRepo
 
 
-class ServiceRoleModerationEventsLogger:
-    """Logs `moderation_events` via a fresh, short-lived `service_role` connection
-    (RLS blocks INSERT/SELECT for the `authenticated` role on this table, see
-    `app/repositories/moderation_repo.py`) — a safe singleton, doesn't hold the
-    connection open between `.log(...)` calls."""
+class DisabledModerationEventsLogger:
+    """Safety classification remains active; the retired admin event log does not."""
 
     async def log(self, **kwargs: object) -> None:
-        async with service_role_connection() as conn:
-            await ModerationEventsRepo(conn).log(**kwargs)  # type: ignore[arg-type]
+        return None
 
 
 @lru_cache
@@ -43,7 +37,7 @@ def get_pricing_cache() -> ModelPricingCache:
 def get_moderation_service() -> ModerationService:
     return ModerationService(
         get_openrouter_client(),
-        ServiceRoleModerationEventsLogger(),
+        DisabledModerationEventsLogger(),
         classifier_model=settings.openrouter_chat_model,
         random_sample_rate=settings.moderation_random_sample_rate,
     )

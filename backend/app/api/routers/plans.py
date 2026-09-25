@@ -30,6 +30,7 @@ from app.models.schemas import (
     PlanRangeOut,
     PlanSummaryOut,
 )
+from app.repositories.personas_repo import PersonasRepo
 from app.repositories.plans_repo import PlanJobRow, PlanRow, PlansRepo
 
 router = APIRouter(prefix="/plans", tags=["plans"], dependencies=[Depends(require_health_consent)])
@@ -64,10 +65,16 @@ def _period_end_date(period_type: str, start_date: date) -> date:
     """ASSUMPTION (docs don't specify the `end_date` formula directly): 'week' -> 7-day
     range from `start_date` (inclusive), 'month' -> to the last calendar day of the
     month CONTAINING `start_date` (not "30 days from start")."""
+    if period_type == "day":
+        return start_date
     if period_type == "week":
         return start_date + timedelta(days=6)
     last_day = calendar.monthrange(start_date.year, start_date.month)[1]
     return start_date.replace(day=last_day)
+
+
+def _period_start_date(period_type: str, start_date: date) -> date:
+    return start_date - timedelta(days=start_date.weekday()) if period_type == "week" else start_date
 
 
 def _job_row_to_out(job: PlanJobRow, personas: list[PlanGenerationJobPersonaOut]) -> PlanGenerationJobOut:
@@ -121,14 +128,20 @@ async def generate_plan(
     """Creates `plans`+`plan_generation_jobs` (status `generating`/`pending`) and queues
     generation in the background (`BackgroundTasks` — no separate Render Worker, ADR-1).
     The frontend polls `GET /plans/jobs/{id}` for the `job_id` returned here."""
-    end_date = _period_end_date(payload.period_type, payload.start_date)
+    start_date = _period_start_date(payload.period_type, payload.start_date)
+    end_date = _period_end_date(payload.period_type, start_date)
 
     async with rls_connection(auth.claims) as conn:
         plans_repo = PlansRepo(conn)
+        active_personas = await PersonasRepo(conn).list_active_for_user(auth.user_id)
+        if not set(payload.persona_ids).issubset({p.id for p in active_personas}):
+            from app.core.exceptions import ValidationError
+
+            raise ValidationError("Wybrano nieaktywnego trenera.")
         plan = await plans_repo.create_plan(
             user_id=auth.user_id,
             period_type=payload.period_type,
-            start_date=payload.start_date,
+            start_date=start_date,
             end_date=end_date,
         )
         job = await plans_repo.create_job(plan_id=plan.id, user_id=auth.user_id)
@@ -139,6 +152,8 @@ async def generate_plan(
         user_id=auth.user_id,
         claims=auth.claims,
         background_tasks=background_tasks,
+        user_brief=payload.user_brief,
+        persona_ids=payload.persona_ids,
     )
     return _job_row_to_out(job, [])
 

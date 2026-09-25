@@ -226,6 +226,7 @@ class PlanOrchestrator:
         user_id: str,
         claims: dict,
         user_brief: str | None = None,
+        persona_ids: list[str] | None = None,
     ) -> None:
         structlog.contextvars.bind_contextvars(job_id=job_id, plan_id=plan_id)
         with observe(
@@ -301,6 +302,8 @@ class PlanOrchestrator:
                 return
 
             active_personas = await PersonasRepo(conn).list_active_for_user(user_id)
+            if persona_ids is not None:
+                active_personas = [p for p in active_personas if p.id in set(persona_ids)]
             if user_brief:
                 active_personas = [
                     p for p in active_personas if not plan_brief_excludes_persona_type(user_brief, p.type)

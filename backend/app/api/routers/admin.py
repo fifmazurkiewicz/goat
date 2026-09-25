@@ -10,25 +10,18 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from app.core.config import settings
 from app.core.db import login_role_connection, service_role_connection
 from app.core.exceptions import ForbiddenError
 from app.core.security import AuthContext, require_admin
 from app.core.supabase_admin import get_supabase_admin_client
-from app.core.version import get_deploy_info
 from app.domain.usage.service import current_period_start
 from app.models.schemas import (
     AdminUserOut,
     ApprovalUpdate,
-    AuditLogEntryOut,
-    DeployInfoOut,
-    ModerationEventOut,
     PasswordResetOut,
     PersonaLimitUpdate,
     UsageBudgetUpdate,
 )
-from app.repositories.admin_audit_repo import AdminAuditRepo
-from app.repositories.moderation_repo import ModerationEventsRepo
 from app.repositories.profiles_repo import ProfileRow, ProfilesRepo
 from app.repositories.usage_limits_repo import UsageLimitsRepo
 
@@ -51,34 +44,6 @@ def _admin_user_out(
         cost_usd_used=cost_usd_used,
         created_at=profile.created_at,
     )
-
-
-@router.get("/deploy-info", response_model=DeployInfoOut)
-async def get_deploy_info_endpoint(_auth: AuthContext = Depends(require_admin)) -> DeployInfoOut:
-    info = get_deploy_info(environment=settings.environment)
-    return DeployInfoOut(
-        app_version=info.app_version,
-        environment=info.environment,
-        git_sha=info.git_sha,
-        git_sha_full=info.git_sha_full,
-        git_branch=info.git_branch,
-        build_time=info.build_time,
-        git_repo=info.git_repo,
-    )
-
-
-@router.get("/audit-log", response_model=list[AuditLogEntryOut])
-async def list_audit_log(auth: AuthContext = Depends(require_admin)) -> list[AuditLogEntryOut]:
-    async with service_role_connection() as conn:
-        rows = await AdminAuditRepo(conn).list_all()
-    return [AuditLogEntryOut.model_validate(row) for row in rows]
-
-
-@router.get("/moderation-events", response_model=list[ModerationEventOut])
-async def list_moderation_events(_auth: AuthContext = Depends(require_admin)) -> list[ModerationEventOut]:
-    async with service_role_connection() as conn:
-        rows = await ModerationEventsRepo(conn).list_all()
-    return [ModerationEventOut.model_validate(row) for row in rows]
 
 
 @router.get("/users", response_model=list[AdminUserOut])
@@ -113,12 +78,6 @@ async def update_persona_limit(
     defense regardless of this setting."""
     async with service_role_connection() as conn:
         profile = await ProfilesRepo(conn).update_max_active_personas(user_id, payload.max_active_personas)
-        await AdminAuditRepo(conn).log(
-            admin_user_id=auth.user_id,
-            action="edit_persona_limit",
-            target_user_id=user_id,
-            details={"max_active_personas": payload.max_active_personas},
-        )
     return _admin_user_out(profile)
 
 
@@ -132,12 +91,6 @@ async def update_usage_budget(
     `update_persona_limit`."""
     async with service_role_connection() as conn:
         profile = await ProfilesRepo(conn).update_usage_budget(user_id, payload.usage_budget_usd)
-        await AdminAuditRepo(conn).log(
-            admin_user_id=auth.user_id,
-            action="edit_usage_budget",
-            target_user_id=user_id,
-            details={"usage_budget_usd": payload.usage_budget_usd},
-        )
     return _admin_user_out(profile)
 
 
@@ -152,12 +105,6 @@ async def update_user_approval(
         raise ForbiddenError("Nie możesz cofnąć sobie dostępu.")
     async with service_role_connection() as conn:
         profile = await ProfilesRepo(conn).update_is_approved(user_id, payload.is_approved)
-        await AdminAuditRepo(conn).log(
-            admin_user_id=auth.user_id,
-            action="edit_approval",
-            target_user_id=user_id,
-            details={"is_approved": payload.is_approved},
-        )
     return _admin_user_out(profile)
 
 
@@ -166,6 +113,4 @@ async def reset_password(user_id: str, auth: AuthContext = Depends(require_admin
     """Password reset via Supabase Admin API (`app/core/supabase_admin.py`) — the
     temporary password is returned ONCE in the response, for manual delivery to the user."""
     temp_password = await get_supabase_admin_client().reset_password(user_id)
-    async with service_role_connection() as conn:
-        await AdminAuditRepo(conn).log(admin_user_id=auth.user_id, action="reset_password", target_user_id=user_id)
     return PasswordResetOut(temporary_password=temp_password)

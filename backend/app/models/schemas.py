@@ -481,7 +481,7 @@ class ChatSendMessage(BaseModel):
 
 # ============ Plans (`/plans`, architecture.md §4, ADR-1/2) ============
 
-PlanPeriodType = Literal["week", "month"]
+PlanPeriodType = Literal["day", "week", "month"]
 PlanStatus = Literal["generating", "ready", "partial_ready", "error"]
 JobStatus = Literal["pending", "running", "success", "partial_success", "error"]
 JobPersonaStatus = Literal["pending", "running", "done", "failed"]
@@ -490,6 +490,8 @@ JobPersonaStatus = Literal["pending", "running", "done", "failed"]
 class PlanGenerateRequest(BaseModel):
     period_type: PlanPeriodType
     start_date: date
+    persona_ids: list[str] = Field(min_length=1, max_length=5)
+    user_brief: str | None = Field(default=None, max_length=2000)
 
 
 class PlanItemContent(BaseModel):

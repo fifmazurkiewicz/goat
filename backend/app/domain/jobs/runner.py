@@ -104,6 +104,7 @@ async def _dispatch(*, job_type: str, user_id: str, claims: dict[str, Any], payl
             user_id=user_id,
             claims=claims,
             user_brief=str(payload["user_brief"]).strip() if payload.get("user_brief") else None,
+            persona_ids=[str(p) for p in payload.get("persona_ids") or []] or None,
         )
         return
 
@@ -136,10 +137,13 @@ async def enqueue_plan_generation_async(
     claims: dict[str, Any],
     background_tasks: BackgroundTasks | None = None,
     user_brief: str | None = None,
+    persona_ids: list[str] | None = None,
 ) -> str:
     payload: dict[str, Any] = {"plan_id": plan_id, "plan_job_id": plan_job_id}
     if user_brief and user_brief.strip():
         payload["user_brief"] = user_brief.strip()[:2000]
+    if persona_ids:
+        payload["persona_ids"] = persona_ids
     return await enqueue_background_job(
         job_type="plan_generate",
         user_id=user_id,

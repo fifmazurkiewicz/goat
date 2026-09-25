@@ -158,7 +158,7 @@ export interface Result {
   created_at: string;
 }
 
-export type PlanPeriodType = "week" | "month";
+export type PlanPeriodType = "day" | "week" | "month";
 export type PlanStatus = "generating" | "ready" | "partial_ready" | "error";
 
 export interface Plan {
@@ -217,6 +217,8 @@ export interface PlanRangeResponse {
 export interface GeneratePlanInput {
   period_type: PlanPeriodType;
   start_date: string;
+  persona_ids: string[];
+  user_brief?: string;
 }
 
 export interface GeneratePlanResponse {
