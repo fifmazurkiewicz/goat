@@ -128,6 +128,10 @@ class ChatPlanToolsService:
         entries: list[dict[str, Any]],
         allowed_persona_ids: list[str] | None = None,
     ) -> dict[str, Any]:
+        from app.llm.jev import plan_patch_needs_review
+
+        if await plan_patch_needs_review(entries):
+            return {"error": "Zmiana planu wymaga dodatkowego przeglądu bezpieczeństwa przed zapisem."}
         plan = await self._repo.get_latest_editable_plan_for_user(user_id)
         if plan is None:
             generating = await self._repo.get_latest_plan_for_user(user_id)
