@@ -166,6 +166,15 @@ def test_plan_brief_excludes_badminton_coach() -> None:
     assert not plan_brief_excludes_persona_type("Więcej badmintona na hali", "badminton_coach")
 
 
+def test_gym_brief_uses_motor_and_explicit_badminton_but_not_dietitian() -> None:
+    from app.domain.chat.team_lead import plan_brief_excludes_persona_type
+
+    brief = "Plan na siłowni, a w środę badminton"
+    assert not plan_brief_excludes_persona_type(brief, "motor_coach")
+    assert not plan_brief_excludes_persona_type(brief, "badminton_coach")
+    assert plan_brief_excludes_persona_type(brief, "dietitian")
+
+
 def test_persona_display_label_for_trainer() -> None:
     p = _FakePersona(id="b", type="personal_trainer", slug="trener", name="Kasia")
     assert persona_display_label(p) == "Kasia · Trener personalny"

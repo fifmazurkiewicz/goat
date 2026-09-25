@@ -385,9 +385,11 @@ def plan_brief_excludes_persona_type(brief: str, persona_type: str) -> bool:
     lower = (brief or "").lower()
     if not lower:
         return False
+    gym_scope = any(word in lower for word in ("siłown", "silown", "trening sił", "trening sil", "strength"))
+    nutrition_scope = any(word in lower for word in ("dieta", "diet", "makro", "żywien", "zywien", "posił"))
     if persona_type == "badminton_coach":
         if "badminton" not in lower:
-            return False
+            return gym_scope
         exclusion = (
             "bez",
             "zero",
@@ -401,6 +403,8 @@ def plan_brief_excludes_persona_type(brief: str, persona_type: str) -> bool:
             "bez jakiegokolwiek",
         )
         return any(w in lower for w in exclusion)
+    if persona_type == "dietitian":
+        return gym_scope and not nutrition_scope
     return False
 
 
