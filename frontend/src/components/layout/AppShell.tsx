@@ -195,7 +195,7 @@ function ApprovedAppShell() {
           chatMode ? "flex flex-col overflow-hidden" : "overflow-y-auto"
         )}
       >
-        <PullToRefresh>
+        <PullToRefresh className={chatMode ? undefined : "flex-none overflow-visible"}>
           <Outlet />
         </PullToRefresh>
       </main>
