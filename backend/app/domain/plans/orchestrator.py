@@ -242,6 +242,7 @@ class PlanOrchestrator:
                     user_id=user_id,
                     claims=claims,
                     user_brief=user_brief,
+                    persona_ids=persona_ids,
                 )
                 update_observation(observation, output={"status": "success"})
             except asyncio.CancelledError:
@@ -286,6 +287,7 @@ class PlanOrchestrator:
         user_id: str,
         claims: dict,
         user_brief: str | None = None,
+        persona_ids: list[str] | None = None,
     ) -> None:
         async with rls_connection(claims) as conn:
             plans_repo = PlansRepo(conn)

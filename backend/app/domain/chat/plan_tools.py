@@ -13,6 +13,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from app.core.db import rls_connection
 from app.core.exceptions import ConflictError
 from app.domain.chat.team_lead import user_confirms_rebuild
 from app.domain.jobs.runner import enqueue_plan_generation_async, enqueue_plan_harmonize_async
@@ -293,13 +294,16 @@ class ChatPlanToolsService:
 
         end = period_end_date(period_type, start_date)
         try:
-            plan = await self._repo.create_plan(
-                user_id=user_id,
-                period_type=period_type,
-                start_date=start_date,
-                end_date=end,
-            )
-            job = await self._repo.create_job(plan_id=plan.id, user_id=user_id)
+            # The worker uses another connection, so commit its inputs before enqueueing.
+            async with rls_connection(self._claims) as conn:
+                repo = PlansRepo(conn)
+                plan = await repo.create_plan(
+                    user_id=user_id,
+                    period_type=period_type,
+                    start_date=start_date,
+                    end_date=end,
+                )
+                job = await repo.create_job(plan_id=plan.id, user_id=user_id)
         except ConflictError as exc:
             existing = await self._repo.get_active_job_for_user(user_id)
             if existing is not None:
