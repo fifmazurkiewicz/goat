@@ -139,7 +139,7 @@ class OpenRouterClient:
 
             update_observation(observation, output="", usage_details=usage or None)
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.5, max=8))
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.5, max=8), reraise=True)
     async def complete_json(
         self,
         *,
@@ -173,18 +173,47 @@ class OpenRouterClient:
             if response.status_code >= 400:
                 raise ExternalServiceError(f"OpenRouter zwrócił błąd {response.status_code}: {response.text[:500]!r}")
             data = response.json()
-        usage = data.get("usage") or {}
-        logger.info(
-            "openrouter_json_completed",
-            model=model,
-            duration_ms=round((time.perf_counter() - started_at) * 1000),
-            prompt_tokens=usage.get("prompt_tokens"),
-            completion_tokens=usage.get("completion_tokens"),
-        )
-        content = data["choices"][0]["message"]["content"]
-        update_observation(observation, output=content, usage_details=usage or None)
-        result: dict[str, Any] = json.loads(content)
-        return result
+            usage = data.get("usage") or {}
+            choices = data.get("choices") or []
+            choice = choices[0] if choices else {}
+            content = (choice.get("message") or {}).get("content")
+            finish_reason = choice.get("finish_reason")
+            diagnostics = {
+                "model": data.get("model") or model,
+                "finish_reason": finish_reason,
+                "max_tokens": max_tokens,
+                "prompt_tokens": usage.get("prompt_tokens"),
+                "completion_tokens": usage.get("completion_tokens"),
+                "content_length": len(content) if isinstance(content, str) else 0,
+                "response_id": data.get("id"),
+                "duration_ms": round((time.perf_counter() - started_at) * 1000),
+            }
+            try:
+                if finish_reason == "length":
+                    raise ExternalServiceError(
+                        "Odpowiedź modelu została ucięta przez limit długości. Spróbuj ponownie."
+                    )
+                if finish_reason == "content_filter":
+                    raise ExternalServiceError("Dostawca modelu zablokował odpowiedź. Spróbuj zmienić treść prośby.")
+                if not isinstance(content, str) or not content.strip():
+                    raise ExternalServiceError("Model nie zwrócił treści odpowiedzi. Spróbuj ponownie.")
+                try:
+                    result = json.loads(content)
+                except json.JSONDecodeError as exc:
+                    diagnostics.update(json_error=exc.msg, json_error_line=exc.lineno, json_error_column=exc.colno)
+                    raise ExternalServiceError(
+                        "Model zwrócił nieprawidłowy format danych. Spróbuj wygenerować plan ponownie."
+                    ) from exc
+                if not isinstance(result, dict):
+                    raise ExternalServiceError("Model zwrócił nieprawidłową strukturę danych. Spróbuj ponownie.")
+            except ExternalServiceError as exc:
+                # Log metadata only: model content may contain private user information.
+                logger.warning("openrouter_json_invalid", **diagnostics)
+                update_observation(observation, level="ERROR", status_message=str(exc), usage_details=usage or None)
+                raise
+            update_observation(observation, output=content, usage_details=usage or None)
+            logger.info("openrouter_json_completed", **diagnostics)
+            return result
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=0.5, max=8))
     async def get_models(self) -> list[dict[str, Any]]:
