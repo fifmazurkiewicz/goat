@@ -44,9 +44,9 @@ def observe(
     if client is None:
         return nullcontext(None)
     try:
-        return client.start_as_current_observation(
-            name=name, as_type=as_type, input=input, metadata=metadata, model=model
-        )
+        # The SDK overloads on a literal `as_type`; this wrapper forwards a runtime string.
+        sdk: Any = client
+        return sdk.start_as_current_observation(name=name, as_type=as_type, input=input, metadata=metadata, model=model)
     except Exception as exc:  # telemetry must never stop coaching
         logger.warning("langfuse_observation_start_failed", name=name, error_type=type(exc).__name__)
         return nullcontext(None)

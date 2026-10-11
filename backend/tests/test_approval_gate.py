@@ -131,13 +131,6 @@ async def test_admin_patch_approval_accepts_user(monkeypatch: pytest.MonkeyPatch
         async def list_all(self) -> list[ProfileRow]:
             return [updated]
 
-    class FakeAudit:
-        def __init__(self, _conn: object) -> None:
-            pass
-
-        async def log(self, **_kwargs: object) -> None:
-            return None
-
     class FakeUsage:
         def __init__(self, _conn: object) -> None:
             pass
@@ -147,7 +140,6 @@ async def test_admin_patch_approval_accepts_user(monkeypatch: pytest.MonkeyPatch
 
     monkeypatch.setattr("app.api.routers.admin.service_role_connection", _fake_conn)
     monkeypatch.setattr("app.api.routers.admin.ProfilesRepo", FakeRepo)
-    monkeypatch.setattr("app.api.routers.admin.AdminAuditRepo", FakeAudit)
     monkeypatch.setattr("app.api.routers.admin.UsageLimitsRepo", FakeUsage)
 
     async def fake_admin() -> AuthContext:
