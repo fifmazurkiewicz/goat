@@ -102,6 +102,8 @@ class PersonaOut(PersonaBase):
     active: bool = True
     created_at: datetime
     updated_at: datetime
+    # Resolved plan columns (ADR-25) — filled by `GET /personas` only.
+    plan_columns: list[str] = Field(default_factory=list)
 
 
 class PersonaShareUpdate(BaseModel):

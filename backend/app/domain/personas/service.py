@@ -8,6 +8,7 @@ of this class — all business rules live here (architecture.md section 1).
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from typing import Any, Literal, Protocol
 
 from app.core.exceptions import ModerationRejectedError, NotFoundError, PersonaLimitExceededError
@@ -267,3 +268,22 @@ def resolve_persona_columns(persona: dict[str, Any], plan_template: dict[str, An
             seen.add(column)
             result.append(column)
     return result
+
+
+class PlanTemplatesListProtocol(Protocol):
+    async def list_all(self) -> list[Any]: ...
+
+
+async def load_persona_columns(
+    templates_repo: PlanTemplatesListProtocol, personas: Sequence[Any]
+) -> dict[str, list[str]]:
+    """Resolved plan columns per persona id — one template read for the whole list (ADR-25)."""
+    templates = {template.id: template for template in await templates_repo.list_all()}
+    columns: dict[str, list[str]] = {}
+    for persona in personas:
+        template = templates.get(persona.plan_template_id) if persona.plan_template_id else None
+        columns[persona.id] = resolve_persona_columns(
+            {"template_overrides": persona.template_overrides},
+            {"default_columns": template.default_columns} if template else None,
+        )
+    return columns

@@ -13,7 +13,7 @@ from app.core.approval import email_from_claims
 from app.core.db import rls_connection, service_role_connection
 from app.core.dependencies import get_moderation_service
 from app.core.security import AuthContext, get_current_user, require_approved
-from app.domain.personas.service import PersonaService
+from app.domain.personas.service import PersonaService, load_persona_columns
 from app.models.schemas import (
     PersonaCreate,
     PersonaOut,
@@ -23,6 +23,7 @@ from app.models.schemas import (
 )
 from app.repositories.personas_repo import PersonasRepo
 from app.repositories.profiles_repo import DEFAULT_MAX_ACTIVE_PERSONAS, ProfilesRepo
+from app.repositories.templates_repo import PlanTemplatesRepo
 
 router = APIRouter(
     prefix="/personas",
@@ -39,8 +40,12 @@ async def list_personas(auth: AuthContext = Depends(get_current_user)) -> Person
         service = PersonaService(PersonasRepo(conn), profiles_repo, get_moderation_service())
         rows = await service.list_own(auth.user_id)
         profile = await profiles_repo.get(auth.user_id)
+        columns = await load_persona_columns(PlanTemplatesRepo(conn), rows)
     return PersonasListOut(
-        items=[PersonaOut.model_validate(row) for row in rows],
+        items=[
+            PersonaOut.model_validate(row).model_copy(update={"plan_columns": columns.get(row.id, [])})
+            for row in rows
+        ],
         max_active_personas=(profile.max_active_personas if profile is not None else DEFAULT_MAX_ACTIVE_PERSONAS),
     )
 
