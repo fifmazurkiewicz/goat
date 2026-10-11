@@ -9,13 +9,16 @@ import { ResponsiveDialog } from "@/components/common/ResponsiveDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useCreateResult } from "@/hooks/useResults";
 import { getErrorMessage } from "@/lib/api-client";
-import type { ResultCategory } from "@/types/api";
+import { buildDetailsFromInputs } from "@/lib/result-details-form";
+import type { Persona, ResultCategory } from "@/types/api";
 
 const schema = z.object({
-  metric: z.string().trim().min(1, "Podaj nazwę metryki"),
+  // Required unless the persona's exercise column is filled (checked in onSubmit).
+  metric: z.string().trim(),
   value: z.coerce.number().finite("Podaj liczbę"),
   unit: z.string().trim().min(1, "Podaj jednostkę"),
   logged_date: z.string().min(1, "Podaj datę"),
@@ -26,10 +29,16 @@ type FormValues = z.infer<typeof schema>;
 
 interface AddResultDialogProps {
   category: ResultCategory;
+  /** Personas of this category with plan columns (ADR-25) — their columns become `details` inputs. */
+  personas?: Persona[];
 }
 
-export function AddResultDialog({ category }: AddResultDialogProps) {
+export function AddResultDialog({ category, personas = [] }: AddResultDialogProps) {
   const [open, setOpen] = useState(false);
+  const [personaId, setPersonaId] = useState<string | null>(null);
+  const [columnValues, setColumnValues] = useState<string[]>([]);
+  const persona = personas.find((p) => p.id === personaId) ?? personas[0] ?? null;
+  const columns = persona?.plan_columns ?? [];
   const createResult = useCreateResult();
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -37,10 +46,17 @@ export function AddResultDialog({ category }: AddResultDialogProps) {
   });
 
   async function onSubmit(values: FormValues) {
+    const { details, exercise } = buildDetailsFromInputs(columns, columnValues);
+    const metric = values.metric || exercise;
+    if (!metric) {
+      form.setError("metric", { message: "Podaj nazwę metryki lub ćwiczenia" });
+      return;
+    }
     try {
-      await createResult.mutateAsync({ ...values, category, notes: values.notes || null });
+      await createResult.mutateAsync({ ...values, metric, category, notes: values.notes || null, details });
       toast.success("Dodano wynik");
       form.reset({ metric: "", value: 0, unit: "", logged_date: format(new Date(), "yyyy-MM-dd"), notes: "" });
+      setColumnValues([]);
       setOpen(false);
     } catch (err) {
       toast.error(getErrorMessage(err, "Nie udało się dodać wyniku."));
@@ -68,9 +84,55 @@ export function AddResultDialog({ category }: AddResultDialogProps) {
         }
       >
         <form id="add-result-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
+          {personas.length > 1 ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="result-persona">Persona</Label>
+              <Select
+                value={persona?.id}
+                onValueChange={(id) => {
+                  setPersonaId(id);
+                  setColumnValues([]);
+                }}
+              >
+                <SelectTrigger id="result-persona">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {personas.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+          {columns.length > 0 ? (
+            <fieldset className="grid gap-3 sm:grid-cols-2">
+              <legend className="mb-1.5 text-sm font-medium">Szczegóły (kolumny planu)</legend>
+              {columns.map((column, index) => (
+                <div key={column} className="space-y-1.5">
+                  <Label htmlFor={`detail-${index}`}>{column}</Label>
+                  <Input
+                    id={`detail-${index}`}
+                    value={columnValues[index] ?? ""}
+                    onChange={(event) => {
+                      const next = [...columnValues];
+                      next[index] = event.target.value;
+                      setColumnValues(next);
+                    }}
+                  />
+                </div>
+              ))}
+            </fieldset>
+          ) : null}
           <div className="space-y-1.5">
             <Label htmlFor="metric">Metryka</Label>
-            <Input id="metric" placeholder="np. bench_press_1rm" {...form.register("metric")} />
+            <Input
+              id="metric"
+              placeholder={columns.length > 0 ? "domyślnie: nazwa ćwiczenia" : "np. bench_press_1rm"}
+              {...form.register("metric")}
+            />
             {form.formState.errors.metric ? (
               <p className="text-sm text-destructive">{form.formState.errors.metric.message}</p>
             ) : null}
