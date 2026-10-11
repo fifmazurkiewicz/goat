@@ -139,6 +139,11 @@ PlansPage (smart) — activeMonth/activeDate from URL search params (linkable)
 │  ├─ PlanItemTable (dumb) — generic {title, columns, rows, notes} renderer
 │  └─ ActualResultsPanel (dumb) — NEW: "Completed" — results logged that day next to "Planned"
 │     (adherence tracking — plan vs results comparison, simple juxtaposition, no complex analytics in MVP)
+├─ TrainingLogView (smart) — "Dziennik" toggle (`?view=log`): week rows since the first logged result
+│  (newest first, max 12 months back), each day = plan vs done (filled = logged, outlined = planned,
+│  dashed = planned but missed, `+` = off plan, km summed from results in `km`), weekly "done/planned"
+│  column + KPI row; persona filter `Select` (default: first active persona logging into `strength`).
+│  Pure logic in `lib/training-log.ts`; data = `useAllResults` + one `GET /plans` range per month (shared cache)
 ├─ GeneratePlanCTA / EmptyState (dumb)
 └─ PlanGenerationBanner (dumb) — reads global usePlanGenerationStore, does NOT do its own polling
 ```

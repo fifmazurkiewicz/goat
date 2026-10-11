@@ -35,6 +35,16 @@ export interface ResultCategoryTab {
   label: string;
 }
 
+/** Result category a persona logs into (`null` = no dedicated category, e.g. psychologist). */
+export function personaResultCategory(persona: Persona): ResultCategory | null {
+  if (persona.type === "custom") {
+    const raw = persona.custom_result_category?.trim();
+    if (!raw) return null;
+    return KNOWN_CATEGORIES.has(raw) ? (raw as ResultCategory) : "custom";
+  }
+  return PERSONA_TYPE_TO_CATEGORY[persona.type] ?? null;
+}
+
 export function categoryLabel(key: ResultCategory): string {
   return CATEGORY_LABELS[key] ?? key;
 }
