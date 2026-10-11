@@ -53,7 +53,7 @@ export function TrainingSessionList({ results, personas, category }: TrainingSes
                 {session.results.length} {entriesLabel(session.results.length)} · {who.join(", ")}
               </p>
             </div>
-            <PlanItemTable content={session.content} />
+            <PlanItemTable content={session.content} hideEmptyCardCells />
             <details className="mt-3">
               <summary className="cursor-pointer rounded-sm text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
                 Edytuj wpisy

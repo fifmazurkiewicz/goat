@@ -112,4 +112,21 @@ describe("PlanItemTable", () => {
     expect(link).toHaveAttribute("href", "/exercises/calf-raise");
     expect(screen.queryByRole("link", { name: "Czw (P)" })).not.toBeInTheDocument();
   });
+
+  it("hides empty card cells when hideEmptyCardCells is set", () => {
+    const content: PlanItemContent = {
+      title: "Sesja",
+      columns: ["Ćwiczenie", "Serie", "Uwagi"],
+      rows: [["Dead bug", "3", ""]],
+      notes: null,
+    };
+    render(
+      <MemoryRouter>
+        <PlanItemTable content={content} variant="cards" hideEmptyCardCells />
+      </MemoryRouter>
+    );
+    expect(screen.getByText("Serie")).toBeInTheDocument();
+    expect(screen.queryByText("Uwagi")).not.toBeInTheDocument();
+    expect(screen.queryByText("—")).not.toBeInTheDocument();
+  });
 });

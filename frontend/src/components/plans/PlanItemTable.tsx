@@ -14,6 +14,8 @@ import type { Exercise, PlanItemContent } from "@/types/api";
 interface PlanItemTableProps {
   content: PlanItemContent;
   variant?: "table" | "cards";
+  /** Cards only: skip empty cells instead of "—" (sparse result rows, ADR-25). */
+  hideEmptyCardCells?: boolean;
 }
 
 function ExerciseCell({ cell, exercise }: { cell: string; exercise: Exercise }) {
@@ -35,7 +37,7 @@ function ExerciseCell({ cell, exercise }: { cell: string; exercise: Exercise }) 
  * `<table>`. Cells in the Ćwiczenie/Exercise column (else column 0) matched against
  * the catalog become links to `/exercises/:slug` (ADR-14; column fix 2026-08-25).
  */
-export function PlanItemTable({ content, variant }: PlanItemTableProps) {
+export function PlanItemTable({ content, variant, hideEmptyCardCells = false }: PlanItemTableProps) {
   const isMobile = useIsMobile();
   const resolvedVariant = variant ?? (isMobile ? "cards" : "table");
   const { data: exercises } = useExercises();
@@ -66,7 +68,8 @@ export function PlanItemTable({ content, variant }: PlanItemTableProps) {
       <div className="space-y-2">
         {matchedRows.map(({ cells, exercise }, rowIndex) => (
           <div key={rowIndex} className="rounded-md border p-3">
-            {content.columns.map((column, colIndex) => (
+            {content.columns.map((column, colIndex) =>
+              hideEmptyCardCells && !cells[colIndex]?.trim() ? null : (
               <div
                 key={column}
                 className={cn(
@@ -87,7 +90,8 @@ export function PlanItemTable({ content, variant }: PlanItemTableProps) {
                   )}
                 </span>
               </div>
-            ))}
+              )
+            )}
           </div>
         ))}
       </div>
