@@ -102,6 +102,8 @@
 
 **Decision:** `/plans` day panel shows "Planned" (plan_item) next to "Completed" (results from that day) as a simple juxtaposition, without complex analytics. `/results` gets trend charts per metric (`recharts`/shadcn `Chart`) — without schema changes, only an index `results_user_category_metric_date`.
 
+**Amendment 2026-10-11:** the plan vs done juxtaposition also has a since-start log view on `/plans` (ADR-24). Training categories on `/results` move from a chart to a per-day session list with `results.details` (ADR-25, proposed).
+
 ---
 
 ## ADR-10: Weekly recap and external integrations — out of scope
@@ -329,3 +331,38 @@
 - CI runs `npm test`, Dependabot, and TruffleHog `--only-verified`.
 
 **Consequences:** agents on a fresh clone get the same process/stack/secrets rules. Env names live in [`../technical/configuration.md`](../technical/configuration.md).
+
+---
+
+## ADR-24: "Dziennik" — since-start plan vs done log on `/plans`
+
+**Status:** accepted (2026-10-11, implemented).
+
+**Context:** `/plans` showed one month at a time with a dot per planned day; plan and results lived on separate screens (`/plans`, `/results`). The user wanted the simple, dense reading of a training log: every day since the start, at a glance, showing what was planned and what was actually done.
+
+**Decision:**
+
+- A **Miesiąc / Dziennik** toggle on `/plans` (`?view=log`, linkable). `TrainingLogView` renders week rows (Monday first, newest week on top so the current week is visible on phones without scrolling) from the first logged result to today, capped at 12 months back.
+- Each day cell: filled = a result was logged, outlined = planned (today or later), dashed = planned but the day passed with no result, grey = nothing; `+` = logged off plan; km summed from results whose unit is `km`; persona initial / dots for planned personas. Weekly column = planned days done / planned days. KPI row: days since start, days with an entry (avg per week), plan completion %, km.
+- Persona filter (`Select`), default = first active persona logging into `strength` — otherwise a daily diet plan would mark every day as planned. Results match the filter by `source_persona_id` or by the persona's result category.
+- **Frontend only:** data = `useAllResults` + one `GET /plans` range per month (same query keys as the month calendar, shared cache). Pure logic in `frontend/src/lib/training-log.ts` (unit-tested).
+
+**Consequences:** no schema/API change. Up to 13 month requests on first open (cached afterwards). Out of scope until there is data for them: session codes (A/B/C), weekly notes, pain markers. Monochrome cell style is local to this view; the rest of the app keeps the shadcn theme. Diagram: [results and adherence](../diagrams/flow-results-and-adherence.md).
+
+---
+
+## ADR-25: Training sessions on `/results` — results logged with the persona's plan columns
+
+**Status:** proposed (2026-10-11) — design approved in chat, written spec awaiting review: [`2026-10-11-results-training-sessions-design.md`](../superpowers/specs/2026-10-11-results-training-sessions-design.md).
+
+**Context:** a result row holds one `metric` / `value` / `unit`. "Dead bug — 3 serie, 10 powtórzeń, 50 kg na stronę" has several attributes, and they differ per discipline (badminton: drill, time, intensity; psychologist: topic, technique, minutes). Fixed `sets`/`reps`/`load` columns would only fit strength training.
+
+**Decision:**
+
+- New nullable `results.details jsonb` = ordered list `[{label, value}]` (a list, because `jsonb` objects do not keep key order) whose labels are the logging persona's **plan columns** (`resolve_persona_columns`) — the same per-persona structure `plan_items` already uses, so custom personas work without code changes.
+- `metric` / `value` / `unit` stay required (exercise name + main number), so existing charts keep working.
+- `log_result` gets optional `details`; the chat prompt gets a columns block (persona: its own columns; Goat: one line per active persona). The model fills only columns the user reported — never guessed values.
+- `/results`: category tabs stay; a category backed by a persona with plan columns shows a **session list** (one card per day, newest first, rows from `details`, table on desktop / one line per exercise on mobile); diet and column-less categories keep chart + table. One day = one session.
+- Alternatives rejected: typed per-category field dictionary (second definition next to plan columns; no fields for custom personas without admin work); free text in `notes` (inconsistent, not comparable).
+
+**Consequences:** migration `0018_result_details.sql` (run in Supabase before the backend deploy; nullable, old backend unaffected). Values are labelled text — no charts from `details`; renaming a column leaves old labels on old rows. The shared column shape enables a later line-by-line plan vs done comparison (out of scope now).

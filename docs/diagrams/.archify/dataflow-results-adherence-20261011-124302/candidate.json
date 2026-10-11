@@ -1,0 +1,358 @@
+{
+  "schema_version": 1,
+  "diagram_type": "dataflow",
+  "meta": {
+    "title": "Results and Adherence Data Flow",
+    "output": "docs/diagrams/.archify/dataflow-results-adherence-20261011-124302/results-adherence.html",
+    "locale": "en",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/fifmazurkiewicz/goat",
+      "provider": "github",
+      "revision": "e6035ccada2e19660c3273cfa5e5443ca2076f5f"
+    },
+    "viewBox": [
+      1068,
+      520
+    ]
+  },
+  "stages": [
+    {
+      "label": "Input"
+    },
+    {
+      "label": "Write API"
+    },
+    {
+      "label": "Store"
+    },
+    {
+      "label": "Read API"
+    },
+    {
+      "label": "UI"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "chat",
+      "type": "frontend",
+      "label": "Chat",
+      "sublabel": "Goat or /persona",
+      "stage": 0,
+      "row": 0,
+      "tag": "SSE",
+      "sources": [
+        {
+          "path": "backend/app/domain/chat/tools.py",
+          "line": 21,
+          "label": "log_result schema"
+        }
+      ]
+    },
+    {
+      "id": "personaColumns",
+      "type": "database",
+      "label": "Plan columns",
+      "sublabel": "personas + plan_templates",
+      "stage": 0,
+      "row": 1,
+      "tag": "per persona",
+      "sources": [
+        {
+          "path": "backend/app/domain/personas/service.py",
+          "line": 248,
+          "label": "resolve_persona_columns"
+        },
+        {
+          "path": "docs/superpowers/specs/2026-10-11-results-training-sessions-design.md",
+          "label": "prompt block (planned)"
+        }
+      ]
+    },
+    {
+      "id": "manual",
+      "type": "frontend",
+      "label": "Add result",
+      "sublabel": "manual dialog",
+      "stage": 0,
+      "row": 2,
+      "tag": "form",
+      "sources": [
+        {
+          "path": "frontend/src/components/results/AddResultDialog.tsx",
+          "line": 31
+        }
+      ]
+    },
+    {
+      "id": "logTool",
+      "type": "backend",
+      "label": "log_result",
+      "sublabel": "batch, validated",
+      "stage": 1,
+      "row": 0,
+      "tag": "ADR-6",
+      "sources": [
+        {
+          "path": "backend/app/models/schemas.py",
+          "line": 411,
+          "label": "LogResultEntry"
+        }
+      ]
+    },
+    {
+      "id": "resultsApi",
+      "type": "backend",
+      "label": "POST /results",
+      "sublabel": "manual CRUD",
+      "stage": 1,
+      "row": 2,
+      "tag": "REST",
+      "sources": [
+        {
+          "path": "backend/app/api/routers/results.py",
+          "line": 42
+        }
+      ]
+    },
+    {
+      "id": "results",
+      "type": "database",
+      "label": "results",
+      "sublabel": "metric/value + details",
+      "stage": 2,
+      "row": 0,
+      "tag": "RLS",
+      "sources": [
+        {
+          "path": "supabase/migrations/0001_init.sql",
+          "line": 351
+        },
+        {
+          "path": "docs/superpowers/specs/2026-10-11-results-training-sessions-design.md",
+          "label": "details (planned)"
+        }
+      ]
+    },
+    {
+      "id": "planItems",
+      "type": "database",
+      "label": "plan_items",
+      "sublabel": "columns + rows",
+      "stage": 2,
+      "row": 2,
+      "tag": "RLS",
+      "sources": [
+        {
+          "path": "supabase/migrations/0001_init.sql",
+          "line": 405
+        }
+      ]
+    },
+    {
+      "id": "getResults",
+      "type": "backend",
+      "label": "GET /results",
+      "sublabel": "category / date range",
+      "stage": 3,
+      "row": 0,
+      "tag": "REST",
+      "sources": [
+        {
+          "path": "backend/app/api/routers/results.py",
+          "line": 28
+        }
+      ]
+    },
+    {
+      "id": "getPlans",
+      "type": "backend",
+      "label": "GET /plans",
+      "sublabel": "one range per month",
+      "stage": 3,
+      "row": 2,
+      "tag": "REST",
+      "sources": [
+        {
+          "path": "backend/app/api/routers/plans.py",
+          "line": 266
+        }
+      ]
+    },
+    {
+      "id": "sessions",
+      "type": "frontend",
+      "label": "Results tab",
+      "sublabel": "sessions by day (planned)",
+      "stage": 4,
+      "row": 0,
+      "tag": "ADR-25",
+      "sources": [
+        {
+          "path": "docs/superpowers/specs/2026-10-11-results-training-sessions-design.md",
+          "label": "spec §4"
+        }
+      ]
+    },
+    {
+      "id": "logView",
+      "type": "frontend",
+      "label": "Dziennik",
+      "sublabel": "/plans?view=log",
+      "stage": 4,
+      "row": 2,
+      "tag": "ADR-24",
+      "sources": [
+        {
+          "path": "frontend/src/components/plans/TrainingLogView.tsx"
+        },
+        {
+          "path": "frontend/src/lib/training-log.ts",
+          "label": "buildTrainingLog"
+        }
+      ]
+    }
+  ],
+  "flows": [
+    {
+      "id": "f-chat",
+      "from": "chat",
+      "to": "logTool",
+      "label": "entries + details",
+      "classification": "tool call",
+      "variant": "emphasis",
+      "route": "straight"
+    },
+    {
+      "id": "f-cols",
+      "from": "personaColumns",
+      "to": "logTool",
+      "label": "columns in prompt",
+      "classification": "planned",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "bottom",
+      "via": [
+        [
+          315,
+          271
+        ]
+      ]
+    },
+    {
+      "id": "f-manual",
+      "from": "manual",
+      "to": "resultsApi",
+      "label": "result + details",
+      "classification": "HTTPS",
+      "variant": "default",
+      "route": "straight"
+    },
+    {
+      "id": "f-log-write",
+      "from": "logTool",
+      "to": "results",
+      "label": "insert batch",
+      "classification": "source=agent",
+      "variant": "emphasis",
+      "route": "straight"
+    },
+    {
+      "id": "f-api-write",
+      "from": "resultsApi",
+      "to": "results",
+      "label": "insert / update",
+      "classification": "source=manual",
+      "variant": "default",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "via": [
+        [
+          315,
+          271
+        ],
+        [
+          530,
+          271
+        ]
+      ]
+    },
+    {
+      "id": "f-read-results",
+      "from": "results",
+      "to": "getResults",
+      "label": "own rows",
+      "classification": "RLS",
+      "variant": "security",
+      "route": "straight"
+    },
+    {
+      "id": "f-read-plans",
+      "from": "planItems",
+      "to": "getPlans",
+      "label": "best plan items",
+      "classification": "RLS",
+      "variant": "security",
+      "route": "straight"
+    },
+    {
+      "id": "f-sessions",
+      "from": "getResults",
+      "to": "sessions",
+      "label": "group by day",
+      "classification": "details rows",
+      "variant": "emphasis",
+      "route": "straight"
+    },
+    {
+      "id": "f-log-results",
+      "from": "getResults",
+      "to": "logView",
+      "label": "all results",
+      "classification": "done days, km",
+      "variant": "default",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "via": [
+        [
+          745,
+          271
+        ],
+        [
+          960,
+          271
+        ]
+      ]
+    },
+    {
+      "id": "f-log-plans",
+      "from": "getPlans",
+      "to": "logView",
+      "label": "planned days",
+      "classification": "plan vs done",
+      "variant": "default",
+      "route": "straight"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Implemented: Dziennik (ADR-24)",
+      "items": [
+        "Week rows from the first logged result, max 12 months back",
+        "Day = done / planned / missed / off plan; km summed from results in km",
+        "Frontend only: reuses GET /results and per-month GET /plans"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Planned: training sessions (ADR-25)",
+      "items": [
+        "results.details = ordered [{label, value}] keyed by the persona's plan columns",
+        "Same column shape as plan_items rows, so plan vs done can later compare row by row",
+        "metric / value / unit stay required, so existing charts keep working"
+      ]
+    }
+  ]
+}

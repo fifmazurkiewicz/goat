@@ -2,6 +2,7 @@
 
 - **Date:** 2026-10-11
 - **Status:** approved in chat, awaiting written-spec review
+- **ADR:** ADR-25 (proposed) in `docs/adr/decisions.md`
 - **Related:** ADR-6 (`log_result` batch), ADR-9 (`/results` charts), `docs/technical/frontend.md` §6, `docs/technical/ai-pipeline.md` §2, plan columns (`resolve_persona_columns`, `plan_templates.default_columns`)
 
 ## 1. Intent
