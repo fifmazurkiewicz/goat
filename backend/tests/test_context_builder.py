@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from app.domain.chat.context_builder import ContextBuilder
+from app.domain.chat.context_builder import ContextBuilder, build_result_columns_block
 from app.models.schemas import UserProfileOut
 
 
@@ -77,3 +77,38 @@ def test_context_builder_does_not_disclose_exact_birth_date_sex_or_notes() -> No
     assert "Poufna diagnoza" not in out
     assert "wiek:" in out
     assert "ogólne zdrowie" in out
+
+
+def test_result_columns_block_for_persona_lists_its_columns() -> None:
+    block = build_result_columns_block([("Bartek · Trener motoryczny", ["Ćwiczenie", "Serie"])], team_lead=False)
+    assert block is not None
+    assert block.startswith("[KOLUMNY WYNIKÓW]")
+    assert "Ćwiczenie | Serie" in block
+    assert "nie zgaduj" in block
+
+
+def test_result_columns_block_for_goat_lists_each_persona() -> None:
+    block = build_result_columns_block(
+        [("Bartek · Trener motoryczny", ["Ćwiczenie", "Serie"]), ("Ola · Trener badmintona", ["Drill", "Czas"])],
+        team_lead=True,
+    )
+    assert block is not None
+    assert "- Bartek · Trener motoryczny: Ćwiczenie | Serie" in block
+    assert "- Ola · Trener badmintona: Drill | Czas" in block
+
+
+def test_result_columns_block_omitted_without_columns() -> None:
+    assert build_result_columns_block([("Psycholog", [])], team_lead=False) is None
+    assert build_result_columns_block([], team_lead=True) is None
+
+
+def test_system_prompt_includes_result_columns_block() -> None:
+    builder = ContextBuilder(_NoopChatRepo(), history_window_messages=10)
+    prompt = builder.build_system_prompt(
+        persona_type="motor_coach",
+        persona_system_prompt="x" * 30,
+        persona_constraints=None,
+        user_profile=None,
+        result_columns=[("Bartek", ["Ćwiczenie", "Serie"])],
+    )
+    assert "[KOLUMNY WYNIKÓW]" in prompt

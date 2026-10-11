@@ -45,6 +45,7 @@ from app.domain.chat.tools import (
     get_trainer_chat_tools,
 )
 from app.domain.jobs.runner import enqueue_chat_title_async
+from app.domain.personas.service import load_persona_columns
 from app.domain.results.metrics_cache import allowed_metrics_cache
 from app.domain.results.service import ResultsService
 from app.domain.usage.service import UsageLimitService
@@ -58,7 +59,7 @@ from app.repositories.personas_repo import PersonasRepo
 from app.repositories.plans_repo import PlansRepo
 from app.repositories.profiles_repo import ProfilesRepo
 from app.repositories.results_repo import ResultsRepo
-from app.repositories.templates_repo import PersonaTemplatesRepo
+from app.repositories.templates_repo import PersonaTemplatesRepo, PlanTemplatesRepo
 from app.repositories.usage_limits_repo import UsageLimitsRepo
 from app.repositories.user_profile_repo import UserProfileRepo
 
@@ -357,6 +358,13 @@ class ChatOrchestrator:
             if plan_row is not None:
                 plan_items = await plans_repo.list_items_for_plan(plan_row.id)
             recent_results = await ResultsRepo(conn).list_recent_for_user(limit=12)
+            result_columns: list[tuple[str, list[str]]] = []
+            # Consulted personas get read-only tools (no log_result) — no columns block.
+            if not consult_read_only:
+                column_personas = list(self._consult_roster or []) if persona.type == "team_lead" else [persona]
+                if column_personas:
+                    columns_by_id = await load_persona_columns(PlanTemplatesRepo(conn), column_personas)
+                    result_columns = [(persona_display_label(p), columns_by_id.get(p.id, [])) for p in column_personas]
             system_prompt = context_builder.build_system_prompt(
                 persona_type=persona.type,
                 persona_system_prompt=persona.system_prompt,
@@ -366,6 +374,7 @@ class ChatOrchestrator:
                 recent_results=recent_results,
                 plan_row=plan_row,
                 plan_items=plan_items,
+                result_columns=result_columns,
             )
             history = await context_builder.build_message_history(
                 session_id=session_id,

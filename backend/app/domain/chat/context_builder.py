@@ -125,6 +125,24 @@ def build_recent_results_block(results: list[Any]) -> str | None:
     return "[OSTATNIE WYNIKI UŻYTKOWNIKA]\n" + "\n".join(lines)
 
 
+def build_result_columns_block(entries: list[tuple[str, list[str]]], *, team_lead: bool) -> str | None:
+    """Plan columns the model must use for `log_result.details` (ADR-25)."""
+    entries = [(label, columns) for label, columns in entries if columns]
+    if not entries:
+        return None
+    rule = "Pomiń kolumny, których user nie podał — nie zgaduj. Etykiety (label) przepisuj dokładnie, w tej kolejności."
+    if team_lead:
+        lines = [f"- {label}: {' | '.join(columns)}" for label, columns in entries]
+        return (
+            "[KOLUMNY WYNIKÓW]\nGdy zapisujesz trening przez log_result, wypełnij `details` kolumnami "
+            f"persony, której dziedziny dotyczy wynik. {rule}\n" + "\n".join(lines)
+        )
+    return (
+        "[KOLUMNY WYNIKÓW]\nGdy zapisujesz trening przez log_result, wypełnij `details` tymi kolumnami. "
+        f"{rule}\n{' | '.join(entries[0][1])}"
+    )
+
+
 def build_plan_summary_block(plan: Any | None, items: list[Any]) -> str | None:
     """Active plan in the calendar — summary of items for the coming days."""
     if plan is None:
@@ -160,6 +178,7 @@ class ContextBuilder:
         recent_results: list[Any] | None = None,
         plan_row: Any | None = None,
         plan_items: list[Any] | None = None,
+        result_columns: list[tuple[str, list[str]]] | None = None,
     ) -> str:
         segments = [
             build_preamble_composed(
@@ -184,6 +203,10 @@ class ContextBuilder:
         plan_block = build_plan_summary_block(plan_row, plan_items or [])
         if plan_block:
             segments.append(plan_block)
+
+        columns_block = build_result_columns_block(result_columns or [], team_lead=persona_type == "team_lead")
+        if columns_block:
+            segments.append(columns_block)
 
         intake_instruction = build_profile_intake_instruction(user_profile)
         if intake_instruction:

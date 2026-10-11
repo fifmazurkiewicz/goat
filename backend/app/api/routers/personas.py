@@ -43,8 +43,7 @@ async def list_personas(auth: AuthContext = Depends(get_current_user)) -> Person
         columns = await load_persona_columns(PlanTemplatesRepo(conn), rows)
     return PersonasListOut(
         items=[
-            PersonaOut.model_validate(row).model_copy(update={"plan_columns": columns.get(row.id, [])})
-            for row in rows
+            PersonaOut.model_validate(row).model_copy(update={"plan_columns": columns.get(row.id, [])}) for row in rows
         ],
         max_active_personas=(profile.max_active_personas if profile is not None else DEFAULT_MAX_ACTIVE_PERSONAS),
     )
