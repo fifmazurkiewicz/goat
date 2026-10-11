@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends
 
 from app.core.approval import email_from_claims
 from app.core.db import rls_connection, service_role_connection
+from app.core.resend_mail import notify_pending_account
 from app.core.security import AuthContext, get_current_user, require_approved
 from app.models.schemas import AccountOut, AccountUpdate
 from app.repositories.profiles_repo import ProfilesRepo
@@ -24,9 +25,20 @@ router = APIRouter(prefix="/account", tags=["account"])
 async def get_account(auth: AuthContext = Depends(get_current_user)) -> AccountOut:
     async with rls_connection(auth.claims) as conn:
         profile = await ProfilesRepo(conn).get(auth.user_id)
-    if profile is None:
-        async with service_role_connection() as conn:
-            profile = await ProfilesRepo(conn).ensure(auth.user_id, email=email_from_claims(auth.claims))
+    email = email_from_claims(auth.claims)
+    async with service_role_connection() as conn:
+        repo = ProfilesRepo(conn)
+        profile = profile or await repo.ensure(auth.user_id, email=email)
+        notify = not profile.is_approved and await repo.claim_approval_notification(auth.user_id)
+    if notify:
+        try:
+            await notify_pending_account(email)
+        except Exception as exc:
+            async with service_role_connection() as conn:
+                await ProfilesRepo(conn).record_approval_notification(auth.user_id, sent=False, error=str(exc)[:500])
+        else:
+            async with service_role_connection() as conn:
+                await ProfilesRepo(conn).record_approval_notification(auth.user_id, sent=True)
     return AccountOut.model_validate(profile)
 
 

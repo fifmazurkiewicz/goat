@@ -167,6 +167,34 @@ class ProfilesRepo:
             raise NotFoundError(f"Profil dla user_id={user_id!r} nie istnieje.")
         return profile
 
+    async def claim_approval_notification(self, user_id: str) -> bool:
+        """Atomically reserve a first notification for a pending account."""
+        result = await self._conn.execute(
+            text(
+                """
+                UPDATE profiles SET approval_notification_status = 'sending'
+                WHERE id = :user_id AND approval_notification_status = 'pending'
+                RETURNING id
+                """
+            ),
+            {"user_id": user_id},
+        )
+        return result.one_or_none() is not None
+
+    async def record_approval_notification(self, user_id: str, *, sent: bool, error: str | None = None) -> None:
+        await self._conn.execute(
+            text(
+                """
+                UPDATE profiles
+                SET approval_notification_status = :status,
+                    approval_notification_sent_at = CASE WHEN :sent THEN now() ELSE approval_notification_sent_at END,
+                    approval_notification_error = :error
+                WHERE id = :user_id
+                """
+            ),
+            {"user_id": user_id, "status": "sent" if sent else "failed", "sent": sent, "error": error},
+        )
+
     async def update_nick(self, user_id: str, nick: str | None) -> ProfileRow:
         """`PATCH /account` (ADR-15) — in the user's own RLS context or service_role."""
         result = await self._conn.execute(
