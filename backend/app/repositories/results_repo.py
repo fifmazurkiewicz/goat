@@ -6,6 +6,7 @@ explicitly (see `PersonasRepo` for the full convention rationale)."""
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any
@@ -17,11 +18,13 @@ from app.core.exceptions import NotFoundError
 from app.repositories._row_utils import normalize_row_mapping
 
 _COLUMNS = (
-    "id, user_id, category, metric, value, unit, logged_date, source, source_persona_id, is_custom, notes, created_at"
+    "id, user_id, category, metric, value, unit, logged_date, source, source_persona_id, is_custom, notes, "
+    "created_at, details"
 )
 
 _UUID_KEYS = ("id", "user_id", "source_persona_id")
 _FLOAT_KEYS = ("value",)
+_JSONB_KEYS = ("details",)
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,11 +41,28 @@ class ResultRow:
     is_custom: bool
     notes: str | None
     created_at: datetime
+    # ADR-25: ordered [{label, value}] keyed by the logging persona's plan columns.
+    details: list[dict[str, str]] | None = None
 
 
 def _row_to_result(row: Any) -> ResultRow:
     mapping = normalize_row_mapping(dict(row._mapping), uuid_keys=_UUID_KEYS, float_keys=_FLOAT_KEYS)
+    # asyncpg + raw `text()` may hand jsonb back as a JSON string.
+    if isinstance(mapping.get("details"), str):
+        mapping["details"] = json.loads(mapping["details"])
     return ResultRow(**mapping)
+
+
+def _sql_param(key: str) -> str:
+    # asyncpg does not infer jsonb from a text parameter — explicit CAST (same as personas_repo).
+    return f"CAST(:{key} AS jsonb)" if key in _JSONB_KEYS else f":{key}"
+
+
+def _encode_values(values: dict[str, object]) -> dict[str, object]:
+    return {
+        key: (json.dumps(value, ensure_ascii=False) if key in _JSONB_KEYS and value is not None else value)
+        for key, value in values.items()
+    }
 
 
 class ResultsRepo:
@@ -88,7 +108,7 @@ class ResultsRepo:
 
     async def create(self, user_id: str, values: dict[str, object]) -> ResultRow:
         columns = ["user_id", *values.keys()]
-        placeholders = [":user_id", *(f":{key}" for key in values.keys())]
+        placeholders = [":user_id", *(_sql_param(key) for key in values.keys())]
         result = await self._conn.execute(
             text(
                 f"""
@@ -97,7 +117,7 @@ class ResultsRepo:
                 RETURNING {_COLUMNS}
                 """
             ),
-            {"user_id": user_id, **values},
+            {"user_id": user_id, **_encode_values(values)},
         )
         return _row_to_result(result.one())
 
@@ -110,7 +130,7 @@ class ResultsRepo:
             if existing is None:
                 raise NotFoundError(f"Wynik {result_id!r} nie istnieje.")
             return existing
-        set_clause = ", ".join(f"{key} = :{key}" for key in values.keys())
+        set_clause = ", ".join(f"{key} = {_sql_param(key)}" for key in values.keys())
         result = await self._conn.execute(
             text(
                 f"""
@@ -119,7 +139,7 @@ class ResultsRepo:
                 RETURNING {_COLUMNS}
                 """
             ),
-            {"id": result_id, "user_id": user_id, **values},
+            {"id": result_id, "user_id": user_id, **_encode_values(values)},
         )
         row = result.one_or_none()
         if row is None:

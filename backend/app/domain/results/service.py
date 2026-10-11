@@ -142,6 +142,7 @@ class ResultsService:
                 "unit": entry.get("unit") or validation.normalized_unit,
                 "logged_date": entry["logged_date"],
                 "notes": entry.get("notes"),
+                "details": entry.get("details"),
                 "source": "agent",
                 "source_persona_id": source_persona_id,
                 "is_custom": validation.is_custom,

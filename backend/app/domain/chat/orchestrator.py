@@ -767,6 +767,7 @@ class ChatOrchestrator:
                     "unit": entry.unit,
                     "logged_date": entry.date,
                     "notes": entry.notes,
+                    "details": [cell.model_dump() for cell in entry.details] if entry.details else None,
                 }
                 for entry in parsed.entries
             ]

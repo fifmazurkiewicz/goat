@@ -30,7 +30,8 @@ LOG_RESULT_TOOL_SCHEMA: dict[str, Any] = {
             "Daty względne („wczoraj”) przelicz na ISO YYYY-MM-DD wg [KONTEKST CZASOWY]. "
             "Bieganie/kondycja/siła: category=strength (np. metric run_distance_km, "
             "run_time_min). Dieta: diet. Badminton: badminton. Nie wymyślaj category "
-            "poza enumem."
+            "poza enumem. Trening: metric = nazwa ćwiczenia, value = główna liczba (ciężar, "
+            "powtórzenia lub minuty), a szczegóły w details."
         ),
         "parameters": {
             "type": "object",
@@ -64,6 +65,25 @@ LOG_RESULT_TOOL_SCHEMA: dict[str, Any] = {
                                 "description": "Data wyniku, ISO 8601 (YYYY-MM-DD).",
                             },
                             "notes": {"type": "string"},
+                            "details": {
+                                "type": "array",
+                                "maxItems": 12,
+                                "description": (
+                                    "Opcjonalnie dla treningu/sesji: wiersz w kolumnach persony z bloku "
+                                    "[KOLUMNY WYNIKÓW], w tej samej kolejności. label = dokładna nazwa "
+                                    "kolumny, value = to, co user podał (np. '3', '50 / stronę'). Pomiń "
+                                    "kolumny, których user nie podał — nie zgaduj."
+                                ),
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "label": {"type": "string"},
+                                        "value": {"type": "string"},
+                                    },
+                                    "required": ["label", "value"],
+                                    "additionalProperties": False,
+                                },
+                            },
                         },
                         "required": ["category", "metric", "value", "date"],
                         "additionalProperties": False,
