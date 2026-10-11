@@ -40,6 +40,8 @@ export interface Persona {
   moderation_status: ModerationStatus;
   cloned_from_persona_id: string | null;
   active: boolean;
+  /** Resolved plan columns (ADR-25) — present on `GET /personas` items. */
+  plan_columns?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -143,6 +145,12 @@ export type ResultCategory =
   | "badminton"
   | "custom";
 
+/** One `{label, value}` cell of `results.details` (ADR-25) — label = a plan column. */
+export interface ResultDetailCell {
+  label: string;
+  value: string;
+}
+
 export interface Result {
   id: string;
   user_id: string;
@@ -155,6 +163,7 @@ export interface Result {
   source_persona_id: string | null;
   is_custom: boolean;
   notes: string | null;
+  details: ResultDetailCell[] | null;
   created_at: string;
 }
 

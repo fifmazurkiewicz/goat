@@ -29,6 +29,7 @@ function result(date: string, overrides: Partial<Result> = {}): Result {
     source_persona_id: null,
     is_custom: false,
     notes: null,
+    details: null,
     created_at: "2026-10-01T00:00:00Z",
     ...overrides,
   };

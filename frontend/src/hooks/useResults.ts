@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiFetch } from "@/lib/api-client";
-import type { Result, ResultCategory } from "@/types/api";
+import type { Result, ResultCategory, ResultDetailCell } from "@/types/api";
 
 export function resultsKey(category: ResultCategory) {
   return ["results", category] as const;
@@ -57,6 +57,7 @@ export interface ResultCreateInput {
   unit: string;
   logged_date: string;
   notes?: string | null;
+  details?: ResultDetailCell[] | null;
 }
 
 export function useCreateResult() {
