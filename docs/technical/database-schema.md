@@ -160,7 +160,10 @@ results (
   source_persona_id uuid FK nullable,
   is_custom boolean default false,   -- metric outside allowed_metrics
   notes text,
-  created_at timestamptz default now()
+  created_at timestamptz default now(),
+  details jsonb nullable              -- ADR-25 (0018): ordered [{label, value}] keyed by the
+                                      -- logging persona's plan columns; 1–12 cells, label ≤60,
+                                      -- value ≤120 (Pydantic `ResultDetailCell`)
 )
 create index results_user_category_metric_date
   on results (user_id, category, metric, logged_date);

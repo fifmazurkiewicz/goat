@@ -102,7 +102,7 @@
 
 **Decision:** `/plans` day panel shows "Planned" (plan_item) next to "Completed" (results from that day) as a simple juxtaposition, without complex analytics. `/results` gets trend charts per metric (`recharts`/shadcn `Chart`) — without schema changes, only an index `results_user_category_metric_date`.
 
-**Amendment 2026-10-11:** the plan vs done juxtaposition also has a since-start log view on `/plans` (ADR-24). Training categories on `/results` move from a chart to a per-day session list with `results.details` (ADR-25, proposed).
+**Amendment 2026-10-11:** the plan vs done juxtaposition also has a since-start log view on `/plans` (ADR-24). Training categories on `/results` move from a chart to a per-day session list with `results.details` (ADR-25).
 
 ---
 
@@ -353,7 +353,7 @@
 
 ## ADR-25: Training sessions on `/results` — results logged with the persona's plan columns
 
-**Status:** proposed (2026-10-11) — design approved in chat, written spec awaiting review: [`2026-10-11-results-training-sessions-design.md`](../superpowers/specs/2026-10-11-results-training-sessions-design.md).
+**Status:** accepted (2026-10-11, implemented) — spec [`2026-10-11-results-training-sessions-design.md`](../superpowers/specs/2026-10-11-results-training-sessions-design.md), plan [`2026-10-11-results-training-sessions.md`](../superpowers/plans/2026-10-11-results-training-sessions.md).
 
 **Context:** a result row holds one `metric` / `value` / `unit`. "Dead bug — 3 serie, 10 powtórzeń, 50 kg na stronę" has several attributes, and they differ per discipline (badminton: drill, time, intensity; psychologist: topic, technique, minutes). Fixed `sets`/`reps`/`load` columns would only fit strength training.
 
@@ -365,4 +365,4 @@
 - `/results`: category tabs stay; a category backed by a persona with plan columns shows a **session list** (one card per day, newest first, rows from `details`, table on desktop / one line per exercise on mobile); diet and column-less categories keep chart + table. One day = one session.
 - Alternatives rejected: typed per-category field dictionary (second definition next to plan columns; no fields for custom personas without admin work); free text in `notes` (inconsistent, not comparable).
 
-**Consequences:** migration `0018_result_details.sql` (run in Supabase before the backend deploy; nullable, old backend unaffected). Values are labelled text — no charts from `details`; renaming a column leaves old labels on old rows. The shared column shape enables a later line-by-line plan vs done comparison (out of scope now).
+**Consequences:** migration `0018_result_details.sql` (run in Supabase before the backend deploy; nullable, old backend unaffected). `GET /personas` items carry resolved `plan_columns`. Editing in the session list reuses `ResultsTable` (value / unit / notes, delete); `details` cells are not editable after saving — a wrong row is deleted and logged again. Values are labelled text — no charts from `details`; renaming a column leaves old labels on old rows. The shared column shape enables a later line-by-line plan vs done comparison (out of scope now).

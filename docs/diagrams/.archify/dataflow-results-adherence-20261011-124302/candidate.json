@@ -9,7 +9,7 @@
     "repository": {
       "url": "https://github.com/fifmazurkiewicz/goat",
       "provider": "github",
-      "revision": "e6035ccada2e19660c3273cfa5e5443ca2076f5f"
+      "revision": "79b86a2f1755f91069df831d9f80e4f0a2e6f24d"
     },
     "viewBox": [
       1068,
@@ -44,9 +44,8 @@
       "tag": "SSE",
       "sources": [
         {
-          "path": "backend/app/domain/chat/tools.py",
-          "line": 21,
-          "label": "log_result schema"
+          "path": "backend/app/domain/chat/orchestrator.py",
+          "label": "log_result handling"
         }
       ]
     },
@@ -61,12 +60,11 @@
       "sources": [
         {
           "path": "backend/app/domain/personas/service.py",
-          "line": 248,
-          "label": "resolve_persona_columns"
+          "label": "load_persona_columns"
         },
         {
-          "path": "docs/superpowers/specs/2026-10-11-results-training-sessions-design.md",
-          "label": "prompt block (planned)"
+          "path": "backend/app/domain/chat/context_builder.py",
+          "label": "columns prompt block"
         }
       ]
     },
@@ -96,8 +94,11 @@
       "sources": [
         {
           "path": "backend/app/models/schemas.py",
-          "line": 411,
           "label": "LogResultEntry"
+        },
+        {
+          "path": "backend/app/domain/chat/tools.py",
+          "label": "log_result schema"
         }
       ]
     },
@@ -130,8 +131,8 @@
           "line": 351
         },
         {
-          "path": "docs/superpowers/specs/2026-10-11-results-training-sessions-design.md",
-          "label": "details (planned)"
+          "path": "supabase/migrations/0018_result_details.sql",
+          "label": "details"
         }
       ]
     },
@@ -184,14 +185,17 @@
       "id": "sessions",
       "type": "frontend",
       "label": "Results tab",
-      "sublabel": "sessions by day (planned)",
+      "sublabel": "sessions by day",
       "stage": 4,
       "row": 0,
       "tag": "ADR-25",
       "sources": [
         {
-          "path": "docs/superpowers/specs/2026-10-11-results-training-sessions-design.md",
-          "label": "spec §4"
+          "path": "frontend/src/components/results/TrainingSessionList.tsx"
+        },
+        {
+          "path": "frontend/src/lib/training-sessions.ts",
+          "label": "buildTrainingSessions"
         }
       ]
     },
@@ -229,7 +233,7 @@
       "from": "personaColumns",
       "to": "logTool",
       "label": "columns in prompt",
-      "classification": "planned",
+      "classification": "prompt",
       "variant": "dashed",
       "fromSide": "right",
       "toSide": "bottom",
@@ -347,7 +351,7 @@
     },
     {
       "dot": "amber",
-      "title": "Planned: training sessions (ADR-25)",
+      "title": "Implemented: training sessions (ADR-25)",
       "items": [
         "results.details = ordered [{label, value}] keyed by the persona's plan columns",
         "Same column shape as plan_items rows, so plan vs done can later compare row by row",

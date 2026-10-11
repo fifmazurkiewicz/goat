@@ -156,6 +156,17 @@ PlansPage (smart) — activeMonth/activeDate from URL search params (linkable)
 
 **New feature (MVP):** per category, line chart of values over time (`logged_date` on X axis), filtered by `metric` — e.g. body weight trend, weight progression in a given exercise (bench press 1RM), running times. Library: **`recharts`** via the ready-made `Chart` shadcn/ui component (consistent styling with the rest of the UI, less code than raw recharts). Data from the existing `GET /results?category=&metric=` (the `results_user_category_metric_date` index in the DB supports these queries) — no schema change.
 
+**Training sessions (ADR-25, 2026-10-11).** When the active tab's category has an active persona with plan columns (`sessionPersonasForCategory` — `personaResultCategory` + `plan_columns` from `GET /personas`), the tab shows `TrainingSessionList` instead of chart + table:
+
+```
+TrainingSessionList (smart) — one card per day (newest first), `buildTrainingSessions` (lib/training-sessions.ts)
+├─ PlanItemTable (reused) — columns = union of `details` labels that day; legacy rows → Ćwiczenie + Wynik;
+│  notes → trailing Uwagi; desktop table / mobile cards with `hideEmptyCardCells`; catalog links
+└─ <details> "Edytuj wpisy" → ResultsTable (value / unit / notes inline edit + delete; `details` not editable after save)
+```
+
+`AddResultDialog` gets `personas` (the session personas): a persona `Select` (when >1) and one input per plan column → `details` (`buildDetailsFromInputs`); `metric` defaults to the exercise column. Diet and categories without plan columns keep the chart + table.
+
 **Category tabs are not a fixed list of sports.** Built from the user's active personas (`resultCategoryTabsFromPersonas`) **and** categories that already have entries in the DB: e.g. `personal_trainer`/`motor_coach` → **Training** (`strength`), `dietitian` → Diet, `badminton_coach` → Badminton. This way a result saved by the agent as `triathlon`/`custom` doesn't disappear from the UI. Logo/name **Coach** in app shell → `/chat`.
 
 ## 7. Persona edit form

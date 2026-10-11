@@ -7,13 +7,13 @@
   "quality": "showcase",
   "specification": {
     "path": "/home/user/goat/docs/diagrams/.archify/dataflow-results-adherence-20261011-124302/candidate.json",
-    "sha256": "558f3fbc40604e28c79547cdffaff3b254375f5b186a8a4ee3ad0f5d993352ee",
-    "bytes": 8006
+    "sha256": "07d4adda19880c160f6b535d601892c7d9a931e398ef04a04bb3fbcee94d18c5",
+    "bytes": 8064
   },
   "artifact": {
     "path": "/home/user/goat/docs/diagrams/.archify/dataflow-results-adherence-20261011-124302/results-adherence.html",
-    "sha256": "d7e383aa04ad8745824819d6f5b710e6121839deeb903cbe956b81906d1a785b",
-    "bytes": 768433
+    "sha256": "01e86cd03e700faf9426278278c64844bf6151f630890eb74edc64f6386d9e26",
+    "bytes": 768610
   },
   "gates": {
     "validate": "pass",
@@ -44,5 +44,5 @@
     "reason": "cache-valid"
   },
   "visualReview": "not-requested",
-  "durationMs": 7039
+  "durationMs": 4733
 }

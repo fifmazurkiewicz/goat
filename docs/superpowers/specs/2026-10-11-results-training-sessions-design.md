@@ -1,8 +1,8 @@
 # Results tab — training sessions with per-persona columns (design)
 
 - **Date:** 2026-10-11
-- **Status:** approved in chat, awaiting written-spec review
-- **ADR:** ADR-25 (proposed) in `docs/adr/decisions.md`
+- **Status:** implemented (2026-10-11) — plan `docs/superpowers/plans/2026-10-11-results-training-sessions.md`
+- **ADR:** ADR-25 (accepted) in `docs/adr/decisions.md`
 - **Related:** ADR-6 (`log_result` batch), ADR-9 (`/results` charts), `docs/technical/frontend.md` §6, `docs/technical/ai-pipeline.md` §2, plan columns (`resolve_persona_columns`, `plan_templates.default_columns`)
 
 ## 1. Intent
@@ -83,7 +83,7 @@ ResultsPage (smart) — category tabs (unchanged)
 
 - Pure grouping in `lib/training-sessions.ts`: results of the category → `{date, personaIds, rows}[]`, newest first. Rows without `details` render as a fallback row `metric value unit` (+ notes).
 - Exercise name (first `details` cell, else `metric`) links to `/exercises/:slug` when `exercise-matcher.ts` finds a catalog match.
-- Row edit/delete reuse `useUpdateResult` / `useDeleteResult` (edit dialog shows `details` inputs).
+- Row edit/delete reuse `ResultsTable` inside a collapsible "Edytuj wpisy" per day (value / unit / notes + delete). **Amended during planning:** `details` cells are not editable after saving.
 - "Has plan columns" = a persona mapped to the category (`personaResultCategory`) exists; column list comes from the persona's resolved columns — exposed as `plan_columns: string[]` on `GET /personas` items (read-only, computed with `resolve_persona_columns`), so the dialog and the session list need no second request.
 - Polish UI copy; empty state: "Brak zapisanych sesji — zgłoś trening w czacie albo dodaj go ręcznie."
 - Accessibility: semantic `<table>` with `<th scope="col">` on desktop, `<ul>` on mobile; edit buttons with accessible names.

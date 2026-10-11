@@ -116,6 +116,8 @@ Validation via `allowed_metrics` (in-memory cache, loaded on app startup — hot
 
 **Access:** trainers (`source_persona_id` = persona UUID) and Goat (`source_persona_id=NULL`, since 2026-08-17 — ADR-6 amendment). Column value determined by `_result_source_persona_id()` in `ChatOrchestrator`.
 
+**`details` (ADR-25, 2026-10-11):** each entry may carry `details: [{label, value}]` — one row in the persona's plan columns (`resolve_persona_columns`). Convention: `metric` = exercise name, `value` = the main number (load, reps or minutes), the rest in `details`. `ContextBuilder` adds a `[KOLUMNY WYNIKÓW]` block (`build_result_columns_block`): a persona gets its own columns; Goat gets one line per active persona. Consulted personas (read-only tools) get no block. The model fills only reported columns — never guessed values. `details` is validated in `LogResultArgs` (schema level: an invalid `details` rejects the call, other per-entry rules keep partial success).
+
 ## 3. Chat context — token budget
 
 ```
