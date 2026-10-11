@@ -160,7 +160,7 @@ PlansPage (smart) — activeMonth/activeDate from URL search params (linkable)
 
 ```
 TrainingSessionList (smart) — one card per day (newest first), `buildTrainingSessions` (lib/training-sessions.ts)
-├─ PlanItemTable (reused) — columns = union of `details` labels that day; legacy rows → Ćwiczenie + Wynik;
+├─ PlanItemTable (reused) — columns = union of `details` labels that day; legacy rows → Ćwiczenie (`humanizeMetric`: `hip_thrust_weight_kg` → "Hip thrust") + Wynik;
 │  notes → trailing Uwagi; desktop table / mobile cards with `hideEmptyCardCells`; catalog links
 └─ <details> "Edytuj wpisy" → ResultsTable (value / unit / notes inline edit + delete; `details` not editable after save)
 ```

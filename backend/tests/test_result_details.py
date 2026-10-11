@@ -129,3 +129,11 @@ def test_log_result_tool_schema_exposes_optional_details() -> None:
     assert details["type"] == "array"
     assert details["items"]["required"] == ["label", "value"]
     assert "details" not in entry["required"]
+
+
+def test_log_result_notes_are_scoped_to_the_entry() -> None:
+    """Notes must not carry a summary of the whole workout (seen in prod 2026-10-10)."""
+    entry = LOG_RESULT_TOOL_SCHEMA["function"]["parameters"]["properties"]["entries"]["items"]
+    description = entry["properties"]["notes"]["description"]
+    assert "TYLKO" in description
+    assert "całego treningu" in description

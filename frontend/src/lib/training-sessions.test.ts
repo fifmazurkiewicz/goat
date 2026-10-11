@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildTrainingSessions, sessionPersonasForCategory } from "@/lib/training-sessions";
+import { buildTrainingSessions, humanizeMetric, sessionPersonasForCategory } from "@/lib/training-sessions";
 import type { Persona, Result } from "@/types/api";
 
 function result(overrides: Partial<Result>): Result {
@@ -41,7 +41,7 @@ describe("buildTrainingSessions", () => {
     expect(session.content.columns).toEqual(["Ćwiczenie", "Serie", "Wynik"]);
     expect(session.content.rows).toEqual([
       ["Dead bug", "3", ""],
-      ["weight_kg", "", "82,5 kg"],
+      ["Weight", "", "82,5 kg"],
     ]);
   });
 
@@ -73,5 +73,19 @@ describe("sessionPersonasForCategory", () => {
       { ...base, id: "y", type: "personal_trainer", plan_columns: [] },
     ] as Persona[];
     expect(sessionPersonasForCategory(personas, "strength").map((p) => p.id)).toEqual(["t"]);
+  });
+});
+
+describe("humanizeMetric", () => {
+  it.each([
+    ["hip_thrust_weight_kg", "Hip thrust"],
+    ["stairmaster_time_min", "Stairmaster time"],
+    ["run_pace_min_per_km", "Run pace"],
+    ["run_distance_km", "Run distance"],
+    ["bench_press_1rm", "Bench press 1RM"],
+    ["weight_kg", "Weight"],
+    ["Dead bug", "Dead bug"],
+  ])("%s -> %s", (metric, expected) => {
+    expect(humanizeMetric(metric)).toBe(expected);
   });
 });

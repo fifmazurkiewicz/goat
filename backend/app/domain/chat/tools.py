@@ -64,7 +64,14 @@ LOG_RESULT_TOOL_SCHEMA: dict[str, Any] = {
                                 "format": "date",
                                 "description": "Data wyniku, ISO 8601 (YYYY-MM-DD).",
                             },
-                            "notes": {"type": "string"},
+                            "notes": {
+                                "type": "string",
+                                "description": (
+                                    "Uwagi TYLKO do tego wpisu (np. 'lewa strona słabsza'). Nie wpisuj tu "
+                                    "opisu całego treningu ani listy innych ćwiczeń — każde ćwiczenie to "
+                                    "osobny wpis."
+                                ),
+                            },
                             "details": {
                                 "type": "array",
                                 "maxItems": 12,

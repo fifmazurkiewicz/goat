@@ -12,6 +12,25 @@ export interface TrainingSession {
   content: PlanItemContent;
 }
 
+// Trailing unit tokens of snake_case metric keys — the unit is already shown in "Wynik".
+const UNIT_SUFFIXES = [["min", "per", "km"], ["kg"], ["min"], ["km"], ["m"], ["s"], ["g"], ["kcal"]];
+
+/**
+ * Display name for a legacy metric key: `hip_thrust_weight_kg` → "Hip thrust",
+ * `bench_press_1rm` → "Bench press 1RM". Free-text metrics (no underscore) stay as logged.
+ */
+export function humanizeMetric(metric: string): string {
+  if (!metric.includes("_")) return metric;
+  let tokens = metric.toLowerCase().split("_").filter(Boolean);
+  const suffix = UNIT_SUFFIXES.find(
+    (unit) => tokens.length > unit.length && unit.every((token, i) => tokens[tokens.length - unit.length + i] === token)
+  );
+  if (suffix) tokens = tokens.slice(0, tokens.length - suffix.length);
+  if (tokens.length > 1 && tokens[tokens.length - 1] === "weight") tokens = tokens.slice(0, -1);
+  const text = tokens.map((token) => (token === "1rm" ? "1RM" : token)).join(" ");
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 function formatValue(value: number): string {
   return String(value).replace(".", ",");
 }
@@ -21,7 +40,7 @@ function resultCells(result: Result): ResultDetailCell[] {
   const cells = result.details?.length
     ? [...result.details]
     : [
-        { label: EXERCISE_LABEL, value: result.metric },
+        { label: EXERCISE_LABEL, value: humanizeMetric(result.metric) },
         { label: RESULT_LABEL, value: `${formatValue(result.value)} ${result.unit ?? ""}`.trim() },
       ];
   if (result.notes && !cells.some((cell) => cell.label === NOTES_LABEL)) {

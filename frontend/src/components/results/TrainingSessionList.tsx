@@ -55,7 +55,7 @@ export function TrainingSessionList({ results, personas, category }: TrainingSes
             </div>
             <PlanItemTable content={session.content} hideEmptyCardCells />
             <details className="mt-3">
-              <summary className="cursor-pointer rounded-sm text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <summary className="w-fit cursor-pointer rounded-sm text-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
                 Edytuj wpisy
               </summary>
               <div className="mt-2">
