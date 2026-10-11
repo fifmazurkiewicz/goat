@@ -12,10 +12,12 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AddResultDialog } from "@/components/results/AddResultDialog";
 import { ResultsChart } from "@/components/results/ResultsChart";
 import { ResultsTable } from "@/components/results/ResultsTable";
+import { TrainingSessionList } from "@/components/results/TrainingSessionList";
 import { usePersonas } from "@/hooks/usePersonas";
 import { useAllResults, useResults } from "@/hooks/useResults";
 import { resultCategoryTabsFromPersonas } from "@/lib/result-categories";
 import { PAGE_SHELL_CLASS, PAGE_TITLE_CLASS } from "@/lib/layout";
+import { sessionPersonasForCategory } from "@/lib/training-sessions";
 import type { ResultCategory } from "@/types/api";
 
 /**
@@ -52,6 +54,12 @@ export default function ResultsPage() {
   const { data: results, isLoading } = useResults(activeCategory);
   const resultsLoading = !activeCategory || isLoading;
 
+  const personas = useMemo(() => personasData?.items ?? [], [personasData?.items]);
+  const sessionPersonas = useMemo(
+    () => (activeCategory ? sessionPersonasForCategory(personas, activeCategory) : []),
+    [personas, activeCategory]
+  );
+
   const metrics = useMemo(() => Array.from(new Set((results ?? []).map((r) => r.metric))), [results]);
   const selectedMetric = metric && metrics.includes(metric) ? metric : (metrics[0] ?? null);
 
@@ -83,7 +91,7 @@ export default function ResultsPage() {
     <div className={PAGE_SHELL_CLASS}>
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <h1 className={PAGE_TITLE_CLASS}>Wyniki</h1>
-        <AddResultDialog category={activeCategory} />
+        <AddResultDialog category={activeCategory} personas={sessionPersonas} />
       </div>
 
       <Tabs
@@ -104,6 +112,10 @@ export default function ResultsPage() {
 
       {resultsLoading ? (
         <p className="mt-6 text-sm text-muted-foreground">Ładowanie…</p>
+      ) : sessionPersonas.length > 0 ? (
+        <div className="mt-6">
+          <TrainingSessionList results={results ?? []} personas={personas} category={activeCategory} />
+        </div>
       ) : (
         <div className="mt-6 space-y-6">
           <div className="rounded-md border p-4">
