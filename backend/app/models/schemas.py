@@ -8,9 +8,9 @@ debugging/UI (e.g. "requires re-check" banner), the hash stays internal only (ne
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field, model_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, computed_field, model_validator
 
 PersonaType = Literal[
     "personal_trainer",
@@ -368,6 +368,29 @@ ResultCategory = Literal["strength", "diet", "swimming", "triathlon", "badminton
 ResultSource = Literal["agent", "manual"]
 
 
+class ResultDetailCell(BaseModel):
+    """One `{label, value}` cell of `results.details` (ADR-25) — label = a plan column."""
+
+    model_config = ConfigDict(str_strip_whitespace=True, coerce_numbers_to_str=True)
+
+    label: str = Field(min_length=1, max_length=60)
+    value: str = Field(min_length=1, max_length=120)
+
+
+def _unique_detail_labels(cells: list[ResultDetailCell]) -> list[ResultDetailCell]:
+    labels = [cell.label.casefold() for cell in cells]
+    if len(set(labels)) != len(labels):
+        raise ValueError("Etykiety w details muszą być unikalne.")
+    return cells
+
+
+ResultDetails = Annotated[
+    list[ResultDetailCell],
+    Field(min_length=1, max_length=12),
+    AfterValidator(_unique_detail_labels),
+]
+
+
 class ResultCreate(BaseModel):
     category: ResultCategory
     metric: str = Field(min_length=1, max_length=100)
@@ -375,6 +398,7 @@ class ResultCreate(BaseModel):
     unit: str | None = Field(default=None, max_length=20)
     logged_date: date
     notes: str | None = Field(default=None, max_length=500)
+    details: ResultDetails | None = None
 
 
 class ResultUpdate(BaseModel):
@@ -384,6 +408,7 @@ class ResultUpdate(BaseModel):
     unit: str | None = Field(default=None, max_length=20)
     logged_date: date | None = None
     notes: str | None = Field(default=None, max_length=500)
+    details: ResultDetails | None = None
 
 
 class ResultOut(BaseModel):
@@ -400,6 +425,7 @@ class ResultOut(BaseModel):
     source_persona_id: str | None = None
     is_custom: bool
     notes: str | None = None
+    details: list[ResultDetailCell] | None = None
     created_at: datetime
 
 
@@ -415,6 +441,7 @@ class LogResultEntry(BaseModel):
     unit: str | None = Field(default=None, max_length=20)
     date: date
     notes: str | None = Field(default=None, max_length=500)
+    details: ResultDetails | None = None
 
 
 class LogResultArgs(BaseModel):
