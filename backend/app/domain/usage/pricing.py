@@ -36,7 +36,9 @@ class ModelPricingCache:
         self._fallback = fallback_usd_per_token
         self._prices: dict[str, tuple[float, float]] = {}
         self._last_refresh: float = 0.0
-        self._last_refresh_attempt: float = 0.0
+        # `None` = never attempted. Not `0.0`: `time.monotonic()` has an arbitrary origin and
+        # can be < 60 s on a freshly booted host, which would suppress the first refresh.
+        self._last_refresh_attempt: float | None = None
         self._lock = asyncio.Lock()
         self._refresh_task: asyncio.Task[None] | None = None
 
@@ -45,6 +47,8 @@ class ModelPricingCache:
             return (now - self._last_refresh) >= self._refresh_seconds
         # An OpenRouter outage must not start another /models request on every
         # cost estimate/round. Retry once a minute while the cache is empty.
+        if self._last_refresh_attempt is None:
+            return True
         return (now - self._last_refresh_attempt) >= min(self._refresh_seconds, 60)
 
     def _schedule_refresh(self) -> None:

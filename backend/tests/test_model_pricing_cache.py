@@ -51,3 +51,17 @@ async def test_cold_refresh_does_not_warn_that_a_model_is_unknown(monkeypatch: p
     if cache._refresh_task is not None:
         await cache._refresh_task
     assert await cache.get_price_per_token("google/gemini-3.7-flash") == (0.000001, 0.000002)
+
+
+@pytest.mark.asyncio
+async def test_first_refresh_is_scheduled_even_right_after_boot(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`time.monotonic()` can be < 60 s on a freshly booted host (CI runner, new container)."""
+    monkeypatch.setattr(pricing.time, "monotonic", lambda: 5.0)
+    provider = _BlockedModelsProvider()
+    cache = ModelPricingCache(provider, fallback_usd_per_token=0.25)
+
+    await cache.get_price_per_token("model")
+
+    assert cache._refresh_task is not None
+    provider.release.set()
+    await cache._refresh_task
