@@ -52,7 +52,10 @@ class Settings(BaseSettings):
 
     # Auto-approve on ProfilesRepo.ensure INSERT only (ADR-22). Sole admin is always
     # included even if this list is empty.
-    admin_emails: str = "fmazurkiewicz@gmail.com"
+    admin_emails: str = "fifmazurkiewicz@gmail.com"
+    resend_api_key: SecretStr | None = None
+    resend_mail: str = "fifmazurkiewicz@gmail.com"
+    resend_from: str = "Powiadomienia <powiadomienia@fmazurkiewicz.dev>"
 
     # --- Chat / SSE (architecture.md §3, security.md §4) ---
     chat_max_tool_rounds: int = 4

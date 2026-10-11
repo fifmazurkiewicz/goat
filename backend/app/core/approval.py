@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-SOLE_ADMIN_EMAIL = "fmazurkiewicz@gmail.com"
+SOLE_ADMIN_EMAIL = "fifmazurkiewicz@gmail.com"
 
 
 def is_auto_approved_email(email: str | None) -> bool:

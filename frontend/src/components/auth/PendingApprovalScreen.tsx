@@ -24,6 +24,7 @@ export function PendingApprovalScreen({
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
+          <a className="text-center text-sm underline" href="mailto:fifmazurkiewicz@gmail.com?subject=Goat%20-%20pro%C5%9Bba%20o%20akceptacj%C4%99%20konta">Napisz do administratora</a>
           <Button type="button" className="min-h-11 w-full" onClick={onCheckStatus} disabled={isChecking}>
             {isChecking ? "Sprawdzanie…" : "Sprawdź status"}
           </Button>
