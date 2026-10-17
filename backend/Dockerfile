@@ -1,7 +1,7 @@
 # Per docs/technical/devops.md section 1: python:3.12-slim, ca-certificates
 # (required for SSL when connecting to Supabase), uvicorn binding 0.0.0.0:$PORT.
 # Render: Root Directory = backend/, Health Check = /api/health.
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 # ca-certificates — without this, SSL handshake to Supabase (asyncpg/httpx) fails.
 RUN apt-get update \
