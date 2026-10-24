@@ -24,7 +24,7 @@ Health smoke: `GET http://localhost:8000/api/health` → `{ "status": "ok", "ser
 
 ## Stack
 
-Matches `.cursor/rules/deployment-standard.mdc`: frontend Vite/React on **Vercel**, API FastAPI on **Render**, DB/auth **Supabase**, DNS Cloudflare. Local loop without Docker: Postgres `goat` on `localhost:5432` (or Supabase Cloud) + backend `:8000` + frontend `:3000`. Prod: `goat.fmazurkiewicz.dev` / `api-goat.fmazurkiewicz.dev`. Cold-start UX is ADR-19 wake-window lamp, not a keep-alive pulse.
+Matches the Deployment default in Shared defaults: frontend Vite/React on **Vercel**, API FastAPI on **Render**, DB/auth **Supabase**, DNS Cloudflare. Local loop without Docker: Postgres `goat` on `localhost:5432` (or Supabase Cloud) + backend `:8000` + frontend `:3000`. Prod: `goat.fmazurkiewicz.dev` / `api-goat.fmazurkiewicz.dev`. Cold-start UX is ADR-19 wake-window lamp, not a keep-alive pulse.
 
 ## Learned User Preferences
 
@@ -61,7 +61,17 @@ Matches `.cursor/rules/deployment-standard.mdc`: frontend Vite/React on **Vercel
 - **Consultation visibility (2026-08-22, merged to main via PR #1):** user can expand under a Goat message "{persona} replied" — question + answer from `consult_persona`; live = SSE `consult_detail`, history = pairing `tool_calls`↔`role='tool'` by `tool_call_id` in `visibleChatMessages`; hotfix d9cd599: `ChatMessageOut` must expose the `tool_calls` field in `GET /chat/sessions/{id}/messages` (without it the panel did not render from history) + contract test `backend/tests/test_chat_messages_contract.py`; ADR-17 untouched; spec `docs/superpowers/specs/2026-08-22-goat-consult-transparency-design.md`.
 - **Pull-to-refresh (2026-08-22, merged to main via PR #1):** mobile touch-only, all screens (`PullToRefresh` in AppShell around `<Outlet />`), threshold 72 px, soft refresh `invalidateQueries()`; `overscroll-behavior-y: none` on html/body; spec `docs/superpowers/specs/2026-08-22-pull-to-refresh-design.md`.
 - **Dziennik (ADR-24, 2026-10-11):** `/plans?view=log` — since-start week log (newest week first, max 12 months), day = done / planned / missed / off plan, km from `km` results, weekly done/planned, KPI row, persona filter (default: first active `strength` persona); frontend-only (`lib/training-log.ts`, `TrainingLogView.tsx`, `useTrainingLogData`). **Training sessions on `/results` (ADR-25, implemented):** `results.details` = ordered `[{label, value}]` keyed by the persona's plan columns (`log_result.details`, `[KOLUMNY WYNIKÓW]` prompt block, `plan_columns` on `GET /personas`); `TrainingSessionList` reuses `PlanItemTable`; spec `docs/superpowers/specs/2026-10-11-results-training-sessions-design.md`; diagram `docs/diagrams/flow-results-and-adherence.md` (+ Archify HTML).
-- **Graft (ADR-20, 2026-08-23):** local code map for the agent (structural `graft build`, $0); `graft/` in `.gitignore` and `.cursorignore`; only Cursor wiring is committed; `graft build` after merge / large refactor / drift (`graft check`); setup: `docs/technical/local-setup.md` §G. Repo rule: `.cursor/rules/graft.mdc`.
+- **Graft (ADR-20, 2026-08-23):** local code map for the agent (structural `graft build`, $0); `graft/` in `.gitignore` and `.cursorignore`; MCP wiring for Cursor, Codex, and Claude Code comes from agent-toolkit; `graft build` after merge / large refactor / drift (`graft check`); setup: `docs/technical/local-setup.md` §G.
+
+## Shared defaults
+
+These defaults come from the shared project template. Sections above override them where they document a project-specific choice.
+
+- **Deployment:** web products use Vercel for the frontend, Render for the backend, and Supabase for database and auth. Keep local development usable without a production deployment or mandatory Docker. Add new variables to `.env.example` and the setup docs, and keep durable state off ephemeral runtime disks.
+- **Secrets:** never read, edit, create, display, or commit real `.env*` files, credentials, tokens, keys, or passwords. Use `.env.example` for variable names only. If a secret is needed, ask the user to set it locally; never request it in chat. If one is exposed, do not repeat it and recommend rotation.
+- **Personal data:** collect, store, log, and expose only what the feature requires. Follow GDPR purpose limitation, retention and deletion, export, and access control.
+- **UI:** use 44px touch targets where relevant and a calm product baseline of VARIANCE 3, MOTION 2, DENSITY 6 with `design-taste-frontend`; reserve landing-page visual language for marketing surfaces. Do not replace the styling stack or introduce a competing design system without approval.
+- **Graft:** keep `graft/` git-ignored and never deep-index secrets. Run `graft build --deep` only with explicit approval.
 
 <!-- agent-toolkit:standard v1 start -->
 # Agent standard v2
@@ -69,7 +79,7 @@ Matches `.cursor/rules/deployment-standard.mdc`: frontend Vite/React on **Vercel
 - Read `AGENTS.md`, applicable nested instructions, and relevant project documentation before changing code. More specific project instructions win, but never waive safety or required verification.
 - Use a skill when its `description` matches the task. Select only relevant skills, read the selected `SKILL.md` first, and state when a required skill is unavailable.
 - Scale planning to risk. For meaningful features, behavior, API, deployment, or architecture changes, record the decision, trade-offs, and durable documentation. Small fixes do not need a new plan, but must not leave known documentation drift.
-- Graft is the shared code-map MCP. Before broad source exploration, use it for orientation or impact analysis. If its runtime is unavailable, use focused `rg` queries and report that limitation; never install tools or assume a particular runtime.
+- Graft is the shared code-map MCP. At the start of work in a project, run `npx -y @nanonets/graft check`; when it reports no graph or drift, run `npx -y @nanonets/graft build`, a local structural index with no LLM or key, which keeps `graft/` git-ignored. Run `graft build --deep` only with explicit approval, because it calls a paid LLM. Before broad source exploration, use Graft for orientation or impact analysis. If its runtime is unavailable, use focused `rg` queries and report that limitation; never install tools or assume a particular runtime.
 - For a meaningful change using the project-context lifecycle, keep change-local state under `.agent/context/changes/<change-id>/`, use its `progress.md` as the canonical execution record, and use Graft for durable knowledge. Do not create a parallel `lessons.md` store.
 - For every non-informational review finding, keep a canonical disposition in `reviews/review-decisions.md` and update its derived Kanban view only afterward. A `Skip` requires explicit human-owner acceptance, rationale, and a re-evaluation trigger; reusable evidence-backed lessons go to Graft after archive.
 - After code changes, use `implementation-review` before archive or merge. Use a fresh reviewer agent when available; otherwise perform an explicit second pass and disclose that it was not independent. Review with the current AI session and existing repository tools, without requiring another service, account, or installation; report verification gaps honestly.
