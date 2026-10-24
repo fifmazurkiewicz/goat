@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {"title": "goat — Current System Architecture", "output": "docs/architecture/current.architecture.html", "quality_profile": "showcase", "repository": {"url": "https://github.com/fifmazurkiewicz/goat.git", "revision": "6ef1e9829c3e7f8a7a53331c2628a25526dbee83", "link_mode": "local-only"}},
+  "components": [
+    {"id": "user", "type": "external", "label": "User", "sublabel": "browser", "pos": [40, 300], "size": [120, 60], "sources": [{"path": "README.md", "line": 1, "end_line": 5, "label": "product"}]},
+    {"id": "frontend", "type": "cloud", "label": "React Frontend", "sublabel": "Vite on Vercel", "pos": [230, 300], "size": [150, 60], "sources": [{"path": "README.md", "line": 6, "end_line": 11, "label": "stack"}]},
+    {"id": "api", "type": "backend", "label": "Coaching API", "sublabel": "FastAPI /api/v1", "pos": [530, 300], "size": [150, 60], "sources": [{"path": "backend/app/main.py", "line": 1, "end_line": 103, "label": "entry and routes"}]},
+    {"id": "supabase", "type": "database", "label": "Supabase", "sublabel": "Postgres, RLS, Auth", "pos": [830, 300], "size": [150, 60], "sources": [{"path": "README.md", "line": 6, "end_line": 11, "label": "persistence"}]},
+    {"id": "llm", "type": "cloud", "label": "OpenRouter", "sublabel": "structured LLM output", "pos": [530, 130], "size": [150, 60], "sources": [{"path": "README.md", "line": 6, "end_line": 11, "label": "LLM"}]},
+    {"id": "jobs", "type": "messagebus", "label": "In-process Jobs", "sublabel": "plan and turn recovery", "pos": [830, 130], "size": [160, 60], "sources": [{"path": "backend/app/main.py", "line": 33, "end_line": 65, "label": "startup jobs"}]}
+  ],
+  "connections": [
+    {"from": "user", "to": "frontend", "label": "HTTPS", "variant": "emphasis"}, {"from": "frontend", "to": "api", "label": "API and SSE"}, {"from": "api", "to": "supabase", "label": "user-scoped data"}, {"from": "api", "to": "llm", "label": "chat and plan generation", "fromSide": "top", "toSide": "bottom"}, {"from": "api", "to": "jobs", "label": "resume jobs", "fromSide": "top", "toSide": "bottom"}
+  ]
+}

@@ -35,7 +35,7 @@ After receiving `tool_result` in the chat window: `queryClient.invalidateQueries
 
 **Cold-start lamp (ADR-19):** `GET /api/health` only during the wake-up window (not
 `refetchInterval`, not ping on `/login` or background tab). Lamp next to "Coach" **only**
-when 200 doesn't come back for ≥ 2 s; after 200 it disappears, invalidates remaining queries and **falls silent**, so
+when 200 doesn't come back for ≥ 2 s; after 200 it disappears, invalidates remaining queries **once** and **falls silent**. Further slow requests do not force-open an already successful wake window, so
 Render can sleep. Hover/tap = short text. Details:
 [`../superpowers/specs/2026-08-16-api-status-lamp-design.md`](../superpowers/specs/2026-08-16-api-status-lamp-design.md).
 

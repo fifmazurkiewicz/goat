@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "ok": false,
+  "command": "finalize",
+  "status": "skipped",
+  "type": "architecture",
+  "quality": "showcase",
+  "specification": {
+    "path": "/Users/Filip/dev/goat/docs/architecture/current.architecture.json",
+    "sha256": "e3fab22037c0a5c306c3c35a9ccb2204c5535d5e6600e5620f09422cf16a2bb8",
+    "bytes": 2145
+  },
+  "artifact": {
+    "path": "/Users/Filip/dev/goat/docs/architecture/current.architecture.html",
+    "sha256": "a412d36db8b20b986ed7fe9db9512c309e57fd3eca508aee0bdca3283bc4d980",
+    "bytes": 753279
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "skipped"
+  },
+  "failedStage": "browser-check",
+  "diagnostics": [
+    {
+      "code": "viewer/chrome-unavailable",
+      "severity": "warning",
+      "message": "Chrome or Chromium is unavailable. Set ARCHIFY_CHROME to its executable path.",
+      "subject": {
+        "artifact": "/Users/Filip/dev/goat/docs/architecture/current.architecture.html"
+      },
+      "evidence": {
+        "executable": null
+      },
+      "supportedFixes": [
+        "set ARCHIFY_CHROME to a Chrome or Chromium executable and rerun browser-check"
+      ]
+    }
+  ],
+  "diagnosticSummary": {
+    "total": 1,
+    "shown": 1,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "/Users/Filip/dev/goat/docs/architecture/current.architecture.finalize.json",
+    "summaryReceipt": "/Users/Filip/dev/goat/docs/architecture/current.architecture.finalize-summary.json",
+    "browserCheckReceipt": "/Users/Filip/dev/goat/docs/architecture/current.architecture.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.0.1",
+    "availableVersion": "3.0.1",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-10T20:19:28.790Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 529
+}

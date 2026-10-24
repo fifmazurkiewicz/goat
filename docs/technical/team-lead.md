@@ -86,7 +86,7 @@ trainers continue to save with their own UUID.
 **ADDED 2026-08-17 — plan latency / brief**
 
 - Goat **by default without** `consult_persona` (handles simple answers and plan corrections himself).
-- `rebuild_plan` accepts an optional `user_brief` (e.g. "no badminton") — the brief goes to the generation job; roles excluded by the brief (heuristic `plan_brief_excludes_persona_type`) do not generate entries.
+- `rebuild_plan` accepts an optional `user_brief` (e.g. "no badminton") — the brief goes to the generation job; roles excluded by the brief (heuristic `plan_brief_excludes_persona_type`) do not generate entries. An explicit gym/strength brief excludes the dietitian unless it also mentions nutrition; it excludes the badminton coach unless badminton is explicitly mentioned. A generic plan keeps all active personas.
 - FE startup status: "Goat is preparing a response…" (not "agreeing with the team").
 
 **ADDED 2026-08-17 — Goat's final voice over the plan**

@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "af3a1021-727f-4e37-8b0e-b2d30f31c7ba",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "/Users/Filip/dev/goat/docs/architecture/current.architecture.json",
+  "output": "/Users/Filip/dev/goat/docs/architecture/current.architecture.html",
+  "specification": {
+    "sha256": "e3fab22037c0a5c306c3c35a9ccb2204c5535d5e6600e5620f09422cf16a2bb8",
+    "bytes": 2145
+  },
+  "artifact": {
+    "sha256": "a412d36db8b20b986ed7fe9db9512c309e57fd3eca508aee0bdca3283bc4d980",
+    "bytes": 753279
+  }
+}

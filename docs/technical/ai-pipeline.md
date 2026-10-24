@@ -61,7 +61,7 @@ This instruction disappears automatically from the prompt when the profile is co
 
 The chat model **is not** stored per-persona in the DB — one env value for the whole application.
 
-Fallback list of at least 2 providers for `chat_model` (e.g. `[anthropic/claude-haiku-4.5, openai/gpt-5-mini]`) — failure of one provider doesn't take down the chat. `require_parameters: true` in OpenRouter provider routing for the planner (so it doesn't route to an endpoint without `json_schema` support).
+Fallback list of at least 2 providers for `chat_model` (e.g. `[anthropic/claude-haiku-4.5, openai/gpt-5-mini]`) — failure of one provider doesn't take down the chat. A successful HTTP stream with neither content nor tool calls is also treated as a failed model attempt: the transport retries each configured fallback explicitly before exposing `empty_response` to the user. `require_parameters: true` in OpenRouter provider routing for the planner (so it doesn't route to an endpoint without `json_schema` support).
 
 Indicative cost: ~$0.003/chat message, ~$0.15–0.20/weekly plan generation for 5 personas (3-stage pipeline).
 
@@ -197,7 +197,7 @@ Alongside `persona_constraints` (per persona instance) the template has a fixed 
 
 ## 7. Resilience to OpenRouter outages
 
-`tenacity` retry+backoff on transport **only before the first byte of response** (a stream cannot be safely repeated after sending some tokens to the client). Fallback model list in OpenRouter provider routing.
+`tenacity` retry+backoff on transport **only before the first byte of response** (a stream cannot be safely repeated after sending some tokens to the client). A completely empty stream is safe to retry because no visible token or tool call was emitted; it advances through the configured fallback models. Fallback model list is sent in OpenRouter provider routing for the initial request.
 
 ## 8. Out of MVP scope (consciously deferred)
 

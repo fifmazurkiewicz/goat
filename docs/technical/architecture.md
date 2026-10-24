@@ -117,7 +117,7 @@ Tools: Goat — `get_plan`, `rebuild_plan`, `update_user_profile`, `consult_pers
 
 ## 4. Plan generation — pipeline (decision: priority is SYNCHRONIZATION between personas)
 
-Plan generation **first of all** must produce a consistent, synchronized plan across all active personas (diet matching training, regeneration considered, no load conflicts) — this is more important than maximum quality of a single persona in isolation. Hence **three stages**, not two:
+Plan generation **first of all** must produce a consistent, synchronized plan across the active personas applicable to the user brief (diet matching training, regeneration considered, no load conflicts) — this is more important than maximum quality of a single persona in isolation. A generic brief uses all active personas; an explicit gym/strength brief excludes diet unless nutrition is mentioned and excludes badminton unless badminton is named. Hence **three stages**, not two:
 
 ```
 Stage 1 — COORDINATOR PASS (cheap model)
