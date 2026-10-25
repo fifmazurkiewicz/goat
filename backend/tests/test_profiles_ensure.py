@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from app.core.approval import SOLE_ADMIN_EMAIL
 from app.repositories.profiles_repo import ProfilesRepo
 
 
@@ -94,7 +95,7 @@ async def test_ensure_inserts_approved_for_admin_email() -> None:
     conn.execute = AsyncMock(side_effect=await _execute_with_insert(calls, insert_params, is_approved=True))
 
     repo = ProfilesRepo(conn)
-    profile = await repo.ensure("u1", email="fmazurkiewicz@gmail.com")
+    profile = await repo.ensure("u1", email=SOLE_ADMIN_EMAIL)
 
     insert_sql = next(c for c in calls if "INSERT INTO profiles" in c)
     assert insert_params["is_approved"] is True
@@ -109,7 +110,7 @@ async def test_ensure_does_not_update_is_approved_on_conflict() -> None:
     conn.execute = AsyncMock(side_effect=await _execute_with_insert(calls, {}, is_approved=False))
 
     repo = ProfilesRepo(conn)
-    await repo.ensure("u1", email="fmazurkiewicz@gmail.com")
+    await repo.ensure("u1", email=SOLE_ADMIN_EMAIL)
 
     assert not any("UPDATE profiles" in c for c in calls)
 

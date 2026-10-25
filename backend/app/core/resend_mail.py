@@ -18,7 +18,7 @@ async def notify_pending_account(account_email: str | None) -> None:
                 "subject": "GOAT: nowe konto do akceptacji",
                 "text": f"Nowe konto: {account_email or 'nieznany adres'}\n\nOtwórz panel administratora: https://goat.fmazurkiewicz.dev/admin",
                 "html": f"""<p>Nowe konto oczekuje na akceptację w <strong>GOAT</strong>.</p>
-<p><strong>Konto:</strong> {escape(account_email or 'nieznany adres')}</p>
+<p><strong>Konto:</strong> {escape(account_email or "nieznany adres")}</p>
 <p><a href=\"https://goat.fmazurkiewicz.dev/admin\">Otwórz panel administratora</a></p>""",
             },
         )

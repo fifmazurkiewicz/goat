@@ -84,6 +84,9 @@ async def test_unapproved_user_can_read_account(monkeypatch: pytest.MonkeyPatch)
         async def ensure(self, _user_id: str, email: str | None = None) -> ProfileRow:
             return profile
 
+        async def claim_approval_notification(self, _user_id: str) -> bool:
+            return False
+
     monkeypatch.setattr("app.api.routers.account.rls_connection", _fake_conn)
     monkeypatch.setattr("app.api.routers.account.service_role_connection", _fake_conn)
     monkeypatch.setattr("app.api.routers.account.ProfilesRepo", FakeRepo)
