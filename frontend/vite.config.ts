@@ -1,3 +1,4 @@
+import { sentryVitePlugin } from "@sentry/vite-plugin";
 import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
@@ -52,7 +53,14 @@ export default defineConfig({
   define: {
     __FRONTEND_DEPLOY_INFO__: JSON.stringify(frontendDeployInfo),
   },
-  plugins: [react()],
+  build: { sourcemap: process.env.SENTRY_AUTH_TOKEN ? "hidden" : false },
+  plugins: [react(), ...(process.env.SENTRY_AUTH_TOKEN ? [sentryVitePlugin({
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      telemetry: false,
+      sourcemaps: { filesToDeleteAfterUpload: ["./dist/**/*.map"] },
+    })] : [])],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

@@ -12,6 +12,7 @@ from sqlalchemy.exc import ProgrammingError
 from app.core.config import settings
 from app.core.db import rls_connection, service_role_connection
 from app.domain.chat.title_service import ChatTitleService
+from app.domain.error_reporting import report_error
 from app.domain.jobs.job_registry import mark_job_finished, mark_job_started
 from app.domain.plans.orchestrator import PlanOrchestrator
 from app.llm.openrouter_client import get_openrouter_client
@@ -57,6 +58,7 @@ async def _run_job_wrapper(*, bg_job_id: str, claims: dict[str, Any], coro) -> N
             logger.error("background_job_failed_to_persist_cancel", bg_job_id=bg_job_id)
         raise
     except Exception as exc:  # noqa: BLE001
+        report_error(exc)
         logger.error("background_job_failed", bg_job_id=bg_job_id, error=str(exc), exc_info=exc)
         async with service_role_connection() as conn:
             await BackgroundJobsRepo(conn).mark_finished(bg_job_id, status="error", error_message=str(exc)[:500])

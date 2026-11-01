@@ -30,3 +30,7 @@ Full technical specification, architectural decisions and implementation plan â€
 Implementation in progress. Backend/frontend skeleton (routing, layers, DI) is ready; business logic
 for individual domains (personas, chat, plans, results, admin, exercise catalog, account settings)
 is being filled in per `docs/adr/decisions.md`.
+
+## Error monitoring
+
+[Sentry tasks, privacy contract and deployment variables](docs/technical/sentry.md). SDK source verification and production activation are tracked separately.

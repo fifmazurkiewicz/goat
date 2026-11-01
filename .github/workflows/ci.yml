@@ -53,6 +53,9 @@ jobs:
         run: npm run lint
       - name: Test
         run: npm test
+      - name: Sentry transport/privacy regression
+        run: npm run test:sentry
+
       - name: Build
         run: npm run build
 

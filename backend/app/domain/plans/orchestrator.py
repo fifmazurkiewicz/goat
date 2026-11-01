@@ -34,6 +34,7 @@ from app.core.db import rls_connection, service_role_connection
 from app.core.dependencies import get_pricing_cache
 from app.domain.chat.preamble import build_system_prompt
 from app.domain.chat.team_lead import plan_brief_excludes_persona_type
+from app.domain.error_reporting import report_error
 from app.domain.personas.service import resolve_persona_columns
 from app.domain.usage.service import UsageLimitService
 from app.observability.langfuse import observe
@@ -250,6 +251,7 @@ class PlanOrchestrator:
                 await self._persist_cancelled(job_id=job_id, plan_id=plan_id, claims=claims)
                 raise
             except Exception as exc:  # noqa: BLE001 — top-level safety net dla background taska
+                report_error(exc)
                 update_observation(
                     observation, output={"status": "error"}, level="ERROR", status_message=str(exc)[:500]
                 )
@@ -422,6 +424,7 @@ class PlanOrchestrator:
                 user_brief=user_brief,
             )
         except Exception as exc:  # noqa: BLE001 — harmonizacja nie blokuje draftu
+            report_error(exc)
             logger.warning("plan_harmonization_failed", error=str(exc))
 
         all_succeeded = len(succeeded_personas) == len(active_personas)
@@ -474,6 +477,7 @@ class PlanOrchestrator:
                     actual_cost_usd=reserved_usd,
                 )
         except Exception as exc:  # noqa: BLE001 — usage fix must not fail the job
+            report_error(exc)
             logger.warning("plan_generation_usage_reconcile_failed", error=str(exc))
 
     async def _run_coordinator_pass(
@@ -514,6 +518,7 @@ class PlanOrchestrator:
             )
             return result
         except Exception as exc:  # noqa: BLE001 — fallback: szkielet pusty, per-persona i tak generują
+            report_error(exc)
             logger.warning(
                 "plan_coordinator_pass_failed",
                 error=str(exc),
@@ -566,6 +571,7 @@ class PlanOrchestrator:
                     items_count=len(items),
                 )
             except Exception as exc:
+                report_error(exc)
                 logger.error(
                     "plan_persona_generation_failed",
                     persona_id=persona.id,
@@ -803,6 +809,7 @@ class PlanOrchestrator:
                 claims=claims,
             )
         except Exception as exc:  # noqa: BLE001
+            report_error(exc)
             logger.warning("plan_lite_harmonization_failed", error=str(exc))
 
 

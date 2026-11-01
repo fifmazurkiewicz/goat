@@ -33,12 +33,14 @@ from app.core.config import settings
 from app.core.db import service_role_connection
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import RequestIDMiddleware, configure_logging
+from app.domain.error_reporting import set_error_reporter
 from app.domain.jobs.runner import (
     clear_orphaned_turns_on_startup,
     resume_orphaned_plan_jobs_on_startup,
     resume_pending_jobs_on_startup,
 )
 from app.domain.results.metrics_cache import allowed_metrics_cache
+from app.monitoring import capture_error, init_sentry
 from app.observability.langfuse import flush as flush_langfuse
 from app.repositories.allowed_metrics_repo import AllowedMetricsRepo
 from app.repositories.privacy_repo import PrivacyRepo
@@ -75,6 +77,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     flush_langfuse()
     logger.info("shutting_down")
 
+
+init_sentry("goat-api", api=True)
+set_error_reporter(capture_error)
 
 app = FastAPI(
     title="Multi-Persona Coaching App API",
