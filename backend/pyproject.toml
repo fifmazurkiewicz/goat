@@ -17,7 +17,7 @@ dependencies = [
     "tenacity>=9.0",
     "tzdata>=2026.3",
     "langfuse>=4.15.5",
-    "sentry-sdk==2.73.0",
+    "sentry-sdk==2.74.0",
 ]
 
 [dependency-groups]
