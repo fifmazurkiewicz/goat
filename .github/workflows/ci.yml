@@ -66,7 +66,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: TruffleHog (verified secrets only)
-        uses: trufflesecurity/trufflehog@v3.88.29
+        uses: trufflesecurity/trufflehog@v3.99.8
         with:
           extra_args: --only-verified
 
