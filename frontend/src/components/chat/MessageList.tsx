@@ -88,7 +88,11 @@ export function MessageList({ messages, personaLabelFor, streaming }: MessageLis
           {row.kind === "streaming-status" && <StreamingStatusLine label={row.label} />}
           {row.kind === "streaming-text" && (
             <div aria-live="polite">
-              <MessageBubble message={{ role: "assistant", content: row.content }} personaLabel={row.personaLabel} />
+              <MessageBubble
+                message={{ role: "assistant", content: row.content }}
+                personaLabel={row.personaLabel}
+                streaming
+              />
               {row.consultDetails?.length ? (
                 <ConsultDetails details={row.consultDetails} className="mt-1" />
               ) : null}

@@ -1,6 +1,9 @@
+import { Check, Copy } from "lucide-react";
+import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkBreaks from "remark-breaks";
 import remarkGfm from "remark-gfm";
+import { toast } from "sonner";
 
 import { cn } from "@/lib/utils";
 import type { ChatMessage } from "@/types/api";
@@ -10,13 +13,53 @@ interface MessageBubbleProps {
   /** In a 'general' session we show the persona_label header above the reply (ADR-13);
    * in a 'persona' session it's omitted (the context is already clear from ChatHeader). */
   personaLabel?: string | null;
+  /** Live (still streaming) reply — hides the copy action until the text is final. */
+  streaming?: boolean;
+}
+
+const COPIED_FEEDBACK_MS = 2000;
+
+/** Copies the raw Markdown of an assistant reply to the clipboard (Polish UI copy). */
+function CopyMessageButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = window.setTimeout(() => setCopied(false), COPIED_FEEDBACK_MS);
+    return () => window.clearTimeout(timer);
+  }, [copied]);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+    } catch {
+      toast.error("Nie udało się skopiować wiadomości.");
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleCopy}
+      aria-label={copied ? "Skopiowano wiadomość" : "Kopiuj wiadomość"}
+      className={cn(
+        "inline-flex min-h-11 min-w-11 items-center justify-center gap-1 rounded-md px-2 text-[11px] text-muted-foreground",
+        "transition-colors hover:bg-accent hover:text-accent-foreground motion-reduce:transition-none",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:min-h-8 sm:min-w-8"
+      )}
+    >
+      {copied ? <Check className="h-3.5 w-3.5" aria-hidden /> : <Copy className="h-3.5 w-3.5" aria-hidden />}
+      <span>{copied ? "Skopiowano" : "Kopiuj"}</span>
+    </button>
+  );
 }
 
 /**
  * Message bubble — assistant/user content rendered as Markdown (bold, lists, paragraphs).
  * No `rehype-raw`: only a safe MD subset, no HTML from the model.
  */
-export function MessageBubble({ message, personaLabel }: MessageBubbleProps) {
+export function MessageBubble({ message, personaLabel, streaming = false }: MessageBubbleProps) {
   const isUser = message.role === "user";
   const content = message.content ?? "";
 
@@ -62,7 +105,12 @@ export function MessageBubble({ message, personaLabel }: MessageBubbleProps) {
           </div>
         )}
       </div>
-      {!isUser ? <div className="px-1 text-[10px] text-muted-foreground">Wygenerowane przez AI</div> : null}
+      {!isUser ? (
+        <div className="flex items-center gap-1 px-1">
+          <span className="text-[10px] text-muted-foreground">Wygenerowane przez AI</span>
+          {!streaming && content.trim() ? <CopyMessageButton text={content} /> : null}
+        </div>
+      ) : null}
     </div>
   );
 }
